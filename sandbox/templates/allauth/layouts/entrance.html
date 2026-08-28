@@ -1,31 +1,26 @@
-{% extends "base.html" %}
-{% load i18n %}
-{% block bodyclass %}bg-light{% endblock bodyclass %}
+{% extends "layouts/public.html" %}
 
-{% block css %}{{ block.super }}{% endblock css %}
+{% load i18n %}
+
 {% block title %}
   {% block head_title %}
-    {% trans "Sign In" %}
+    {% translate "Sign In" %}
   {% endblock head_title %}
 {% endblock title %}
-{% block body %}
-  <div class="d-flex justify-content-center h-100 py-4">
-    <div class="col-md-4 py-4 my-4 px-4">
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-            {{ message }}
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert"
-                    aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-      {% block content %}
-      {% endblock content %}
+{% block chrome %}
+  <div class="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-12">
+    <a href="{% url 'home' %}"
+       class="mb-6 text-lg font-semibold tracking-tight text-slate-900">ABDM Sandbox</a>
+    <div class="w-full max-w-md">
+      {% include "components/messages.html" %}
+      <div class="ui-card">
+        <div class="ui-card-body space-y-4">
+          {% block content %}
+          {% endblock content %}
+        </div>
+      </div>
       {% block extra_body %}
       {% endblock extra_body %}
     </div>
   </div>
-{% endblock body %}
+{% endblock chrome %}

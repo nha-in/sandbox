@@ -1,31 +1,25 @@
-{% extends "base.html" %}
+{% extends "layouts/integrator.html" %}
 
-{% load crispy_forms_tags %}
+{% load crispy_forms_tags i18n %}
 
 {% block title %}
-
-
-  {{ user.name }}
-
-
+  {% translate "Edit profile" %}
 {% endblock title %}
 {% block content %}
-  <h1>
-  
-  
-    {{ user.name }}
-  
-  
-</h1>
-<form class="form-horizontal"
-      method="post"
-      action="{% url 'users:update' %}">
-  {% csrf_token %}
-  {{ form|crispy }}
-  <div class="control-group">
-    <div class="controls">
-      <button type="submit" class="btn btn-primary">Update</button>
+  <div class="max-w-xl">
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <h1 class="ui-section-title">{% translate "Edit profile" %}</h1>
+      </div>
+      <form method="post" action="{% url 'users:update' %}">
+        {% csrf_token %}
+        <div class="ui-card-body space-y-4">{{ form|crispy }}</div>
+        <div class="ui-card-footer">
+          <a class="ui-btn-secondary"
+             href="{% url 'users:detail' request.user.pk %}">{% translate "Cancel" %}</a>
+          <button type="submit" class="ui-btn-primary">{% translate "Save" %}</button>
+        </div>
+      </form>
     </div>
   </div>
-</form>
 {% endblock content %}

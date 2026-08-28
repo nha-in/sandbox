@@ -1,5 +1,6 @@
 # ruff: noqa: ERA001, E501
 """Base settings to build other settings files upon."""
+
 import os
 import ssl
 from pathlib import Path
@@ -65,7 +66,6 @@ else:
 
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # URLS
 # ------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "sandbox.users",
-    # Your stuff: custom apps go here
+    "sandbox.catalog",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -159,6 +159,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "sandbox.users.middleware.StaffMFARequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
 ]
 
@@ -217,11 +218,27 @@ FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 # http://django-crispy-forms.readthedocs.io/en/latest/install.html#template-packs
 CRISPY_TEMPLATE_PACK = "tailwind"
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
+# crispy-tailwind emits its own utilities from Python, which Tailwind never sees
+# and therefore never compiles. Map each widget onto a house class instead.
+CRISPY_CLASS_CONVERTERS = {
+    "textinput": "ui-input",
+    "emailinput": "ui-input",
+    "passwordinput": "ui-input",
+    "numberinput": "ui-input",
+    "urlinput": "ui-input",
+    "dateinput": "ui-input",
+    "datetimeinput": "ui-input",
+    "timeinput": "ui-input",
+    "textarea": "ui-textarea",
+    "select": "ui-select",
+    "selectmultiple": "ui-select",
+    "checkboxinput": "ui-checkbox",
+}
 
 # TAILWIND
 # ------------------------------------------------------------------------------
 # Standalone CLI binary: no node toolchain in any image.
-TAILWIND_CLI_VERSION = env("TAILWIND_CLI_VERSION", default="latest")
+TAILWIND_CLI_VERSION = env("TAILWIND_CLI_VERSION", default="4.3.3")
 TAILWIND_CLI_PATH = str(BASE_DIR / ".django_tailwind_cli")
 TAILWIND_CLI_SRC_CSS = str(APPS_DIR / "static" / "css" / "source.css")
 TAILWIND_CLI_DIST_CSS = "css/tailwind.css"

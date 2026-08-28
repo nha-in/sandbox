@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% comment %}Public shell: unauthenticated marketing/informational pages.{% endcomment %}
+
+{% block chrome %}
+  <header class="border-b border-slate-200 bg-white">
+    <div class="ui-container flex h-16 items-center justify-between gap-6">
+      <a href="{% url 'home' %}" class="text-base font-semibold tracking-tight text-slate-900">ABDM Sandbox</a>
+      <nav class="flex items-center gap-1" aria-label="{% translate 'Primary' %}">
+        <a class="ui-nav-link" href="{% url 'about' %}">{% translate "About" %}</a>
+        {% block nav_items %}
+        {% endblock nav_items %}
+        {% if request.user.is_authenticated %}
+          <a class="ui-btn-secondary ml-2" href="{% url 'users:detail' request.user.pk %}">{% translate "My account" %}</a>
+        {% else %}
+          <a id="log-in-link" class="ui-nav-link" href="{% url 'account_login' %}">{% translate "Sign in" %}</a>
+          {% if ACCOUNT_ALLOW_REGISTRATION %}
+            <a id="sign-up-link" class="ui-btn-primary ml-2" href="{% url 'account_signup' %}">{% translate "Register" %}</a>
+          {% endif %}
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+  <main class="ui-container flex-1 py-10">
+    {% include "components/messages.html" %}
+    {% block main %}
+      {% block content %}
+      {% endblock content %}
+    {% endblock main %}
+  </main>
+  <footer class="border-t border-slate-200 bg-white">
+    <div class="ui-container flex h-14 items-center justify-between">
+      <p class="ui-muted">{% translate "Ayushman Bharat Digital Mission" %}</p>
+      <p class="ui-muted">{% translate "Sandbox environment" %}</p>
+    </div>
+  </footer>
+{% endblock chrome %}
