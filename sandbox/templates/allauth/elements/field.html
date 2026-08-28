@@ -1,20 +1,12 @@
 {% load allauth %}
 
-<div class="space-y-1">
-  {% if attrs.type == "textarea" %}
-    <label class="ui-label" for="{{ attrs.id }}">
-      {% slot label %}
-      {% endslot %}
-    </label>
-    <textarea {% if attrs.required %}required{% endif %}
-              {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
-              {% if attrs.disabled %}disabled{% endif %}
-              {% if attrs.readonly %}readonly{% endif %}
-              {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-              {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-              {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-              class="ui-textarea">{% slot value %}{% endslot %}</textarea>
-  {% elif attrs.type == "radio" or attrs.type == "checkbox" %}
+{% comment %}
+  Single field, for the allauth screens that place controls by hand (login code,
+  MFA). Mirrors components/form_field.html, but allauth passes plain attrs
+  rather than a bound field.
+{% endcomment %}
+<div class="flex flex-col gap-1.5">
+  {% if attrs.type == "checkbox" or attrs.type == "radio" %}
     <div class="flex items-center gap-2">
       <input {% if attrs.required %}required{% endif %}
              {% if attrs.disabled %}disabled{% endif %}
@@ -22,11 +14,10 @@
              {% if attrs.checked %}checked{% endif %}
              {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
              {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-             {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
-             value="{{ attrs.value|default_if_none:'' }}"
+             {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
              type="{{ attrs.type }}"
-             class="size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600" />
-      <label class="text-sm text-slate-700" for="{{ attrs.id }}">
+             class="ui-checkbox" />
+      <label class="ui-label mb-0" for="{{ attrs.id }}">
         {% slot label %}
         {% endslot %}
       </label>
@@ -36,19 +27,31 @@
       {% slot label %}
       {% endslot %}
     </label>
-    <input {% if attrs.required %}required{% endif %}
-           {% if attrs.disabled %}disabled{% endif %}
-           {% if attrs.readonly %}readonly{% endif %}
-           {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-           {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-           {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-           {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
-           value="{{ attrs.value|default_if_none:'' }}"
-           type="{{ attrs.type }}"
-           class="ui-input" />
+    {% if attrs.type == "textarea" %}
+      <textarea {% if attrs.required %}required{% endif %}
+                {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
+                {% if attrs.disabled %}disabled{% endif %}
+                {% if attrs.readonly %}readonly{% endif %}
+                {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+                {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+                {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
+                class="ui-textarea">{% slot value %}{% endslot %}</textarea>
+    {% else %}
+      <input {% if attrs.required %}required{% endif %}
+             {% if attrs.disabled %}disabled{% endif %}
+             {% if attrs.readonly %}readonly{% endif %}
+             {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+             {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+             {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
+             {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
+             {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
+             type="{{ attrs.type }}"
+             class="ui-input" />
+    {% endif %}
   {% endif %}
+  {% if attrs.errors %}<p class="ui-error">{{ attrs.errors }}</p>{% endif %}
   {% if slots.help_text %}
-    <p class="ui-help">
+    <p class="ui-hint">
       {% slot help_text %}
       {% endslot %}
     </p>

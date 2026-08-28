@@ -1,4 +1,4 @@
-{% extends "layouts/public.html" %}
+{% extends "layouts/marketing.html" %}
 
 {% load i18n %}
 
@@ -7,21 +7,23 @@
 {% endblock title %}
 {% block content %}
   <section class="mx-auto max-w-3xl text-center">
-    <h1 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+    <h1 class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
       {% translate "Build and certify your ABDM integration" %}
     </h1>
-    <p class="mt-4 text-base text-slate-600">
+    <p class="mt-4 text-base text-muted-foreground">
       {% translate "Register your organisation, get sandbox credentials, work through the integration milestones, and apply to go live." %}
     </p>
     <div class="mt-8 flex items-center justify-center gap-3">
       {% if request.user.is_authenticated %}
-        <a class="ui-btn-primary"
+        <a class="ui-btn ui-btn--default ui-btn--size-lg"
            href="{% url 'users:detail' request.user.pk %}">{% translate "Go to my account" %}</a>
       {% else %}
         {% if ACCOUNT_ALLOW_REGISTRATION %}
-          <a class="ui-btn-primary" href="{% url 'account_signup' %}">{% translate "Register" %}</a>
+          <a class="ui-btn ui-btn--default ui-btn--size-lg"
+             href="{% url 'account_signup' %}">{% translate "Register" %}</a>
         {% endif %}
-        <a class="ui-btn-secondary" href="{% url 'account_login' %}">{% translate "Sign in" %}</a>
+        <a class="ui-btn ui-btn--secondary ui-btn--size-lg"
+           href="{% url 'account_login' %}">{% translate "Sign in" %}</a>
       {% endif %}
     </div>
   </section>

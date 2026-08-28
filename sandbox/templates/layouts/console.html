@@ -5,49 +5,49 @@
 {% comment %}
   Console shell: staff and reviewer screens. Deliberately different chrome from
   the integrator shell so nobody mistakes one surface for the other.
-  Access is gated by ConsoleMixin on the view, never by this template.
+  Access is gated by the view's mixin, never by this template.
 {% endcomment %}
-
-{% block bodyclass %}bg-slate-100{% endblock bodyclass %}
-
-{% block chrome %}
-  <div class="h-1 bg-amber-500"></div>
-  <header class="border-b border-slate-800 bg-slate-900">
-    <div class="ui-container flex h-16 items-center justify-between gap-6">
+{% block body %}
+  <div class="flex min-h-screen flex-col">
+    <div class="h-1 bg-primary"></div>
+    <header class="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-inverse-border bg-foreground px-4 sm:px-8">
       <div class="flex items-center gap-8">
-        <a href="{% url 'home' %}" class="text-base font-semibold tracking-tight text-white">
-          ABDM Sandbox <span class="ml-1 font-normal text-amber-400">{% translate "Console" %}</span>
+        <a href="{% url 'home' %}"
+           class="text-sm font-semibold tracking-tight text-inverse-foreground">
+          ABDM Sandbox <span class="ml-1 font-normal opacity-70">{% translate "Console" %}</span>
         </a>
-        <nav class="hidden items-center gap-1 md:flex" aria-label="{% translate 'Console' %}">
+        <nav class="hidden items-center gap-1 md:flex"
+             aria-label="{% translate 'Console' %}">
           {% block nav_items %}
           {% endblock nav_items %}
         </nav>
       </div>
       <div class="flex items-center gap-3">
-        <span class="text-sm text-slate-300">{{ request.user.email }}</span>
-        <a class="ui-btn-secondary" href="{% url 'account_logout' %}">{% translate "Sign out" %}</a>
+        <span class="text-xs text-inverse-foreground opacity-80">{{ request.user.email }}</span>
+        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+           href="{% url 'account_logout' %}">{% translate "Sign out" %}</a>
       </div>
-    </div>
-  </header>
-  <main class="ui-container flex-1 py-8">
-    {% include "components/messages.html" %}
-    {% block page_header %}
-      {% if page_title %}
-        <div class="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h1 class="ui-page-title">{{ page_title }}</h1>
-            {% if page_subtitle %}<p class="ui-page-subtitle">{{ page_subtitle }}</p>{% endif %}
-          </div>
-          <div class="flex items-center gap-2">
-            {% block page_actions %}
-            {% endblock page_actions %}
-          </div>
-        </div>
-      {% endif %}
-    {% endblock page_header %}
-    {% block main %}
-      {% block content %}
-      {% endblock content %}
-    {% endblock main %}
-  </main>
-{% endblock chrome %}
+    </header>
+    <main id="main-content" class="flex-1 px-4 py-8 sm:px-8">
+      <div class="mx-auto w-full max-w-6xl">
+        {% include "components/messages.html" %}
+        {% block page_header %}
+          {% if page_title %}
+            <div class="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h1 class="ui-page-title">{{ page_title }}</h1>
+                {% if page_subtitle %}<p class="ui-page-subtitle">{{ page_subtitle }}</p>{% endif %}
+              </div>
+              <div class="flex items-center gap-2">
+                {% block page_actions %}
+                {% endblock page_actions %}
+              </div>
+            </div>
+          {% endif %}
+        {% endblock page_header %}
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </main>
+  </div>
+{% endblock body %}

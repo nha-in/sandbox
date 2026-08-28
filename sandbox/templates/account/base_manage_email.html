@@ -1,0 +1,21 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  Email management is reached while signed in, so it sits in the app shell.
+  Ported from ohcnetwork/experience without its settings sub-nav; the
+  `settings_content` block name is kept so allauth's leaf screens need no edits.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% block head_title %}
+    {% translate "Email addresses" %}
+  {% endblock head_title %}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-2xl">
+    <h1 class="ui-page-title mb-6">{% translate "Email addresses" %}</h1>
+    {% block settings_content %}
+    {% endblock settings_content %}
+  </div>
+{% endblock content %}

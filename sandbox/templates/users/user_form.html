@@ -1,23 +1,28 @@
-{% extends "layouts/integrator.html" %}
+{% extends "layouts/app.html" %}
 
-{% load crispy_forms_tags i18n %}
+{% load careui i18n %}
 
 {% block title %}
   {% translate "Edit profile" %}
 {% endblock title %}
 {% block content %}
-  <div class="max-w-xl">
+  <div class="mx-auto w-full max-w-xl">
     <div class="ui-card">
       <div class="ui-card-header">
-        <h1 class="ui-section-title">{% translate "Edit profile" %}</h1>
+        <h1 class="ui-card-title">{% translate "Edit profile" %}</h1>
       </div>
       <form method="post" action="{% url 'users:update' %}">
         {% csrf_token %}
-        <div class="ui-card-body space-y-4">{{ form|crispy }}</div>
+        <div class="ui-card-content flex flex-col gap-4">
+          {% include "components/form_errors.html" %}
+          {% for field in form %}
+            {% ui_field field %}
+          {% endfor %}
+        </div>
         <div class="ui-card-footer">
-          <a class="ui-btn-secondary"
+          <a class="ui-btn ui-btn--secondary"
              href="{% url 'users:detail' request.user.pk %}">{% translate "Cancel" %}</a>
-          <button type="submit" class="ui-btn-primary">{% translate "Save" %}</button>
+          <button type="submit" class="ui-btn ui-btn--default">{% translate "Save" %}</button>
         </div>
       </form>
     </div>

@@ -1,3 +1,17 @@
-{% load crispy_forms_tags %}
+{% load careui %}
 
-<div class="space-y-4">{{ attrs.form|crispy }}</div>
+{% comment %}
+  allauth renders whole forms through this element. Routing it via {% ui_field %}
+  is what makes every allauth screen look like the rest of the portal without
+  subclassing allauth's form classes.
+{% endcomment %}
+<div class="flex flex-col gap-4">
+  {% include "components/form_errors.html" with form=attrs.form %}
+  {% for field in attrs.form %}
+    {% if field.is_hidden %}
+      {{ field }}
+    {% else %}
+      {% ui_field field %}
+    {% endif %}
+  {% endfor %}
+</div>

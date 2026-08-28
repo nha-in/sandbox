@@ -1,6 +1,6 @@
 {% load allauth %}
 
-<span class="{% if 'success' in attrs.tags %}ui-badge-success{% elif 'warning' in attrs.tags %}ui-badge-warning{% elif 'danger' in attrs.tags %}ui-badge-danger{% elif 'primary' in attrs.tags %}ui-badge-progress{% else %}ui-badge-neutral{% endif %}">
+<span class="ui-badge {% if 'success' in attrs.tags %}ui-badge--success{% elif 'warning' in attrs.tags %}ui-badge--warning{% elif 'secondary' in attrs.tags %}ui-badge--neutral{% elif 'danger' in attrs.tags %}ui-badge--destructive{% else %}ui-badge--info{% endif %}">
   {% slot %}
   {% endslot %}
 </span>

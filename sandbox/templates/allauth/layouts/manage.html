@@ -1,12 +1,12 @@
-{% extends "layouts/integrator.html" %}
+{% extends "layouts/app.html" %}
 
 {% block title %}
   {% block head_title %}
   {% endblock head_title %}
 {% endblock title %}
-{% block main %}
-  <div class="max-w-3xl space-y-6">
-    {% block content %}
-    {% endblock content %}
+{% block content %}
+  <div class="mx-auto w-full max-w-2xl space-y-6">
+    {% block main %}
+    {% endblock main %}
   </div>
-{% endblock main %}
+{% endblock content %}

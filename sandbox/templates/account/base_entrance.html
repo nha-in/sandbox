@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% comment %}
+  The shell every signed-out allauth screen sits in. allauth's own templates all
+  extend "account/base_entrance.html", so shadowing it here pulls the whole
+  authentication flow into our chrome. Ported from ohcnetwork/experience.
+
+  It extends base.html rather than layouts/marketing.html because the leaf
+  allauth screens fill `content`, which the card below has to wrap.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% block head_title %}
+    {% translate "Your account" %}
+  {% endblock head_title %}
+{% endblock title %}
+{% block body %}
+  <div class="flex min-h-screen flex-col bg-background">
+    {% include "components/marketing_header.html" %}
+    <main id="main-content" class="flex-1 px-4 py-10 sm:px-6 sm:py-14">
+      <div class="mx-auto w-full {% block entrance_width %}max-w-[480px]{% endblock entrance_width %}">
+        {% include "components/messages.html" %}
+        {% block entrance %}
+          <div class="ui-card">
+            <div class="ui-card-content flex flex-col gap-4">
+              {% block content %}
+              {% endblock content %}
+            </div>
+          </div>
+          {% block entrance_after %}
+          {% endblock entrance_after %}
+        {% endblock entrance %}
+      </div>
+    </main>
+    {% include "components/marketing_footer.html" %}
+  </div>
+{% endblock body %}

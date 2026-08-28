@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% comment %}
+  Integrator shell: everything an organisation's own users see. Screens set
+  `page_title`/`page_subtitle` in context and fill `page_actions`/`content`;
+  nav entries arrive with their apps.
+{% endcomment %}
+{% block body %}
+  <div class="flex min-h-screen flex-col">
+    <header class="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 sm:px-8">
+      <div class="flex items-center gap-8">
+        <a href="{% url 'home' %}"
+           class="text-sm font-semibold tracking-tight text-foreground">ABDM Sandbox</a>
+        <nav class="hidden items-center gap-1 md:flex"
+             aria-label="{% translate 'Primary' %}">
+          {% block nav_items %}
+          {% endblock nav_items %}
+        </nav>
+      </div>
+      <div class="flex items-center gap-2">
+        {% if request.user.is_authenticated %}
+          <a class="ui-nav-link" href="{% url 'users:detail' request.user.pk %}">{{ request.user.email }}</a>
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+             href="{% url 'account_logout' %}">{% translate "Sign out" %}</a>
+        {% else %}
+          <a class="ui-btn ui-btn--default ui-btn--size-sm"
+             href="{% url 'account_login' %}">{% translate "Sign in" %}</a>
+        {% endif %}
+      </div>
+    </header>
+    <main id="main-content" class="flex-1 px-4 py-8 sm:px-8">
+      <div class="mx-auto w-full max-w-6xl">
+        {% include "components/messages.html" %}
+        {% block page_header %}
+          {% if page_title %}
+            <div class="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h1 class="ui-page-title">{{ page_title }}</h1>
+                {% if page_subtitle %}<p class="ui-page-subtitle">{{ page_subtitle }}</p>{% endif %}
+              </div>
+              <div class="flex items-center gap-2">
+                {% block page_actions %}
+                {% endblock page_actions %}
+              </div>
+            </div>
+          {% endif %}
+        {% endblock page_header %}
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </main>
+  </div>
+{% endblock body %}

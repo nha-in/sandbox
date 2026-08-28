@@ -1,4 +1,4 @@
-{% extends "layouts/integrator.html" %}
+{% extends "layouts/app.html" %}
 
 {% load i18n %}
 
@@ -6,22 +6,23 @@
   {{ object.name|default:object.email }}
 {% endblock title %}
 {% block content %}
-  <div class="max-w-3xl">
+  <div class="mx-auto w-full max-w-2xl">
     <div class="ui-card">
       <div class="ui-card-header">
-        <h1 class="ui-section-title">{{ object.name|default:object.email }}</h1>
+        <h1 class="ui-card-title">{{ object.name|default:object.email }}</h1>
+        <p class="ui-card-description">{% translate "Your account details." %}</p>
       </div>
-      <div class="ui-card-body">
+      <div class="ui-card-content">
         <dl class="grid gap-4 sm:grid-cols-2">
           <div>
-            <dt class="ui-muted">{% translate "Name" %}</dt>
-            <dd class="text-sm text-slate-900">
+            <dt class="ui-label">{% translate "Name" %}</dt>
+            <dd class="text-sm text-foreground">
               {{ object.name|default:"—" }}
             </dd>
           </div>
           <div>
-            <dt class="ui-muted">{% translate "Email" %}</dt>
-            <dd class="text-sm text-slate-900">
+            <dt class="ui-label">{% translate "Email" %}</dt>
+            <dd class="text-sm text-foreground">
               {{ object.email }}
             </dd>
           </div>
@@ -29,9 +30,12 @@
       </div>
       {% if object == request.user %}
         <div class="ui-card-footer">
-          <a class="ui-btn-secondary" href="{% url 'users:update' %}">{% translate "Edit profile" %}</a>
-          <a class="ui-btn-secondary" href="{% url 'account_email' %}">{% translate "Email addresses" %}</a>
-          <a class="ui-btn-secondary" href="{% url 'mfa_index' %}">{% translate "Two-factor authentication" %}</a>
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+             href="{% url 'users:update' %}">{% translate "Edit profile" %}</a>
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+             href="{% url 'account_email' %}">{% translate "Email addresses" %}</a>
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+             href="{% url 'mfa_index' %}">{% translate "Two-factor authentication" %}</a>
         </div>
       {% endif %}
     </div>

@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import pytest
 from django.urls import reverse
 
@@ -11,7 +13,7 @@ def test_staff_without_mfa_is_redirected_to_setup(client):
 
     response = client.get(reverse("home"))
 
-    assert response.status_code == 302
+    assert response.status_code == HTTPStatus.FOUND
     assert response.url == reverse("mfa_activate_totp")
 
 
@@ -27,10 +29,10 @@ def test_mfa_setup_flow_is_not_blocked_by_the_guard(client):
 def test_staff_with_mfa_passes_through(client, enable_mfa):
     client.force_login(enable_mfa(UserFactory(is_staff=True)))
 
-    assert client.get(reverse("home")).status_code == 200
+    assert client.get(reverse("home")).status_code == HTTPStatus.OK
 
 
 def test_non_staff_users_are_not_forced_into_mfa(client):
     client.force_login(UserFactory())
 
-    assert client.get(reverse("home")).status_code == 200
+    assert client.get(reverse("home")).status_code == HTTPStatus.OK
