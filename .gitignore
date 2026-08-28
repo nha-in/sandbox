@@ -280,3 +280,7 @@ sandbox/media/
 # Tailwind standalone CLI
 .django_tailwind_cli/
 sandbox/static/css/tailwind.css
+
+# Local env files are per-developer; copy the .example templates.
+.envs/.local/.django
+.envs/.local/.postgres

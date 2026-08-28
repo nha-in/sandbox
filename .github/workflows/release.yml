@@ -57,5 +57,5 @@ jobs:
           exit-code: '1'
 
   # Deploying this image needs a hosting target, which is still an open
-  # question with NHA (see v2-plan-rev2/07-infra-cicd.md). Until it is answered
+  # question with NHA (see plan/07-infra-cicd.md). Until it is answered
   # the pipeline stops at a scanned, signed-off image in GHCR.
