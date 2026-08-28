@@ -1,6 +1,6 @@
 # ABDM Sandbox
 
-ABDM integrator sandbox portal — v2 rewrite. Plan of record: `../v2-plan-rev2/` (start at `00-master-plan.md`; the pilot cut being built first is `v0-plan.md`).
+ABDM integrator sandbox portal — v2 rewrite. Plan of record lives in [plan/](plan/) (start at [00-master-plan.md](plan/00-master-plan.md); the v0 pilot cut being built first is §6, with a ticket per work item in [plan/v0-tickets/](plan/v0-tickets/)).
 
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -10,17 +10,19 @@ ABDM integrator sandbox portal — v2 rewrite. Plan of record: `../v2-plan-rev2/
 Everything runs in Docker; no VPN or ABDM credentials are needed for local work.
 
 ```bash
+cp .envs/.local/.django.example .envs/.local/.django
+cp .envs/.local/.postgres.example .envs/.local/.postgres
 just build
 just up
 just manage seed_sandbox_demo
 ```
 
 Then open <http://localhost:8000> (emails land in Mailpit at <http://localhost:8025>).
-Seeded logins are printed by the seed command.
+Seeded logins are printed by the seed command. The two env files are per-developer and deliberately untracked — nothing that looks like a credential belongs in this repository.
 
 House rules worth knowing before the first PR:
 
-- **Views never write state.** Writes go through a service function ([01-backend.md](../v2-plan-rev2/01-backend.md) §1).
+- **Views never write state.** Writes go through a service function ([01-backend.md](plan/01-backend.md) §1).
 - **Styling uses careui**, ported from [ohcnetwork/experience](https://github.com/ohcnetwork/experience): component classes live in `sandbox/static/css/careui.css`, colour comes from semantic tokens (`bg-primary`, `text-muted-foreground`, `border-border`) and never a raw hex. New components land there, not as utility soup in templates. Keep the file byte-compatible with upstream so fixes travel both ways.
 - **Forms render through `{% ui_field %}`** (`sandbox/theme/templatetags/careui.py`), which is also how allauth's own forms get styled. There is no crispy.
 - **Staff accounts require MFA** — `StaffMFARequiredMiddleware` redirects staff without a TOTP device.
