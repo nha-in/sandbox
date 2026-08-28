@@ -58,7 +58,7 @@ v0 notification templates: `send-otp`, `sandbox-approved`, `sandbox-rejected`, `
 | Deprovision on exit/production approval | P4 | v0 deprovisions only on rejection |
 | Callback registration + reachability probes (`applications_callback`) | P4 | strict timeouts, no retries on non-idempotent flow steps |
 | WSO2 `get_usage(application, since)` milestone evidence (flag-gated) | P4 | feeds the review screen's evidence panel |
-| `LgdLookup` adapter + daily Celery sync into catalog | P4 | v0 ships seeded LGD fixtures instead |
+| `LgdLookup` adapter | P4 | v0 reads a bundled LGD dataset instead ([A1](v0-tickets/A1-catalog-app.md)); the adapter replaces it behind the same selector signatures — no table either way |
 | **Reference environment** (`ReferenceEnv`): hosted ABDM-enabled Care HMIS instance (synthetic data, scheduled reset) + one-command local runner; portal ops = status, dataset reset | P4 | replaces the legacy hiu-service as demo counterparty |
 | hiu-service decommission decision executed (preferred: demo-HIU logins become Keycloak users; deployable + DB deleted) | P4 | fallback: small authenticated adapter |
 | Keycloak realm/roles-of-record via IaC export | P4/P6 | [07-infra-cicd.md](07-infra-cicd.md) §6 |

@@ -51,4 +51,4 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — review
 
 ## Out of scope (deferred)
 
-Full reporting dashboards/exports (P5) · reviewer assignment automation (`workflow_assignment` surfacing beyond the queue) · reconciliation alerts (P4) · usage-evidence panel (P4/P5).
+Full reporting dashboards/exports (P5) · reviewer assignment/routing and its table (P3) · reconciliation alerts (P4) · usage-evidence panel (P4/P5).

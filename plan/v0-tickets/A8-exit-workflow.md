@@ -13,6 +13,8 @@ The finish line. When an integrator believes they're ready for the real ABDM net
 
 The sandbox journey ends with the integrator requesting **exit to production**: they submit an exit declaration with supporting documents, an admin reviews it, and approval marks the application `PRODUCTION_APPROVED` — the credential for entering the real ABDM ecosystem. In the legacy system, exit approval was Super Admin–only and one of only three events that were (uselessly) audited; v2 runs exit through the same state machine, service layer and audit trail as everything else.
 
+> **Blocked on an NHA answer before this ticket is designed** ([00-master-plan.md §10](../00-master-plan.md), open question 3): legacy exit is **scoped to a milestone set and repeatable** — `SdExit.integration_detail` holds `"M1,M2,M3"`, an integrator can have several exit rows, and the legacy UI picks the one matching the milestone track on screen. The single terminal `PRODUCTION_APPROVED` state below assumes one exit per application. If NHA confirm exits repeat per track, exit becomes its own scoped record rather than a terminal application state — a model change, not a wiring change.
+
 The exit states (`EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED`) already exist in [A5](A5-workflow-state-machine.md)'s graph — this ticket implements their guards, services and side-effects.
 
 ## What to build

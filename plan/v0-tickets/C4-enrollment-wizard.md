@@ -1,7 +1,7 @@
 # C4 — Enrollment wizard (SANDBOX) + OTP partial
 
 > **Lane** C — Full-stack UI · **Phase** V0.2 Apply & review
-> **Depends on** [A3](A3-applications-model.md) (draft services + payload schema), [A4](A4-otp-service.md), [A1](A1-catalog-app.md) (LGD dropdowns) · V0.1 `ui-*` system + `layouts/app.html`
+> **Depends on** [A3](A3-applications-model.md) (draft services + payload schema), [A4](A4-otp-service.md), [A1](A1-catalog-app.md) (address dropdown selectors) · V0.1 careui system + `layouts/app.html`
 > **Unblocks** V0.2 exit criterion (enroll→approve / enroll→reject) with [C5](C5-console-review-queue.md)
 > **Refs** [02-ui.md §3.2/§4](../02-ui.md) · [01-backend.md §3.3](../01-backend.md) · [00-master-plan.md §6](../00-master-plan.md)
 
