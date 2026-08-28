@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% comment %}
+  Public shell: the landing page and every signed-out screen.
+
+  Deliberately not boosted: sign-in, sign-up, password reset and sign-out are
+  plain browser navigation — they rotate the session and CSRF token and should
+  not depend on a swap succeeding.
+{% endcomment %}
+{% block body %}
+  <div class="flex min-h-screen flex-col bg-background">
+    {% include "components/marketing_header.html" %}
+    <main id="main-content" class="flex-1 px-4 py-10 sm:px-8 sm:py-14">
+      <div class="mx-auto w-full max-w-6xl">
+        {% include "components/messages.html" %}
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </main>
+    {% include "components/marketing_footer.html" %}
+  </div>
+{% endblock body %}

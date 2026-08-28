@@ -2,7 +2,7 @@
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
-<html lang="{{ LANGUAGE_CODE }}" class="h-full">
+<html lang="{{ LANGUAGE_CODE }}">
   <head>
     <meta charset="utf-8" />
     <title>
@@ -11,31 +11,88 @@
       {% endblock title %}
     </title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="ABDM integrator sandbox portal" />
+    <meta name="description"
+          content="{% block meta_description %}Build and certify your ABDM integration.{% endblock meta_description %}" />
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
     {% block css %}
       <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
+      {% comment %}
+        The one component the design system does not own: the thin progress bar
+        for boosted navigation. Visibility is left to .htmx-indicator, so no
+        script decides when it shows and it never appears without JavaScript.
+      {% endcomment %}
+      <style>
+        #nav-progress {
+          position: fixed;
+          top: 0;
+          right: 0;
+          left: 0;
+          z-index: 50;
+          height: 2px;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        #nav-progress::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          width: 35%;
+          background: var(--primary);
+          animation: nav-progress-sweep 1s linear infinite;
+        }
+
+        @keyframes nav-progress-sweep {
+          from {
+            transform: translateX(-100%);
+          }
+
+          to {
+            transform: translateX(400%);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          #nav-progress::after {
+            width: 100%;
+            animation: none;
+          }
+        }
+      </style>
     {% endblock css %}
     {% block javascript %}
       <script defer src="{% static 'js/vendor/htmx.min.js' %}"></script>
       <script defer src="{% static 'js/project.js' %}"></script>
     {% endblock javascript %}
   </head>
-  <body class="flex min-h-full flex-col bg-slate-50 text-slate-900 {% block bodyclass %}{% endblock bodyclass %}"
+  {% comment %}
+    hx-headers puts the CSRF token on every htmx request, so partial endpoints
+    need no per-form token. #nav-progress is the shared page-level indicator any
+    element can point hx-indicator at.
+  {% endcomment %}
+  <body class="min-h-screen bg-soft-background text-foreground antialiased {% block bodyclass %}{% endblock bodyclass %}"
         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-    {% block chrome %}
-      <main class="ui-container flex-1 py-10">
-        {% include "components/messages.html" %}
-        {% block main %}
-          {% block content %}
-          {% endblock content %}
-        {% endblock main %}
-      </main>
-    {% endblock chrome %}
+    <a class="skip-link" href="#main-content">{% translate "Skip to content" %}</a>
+    <div id="nav-progress" class="htmx-indicator" aria-hidden="true"></div>
+    {% block body %}
+    {% endblock body %}
     {% block modal %}
     {% endblock modal %}
     {% django_htmx_script %}
     {% block inline_javascript %}
     {% endblock inline_javascript %}
+    {% comment %}
+      One delegated listener for the whole site: alerts also arrive from boosted
+      navigation and out-of-band partial swaps, which a handler bound at load
+      would never see. Outside the block above so a page cannot drop it.
+    {% endcomment %}
+    <script>
+      document.addEventListener("click", (event) => {
+        const dismiss = event.target.closest("[data-dismiss-alert]");
+        if (dismiss) dismiss.closest(".ui-alert")?.remove();
+      });
+    </script>
   </body>
 </html>

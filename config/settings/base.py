@@ -88,8 +88,6 @@ DJANGO_APPS = [
     "django.forms",
 ]
 THIRD_PARTY_APPS = [
-    "crispy_forms",
-    "crispy_tailwind",
     "allauth",
     "allauth.account",
     "allauth.mfa",
@@ -100,6 +98,7 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
+    "sandbox.theme",
     "sandbox.users",
     "sandbox.catalog",
 ]
@@ -214,26 +213,6 @@ TEMPLATES = [
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
-
-# http://django-crispy-forms.readthedocs.io/en/latest/install.html#template-packs
-CRISPY_TEMPLATE_PACK = "tailwind"
-CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
-# crispy-tailwind emits its own utilities from Python, which Tailwind never sees
-# and therefore never compiles. Map each widget onto a house class instead.
-CRISPY_CLASS_CONVERTERS = {
-    "textinput": "ui-input",
-    "emailinput": "ui-input",
-    "passwordinput": "ui-input",
-    "numberinput": "ui-input",
-    "urlinput": "ui-input",
-    "dateinput": "ui-input",
-    "datetimeinput": "ui-input",
-    "timeinput": "ui-input",
-    "textarea": "ui-textarea",
-    "select": "ui-select",
-    "selectmultiple": "ui-select",
-    "checkboxinput": "ui-checkbox",
-}
 
 # TAILWIND
 # ------------------------------------------------------------------------------

@@ -4,6 +4,8 @@ Grows one section per app as the domain lands; every section must stay
 idempotent so the command can be re-run against an existing database.
 """
 
+from allauth.account.models import EmailAddress
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
@@ -13,7 +15,11 @@ User = get_user_model()
 
 DEMO_PASSWORD = "sandbox-demo-password"  # noqa: S105
 DEMO_USERS = [
-    ("admin@example.com", "Sandbox Superuser", {"is_staff": True, "is_superuser": True}),
+    (
+        "admin@example.com",
+        "Sandbox Superuser",
+        {"is_staff": True, "is_superuser": True},
+    ),
     ("reviewer@example.com", "Sandbox Reviewer", {"is_staff": True}),
     ("integrator@example.com", "Demo Integrator", {}),
 ]
@@ -36,8 +42,6 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        from django.conf import settings
-
         if not settings.DEBUG and not options["force"]:
             msg = "Refusing to seed outside DEBUG without --force."
             raise CommandError(msg)
@@ -46,7 +50,9 @@ class Command(BaseCommand):
             self._purge()
 
         self._seed_users()
-        self.stdout.write(self.style.SUCCESS(f"Seeded demo data. Password: {DEMO_PASSWORD}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"Seeded demo data. Password: {DEMO_PASSWORD}"),
+        )
 
     def _purge(self):
         emails = [email for email, _, _ in DEMO_USERS]
@@ -54,8 +60,6 @@ class Command(BaseCommand):
         self.stdout.write(f"Removed {deleted} previously seeded records.")
 
     def _seed_users(self):
-        from allauth.account.models import EmailAddress
-
         for email, name, flags in DEMO_USERS:
             user, created = User.objects.get_or_create(
                 email=email,

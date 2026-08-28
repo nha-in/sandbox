@@ -1,13 +1,13 @@
 {% load allauth %}
 
-<section class="ui-card">
+<section class="ui-card mb-4">
   <div class="ui-card-header">
-    <h2 class="ui-section-title">
+    <h2 class="ui-card-title">
       {% slot title %}
       {% endslot %}
     </h2>
   </div>
-  <div class="ui-card-body space-y-4">
+  <div class="ui-card-content">
     {% slot body %}
     {% endslot %}
   </div>

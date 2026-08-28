@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% comment %}Error pages: 403, 404, 500. No nav, so a wrong turn cannot compound.{% endcomment %}
+
+{% block body %}
+  <div class="flex min-h-screen flex-col bg-background">
+    {% include "components/marketing_header.html" %}
+    <main id="main-content" class="flex-1 px-4 py-16 sm:px-8">
+      <div class="mx-auto w-full max-w-xl space-y-3 text-center">
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </main>
+    {% include "components/marketing_footer.html" %}
+  </div>
+{% endblock body %}
