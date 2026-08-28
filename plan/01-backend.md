@@ -30,7 +30,7 @@ sandbox/                     # APPS_DIR
 ├── integrations/            # ports + adapters + ledger — see 06      (v0)
 ├── notifications/           # templated email via gateway, log        (v0)
 ├── audit/                   # append-only audit events                (v0)
-├── catalog/                 # milestones, LGD tables, seeds           (v0)
+├── catalog/                 # milestones, seeds                        (v0)
 ├── console/                 # admin/HTC screens, single gate mixin    (v0)
 ├── reporting/               # selectors over materialized views       (v1)
 ├── content/                 # docs tree, FAQ, snippets, FTS search    (v1)
@@ -76,7 +76,7 @@ States, transition table (`TRANSITIONS: dict[tuple[State, Action], Spec]` — th
 
 ### 3.6 Async work
 
-Celery + beat (Redis broker): provisioning/deprovisioning chains ([06-integrations.md](06-integrations.md)), notification sends with retry + delivery log; v1 adds conformance runs, callback probes, LGD sync, reconciliation sweep, report refreshes.
+Celery + beat (Redis broker): provisioning/deprovisioning chains ([06-integrations.md](06-integrations.md)), notification sends with retry + delivery log; v1 adds conformance runs, callback probes, reconciliation sweep, report refreshes.
 
 ## 4. v0 (POC)
 
@@ -84,7 +84,7 @@ Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in th
 
 | Build | Ticket |
 |---|---|
-| catalog app: milestones, LGD tables, seeds | [A1](v0-tickets/A1-catalog-app.md) |
+| catalog app: milestones, seeds | [A1](v0-tickets/A1-catalog-app.md) |
 | users + organisations + membership + org-scoping mixin | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
 | polymorphic application + SANDBOX payload schema | [A3](v0-tickets/A3-applications-model.md) |
 | OTP service | [A4](v0-tickets/A4-otp-service.md) |
@@ -104,7 +104,7 @@ Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in th
 | HCX/UHI/HIU/NHCX kinds: payload schemas + form sets | P2 | A3's envelope + registry — no model change |
 | Org verification workflow + team invites | P2 | A2's models |
 | Evidence-gating guard on milestone evidence (flag-gated) | P3/P5 | A5's pluggable guard point |
-| Reviewer assignment/routing | P3 | A5's `workflow_assignment` |
+| Reviewer assignment/routing | P3 | new `workflow_assignment` table — shape decided with the routing requirements, not before |
 | Conformance service (packs/runs/results, Celery runner) | P4/P5 | A7's declarations; reference env as counterparty |
 | `next_action(application)` selector + golden-path counter | P5 | A3/A5 selectors |
 | Support tickets (lite, SLA timers, attachments) | P5 | A7's upload pipeline |

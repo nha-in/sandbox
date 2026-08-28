@@ -1,19 +1,19 @@
-# A1 ⚑ — `catalog` app: milestones, LGD tables, seed fixtures, admin
+# A1 ⚡ — `catalog` app: milestones, seed fixtures, admin
 
-> **Lane** A — Backend: domain & workflow · **Phase** V0.2 Apply & review · **⚑ junior-suitable starter**
+> **Lane** A — Backend: domain & workflow · **Phase** V0.2 Apply & review · ⚚ junior-suitable starter
 > **Depends on** V0.1 foundation only (first Lane A ticket)
-> **Unblocks** [A2](A2-users-organisations-org-scoping.md) (LGD codes), [A7](A7-declarations-uploads.md) (milestone FK), [C4](C4-enrollment-wizard.md) (address dropdowns)
-> **Refs** [03-database.md §3.1/§3.4](../03-database.md) · [06-integrations.md §5](../06-integrations.md) (LGD sync deferred there)
+> **Unblocks** [A7](A7-declarations-uploads.md) (milestone FK), [C4](C4-enrollment-wizard.md) (address dropdowns)
+> **Refs** [03-database.md §3.1/§3.4](../03-database.md) · [06-integrations.md §5](../06-integrations.md) (LGD lookup deferred there)
 
 ## In plain words
 
-Every form in the portal needs reference data before anything else works: the list of sandbox **milestones** integrators progress through, and India's official **state/district lists** (LGD codes) for address dropdowns. This ticket stores that data in our own database and pre-loads it automatically, so a fresh checkout has working dropdowns with no internet or VPN.
+The portal needs reference data before anything else works: the list of sandbox **milestones** integrators progress through, and India's state/district lists for address dropdowns. Milestones are ours, so they get a table. State/district data belongs to LGD, not to us — it ships as a **bundled dataset file** the dropdowns read, so a fresh checkout works with no internet or VPN, and we never own a stale copy of somebody else's register.
 
 ## Background
 
-ABDM Sandbox v2 is a server-rendered Django monolith (htmx + Tailwind, Celery + Redis, Postgres 16) replacing the legacy Spring Boot + React portal. The legacy system kept lookup data in `Mst*` tables of unknown provenance with no migrations tooling. v2 keeps all lookup data in a `catalog` app, seeded by **idempotent** data migrations/fixtures so `migrate` from zero always yields a working system.
+ABDM Sandbox v2 is a server-rendered Django monolith (htmx + Tailwind, Celery + Redis, Postgres 16) replacing the legacy Spring Boot + React portal. The legacy system kept lookup data in `Mst*` tables of unknown provenance with no migrations tooling. v2 keeps lookup data it owns in a `catalog` app, seeded by **idempotent** data migrations/fixtures so `migrate` from zero always yields a working system.
 
-In v0 there is **no live LGD sync** (the daily Celery sync is deferred): India state/district lists ship as seeded fixtures so the enrollment wizard's address dropdowns work fully offline.
+**LGD state/district are deliberately not modelled.** They are external reference data with an authoritative source; copying them into our schema buys a table, a migration, an admin and a sync job to keep a copy correct. In v0 they are a checked-in dataset file read by the selectors; in P4 the `LgdLookup` adapter ([06-integrations.md](../06-integrations.md)) becomes the source and the selectors swap behind the same signature. Organisations store the chosen values as plain codes ([A2](A2-users-organisations-org-scoping.md)), never an FK, so neither change can break a saved address.
 
 ## What to build
 
@@ -21,9 +21,9 @@ In v0 there is **no live LGD sync** (the daily Celery sync is deferred): India s
 
 | # | Deliverable | Where |
 |---|---|---|
-| 1 | `Milestone`, `LgdState`, `LgdDistrict` models + migrations | `sandbox/catalog/models.py` |
-| 2 | Idempotent seed data: milestone set + full India LGD states/districts | `db/seeds/` + data migration |
-| 3 | Selectors backing the wizard dropdowns | `sandbox/catalog/selectors.py` |
+| 1 | `Milestone` model + migration | `sandbox/catalog/models.py` |
+| 2 | Idempotent milestone seed data | `db/seeds/` + data migration |
+| 3 | LGD dataset file + loader; selectors backing the wizard dropdowns | `sandbox/catalog/data/`, `selectors.py` |
 | 4 | Read-mostly admin registration | `sandbox/catalog/admin.py` |
 | 5 | Tests: seed idempotency (run twice ⇒ same counts), selectors | `sandbox/catalog/tests/` |
 
@@ -41,41 +41,32 @@ The `sandbox/catalog/` app stub already exists from V0.1 (it hosts the `seed_san
 | `order` | int | sort within track |
 | `is_active` | bool | inactive milestones hidden from integrators |
 
-`catalog_lgd_state`:
+Add role/module lookups **only if** the SANDBOX enrollment form needs them — don't port legacy tables speculatively.
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `code` | char(10) | LGD state code, unique |
-| `name` | char(100) | |
+### LGD data (no table)
 
-`catalog_lgd_district`:
-
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `state` | FK → `catalog_lgd_state` | `on_delete=PROTECT` |
-| `code` | char(10) | LGD district code |
-| `name` | char(100) | |
-| — | | `UNIQUE (state, code)` |
-
-Add role/module lookups **only if** the SANDBOX enrollment form needs them — don't port legacy tables speculatively. Organisations store LGD values **by code, not FK** (a catalog refresh must never break an address) — see [A2](A2-users-organisations-org-scoping.md).
+A checked-in dataset file (states + districts with their LGD codes, provenance and retrieval date recorded in the file header) loaded once at import and cached. No model, no migration, no admin.
 
 ### Seeds, selectors, admin
 
 ```python
-# catalog/selectors.py
-def state_choices() -> list[tuple[str, str]]: ...                       # wizard state dropdown
-def districts_for_state(state_code: str) -> QuerySet[LgdDistrict]: ...  # htmx dependent select (C4)
+# catalog/selectors.py — signatures stay stable when P4's LgdLookup adapter
+# replaces the bundled dataset as the source
+def state_choices() -> list[tuple[str, str]]: ...                    # wizard state dropdown
+def districts_for_state(state_code: str) -> list[tuple[str, str]]: ...  # htmx dependent select (C4)
 ```
 
-- Idempotent seeds: fixtures/data migrations in `db/seeds/` (natural-key `update_or_create`), loaded on `migrate`; safe to re-run.
-- Django admin registration, read-mostly (`list_display`, search, ordering).
+- Both selectors validate against the dataset, so a hand-posted code that isn't real is rejected server-side.
+- Idempotent milestone seeds: fixtures/data migrations in `db/seeds/` (natural-key `update_or_create`), loaded on `migrate`; safe to re-run.
+- Django admin registration for milestones, read-mostly (`list_display`, search, ordering).
 
 ## Acceptance criteria
 
-- [ ] `migrate` from zero yields populated catalog tables; re-running seeds produces zero duplicates (test asserts counts).
-- [ ] Selectors unit-tested; admin usable.
+- [ ] `migrate` from zero yields populated milestones; re-running seeds produces zero duplicates (test asserts counts).
+- [ ] Selectors unit-tested, including rejection of an unknown state/district code; admin usable.
+- [ ] Dropdowns work with no network access (dataset is in the repo).
 - [ ] No raw SQL; mypy/ruff clean; migrations pass `makemigrations --check` in CI.
 
 ## Out of scope (deferred)
 
-Daily LGD Celery sync + `LgdLookup` adapter (main plan P4) · `catalog_agent_skill` (Agent Skills, P5) · role/privilege matrices beyond what the SANDBOX form needs.
+`LgdLookup` adapter replacing the bundled dataset, + its fake and contract tests (main plan P4) · `catalog_agent_skill` (Agent Skills, P5) · role/privilege matrices beyond what the SANDBOX form needs.

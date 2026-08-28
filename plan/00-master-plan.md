@@ -147,7 +147,7 @@ Phase labels P2–P6 are kept (tickets reference them). v0 already delivers P1 e
 |---|---|---|
 | **P2 Domain (rest)** | HCX/UHI/HIU/NHCX kinds as payload schemas + form sets; org verification; team invites | authz'd enroll for every kind; matrix green |
 | **P3 Workflow (rest)** | evidence-gating guard (flag-gated); reviewer assignment/routing | guard test-covered both flag states |
-| **P4 Integrations (rest)** | drift-reconciliation sweep; deprovision-on-exit; callback registration + probes; WSO2 `get_usage` evidence (flag-gated); LGD daily sync; reference environment (hosted Care instance + local runner); conformance runner core; OTel/Prometheus | reconciliation alerting live; reference instance reachable; one conformance pack end-to-end |
+| **P4 Integrations (rest)** | drift-reconciliation sweep; deprovision-on-exit; callback registration + probes; WSO2 `get_usage` evidence (flag-gated); `LgdLookup` adapter (replaces the bundled dataset); reference environment (hosted Care instance + local runner); conformance runner core; OTel/Prometheus | reconciliation alerting live; reference instance reachable; one conformance pack end-to-end |
 | **P5 Reporting + content** | materialized views + dashboards + exports; conformance UI + gating flip; NEXT-ACTION card + golden-path counter; notification centre; ⌘K search; public directory; support tickets (lite + SLA); Agent Skills registry + CLI; assistant (flag-gated); content app + `import_legacy_content` cutover → decommission Strapi/Meilisearch; docs portal + FTS search | dashboards match legacy numbers; docs portal serves full catalogue; legacy portal decommissioned |
 | **P6 Hardening** | pen test, load (10k+ applications), accessibility + i18n pass, runbooks | sign-off checklist complete |
 
@@ -176,6 +176,7 @@ Phase labels P2–P6 are kept (tickets reference them). v0 already delivers P1 e
 
 1. **Legacy data cutover** — migrate vs re-enroll; affects seed/import work. *(Before P5.)*
 2. **Assistant LLM provider/hosting** — hosted API vs self-hosted, data-handling constraints for a government deployment. *(Decide by P5.)*
+3. **Is exit per milestone track, and repeatable?** Legacy allows it: `SdExit.integration_detail` holds a comma-separated milestone list (`"M1,M2,M3"`), `getBySdIdOrderByCreatedDateDesc` returns many exits per integrator, and the legacy UI resolves the exit matching the milestone being viewed. v2 currently models one terminal `PRODUCTION_APPROVED` per application, so a second exit for a later milestone has nowhere to live. **Awaiting NHA confirmation** — if exits are genuinely repeatable, exit becomes a scoped record (declaration + milestone set + own state) instead of a terminal application state. Cheap now, expensive after go-live. *(Blocks [A8](v0-tickets/A8-exit-workflow.md) design; not the rest of v0.)*
 
 ## 11. Evidence index
 

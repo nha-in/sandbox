@@ -84,14 +84,7 @@ def transition(application, action, actor, comment="") -> WorkflowTransition: ..
 | `correlation_id` | char | ties web request ↔ Celery chain |
 | `data` | JSONB | render-safe details — never secrets |
 
-`workflow_assignment` — minimal, backs the console queue:
-
-| Field | Type | Notes |
-|---|---|---|
-| `application` | FK → application | |
-| `stage` | char | |
-| `assignee` | FK → user, null | |
-| `due_at` | datetime, null | |
+`workflow_assignment` is **not** in v0 — nothing writes or reads it here, and the legacy system has no assignment, claim, due-date or SLA concept to carry over. It arrives with reviewer routing in P3, when the requirements that decide its shape (claimed vs pushed, due per stage vs per application) actually exist.
 
 Selectors: transition history per application; queue by state.
 

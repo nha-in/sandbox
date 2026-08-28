@@ -1,7 +1,7 @@
 # A2 — `users` + `organisations` models, membership, org-scoping mixin
 
 > **Lane** A — Backend: domain & workflow · **Phase** V0.2 Apply & review · pair a senior with the junior here
-> **Depends on** V0.1 (allauth user + login flows exist) · [A1](A1-catalog-app.md) for LGD codes (soft)
+> **Depends on** V0.1 (allauth user + login flows exist)
 > **Unblocks** [A3](A3-applications-model.md), [C3](C3-route-gate-harness.md), every integrator-facing screen
 > **Refs** [03-database.md §3.1](../03-database.md) · [01-backend.md §3.5](../01-backend.md) · [05-security.md §3.1](../05-security.md)
 
@@ -47,7 +47,7 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 | `kind` | char + CHECK | `ORGANIZATION \| INDIVIDUAL` |
 | `website` | URL | optional |
 | address fields | char | line1/line2/city/pincode — final list from the legacy SANDBOX form |
-| `lgd_state_code` / `lgd_district_code` | char(10) | stored **by code**, no FK to catalog ([A1](A1-catalog-app.md)) |
+| `lgd_state_code` / `lgd_district_code` | char(10) | stored **by code**; LGD is external reference data with no table of ours ([A1](A1-catalog-app.md)) |
 | `verification_state` | char + CHECK | `PENDING \| VERIFIED` (v0 minimal) |
 | `verified_by` | FK → user, null | |
 | `verified_at` | datetime, null | |

@@ -55,8 +55,9 @@ erDiagram
     APPLICATION ||--o{ PROVISIONED_RESOURCE : "provisioned in"
     APPLICATION |o--o{ NOTIFICATION_MESSAGE : "about"
     USER |o--o{ AUDIT_EVENT : "actor"
-    CATALOG_LGD_STATE ||--o{ CATALOG_LGD_DISTRICT : "contains"
 ```
+
+State/district are **not** modelled: LGD is external reference data, held as a bundled dataset in v0 and read through the `LgdLookup` adapter from P4 ([A1](v0-tickets/A1-catalog-app.md)). Organisations store the chosen codes as plain values, so neither source change can break a saved address.
 
 v1 adds: `CONFORMANCE_PACK/CASE/RUN/RESULT`, `APPLICATION_CALLBACK`, `SUPPORT_TICKET/MESSAGE/ATTACHMENT`, `CONTENT_NODE`/FAQ/resources/snippets, `CATALOG_AGENT_SKILL`, `WORKFLOW_ASSIGNMENT` usage beyond the queue.
 
@@ -68,10 +69,10 @@ Field-by-field specs live in the tickets — they are the authoritative table de
 
 | Tables | Ticket |
 |---|---|
-| `catalog_milestone`, `catalog_lgd_state`, `catalog_lgd_district` | [A1](v0-tickets/A1-catalog-app.md) |
+| `catalog_milestone` | [A1](v0-tickets/A1-catalog-app.md) |
 | `users_user` (extension), `organisations_organisation`, `organisations_membership` | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
 | `applications_application` (+ partial-unique live app, payload envelope) | [A3](v0-tickets/A3-applications-model.md) |
-| `workflow_transition`, `audit_event`, `workflow_assignment` | [A5](v0-tickets/A5-workflow-state-machine.md) |
+| `workflow_transition`, `audit_event` | [A5](v0-tickets/A5-workflow-state-machine.md) |
 | `workflow_review` | [A6](v0-tickets/A6-reviews-quorum.md) |
 | `declarations_declaration`, `declarations_document` | [A7](v0-tickets/A7-declarations-uploads.md) |
 | `notifications_message` | [B6](v0-tickets/B6-notification-adapter.md) |

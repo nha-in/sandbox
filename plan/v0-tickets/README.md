@@ -40,7 +40,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 
 | Ticket | Phase |
 |---|---|
-| [A1 ⚑ — `catalog` app: milestones, LGD tables, seeds, admin](A1-catalog-app.md) | V0.2 |
+| [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md) | V0.2 |
 | [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2 |
 | [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md) | V0.2 |
 | [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md) | V0.2 |
