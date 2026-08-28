@@ -4,4 +4,16 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-exec python manage.py tailwind watch
+# `tailwind watch` relies on the binary's native file watcher, which gets no
+# events across a bind mount from a macOS host. Poll instead and rebuild.
+export WATCHFILES_FORCE_POLLING=true
+
+python manage.py tailwind build
+
+# --force because the build only checks the source CSS's timestamp, and what
+# changes here is templates.
+exec watchfiles \
+  --target-type command \
+  --ignore-paths /app/sandbox/static/css \
+  "python manage.py tailwind build --force" \
+  /app/sandbox
