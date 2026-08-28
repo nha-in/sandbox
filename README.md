@@ -1,9 +1,42 @@
 # ABDM Sandbox
 
-ABDM integrator sandbox portal
+ABDM integrator sandbox portal — v2 rewrite. Plan of record: `../v2-plan-rev2/` (start at `00-master-plan.md`; the pilot cut being built first is `v0-plan.md`).
 
 [![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+## Getting started
+
+Everything runs in Docker; no VPN or ABDM credentials are needed for local work.
+
+```bash
+just build
+just up
+just manage seed_sandbox_demo
+```
+
+Then open <http://localhost:8000> (emails land in Mailpit at <http://localhost:8025>).
+Seeded logins are printed by the seed command.
+
+House rules worth knowing before the first PR:
+
+- **Views never write state.** Writes go through a service function ([01-backend.md](../v2-plan-rev2/01-backend.md) §1).
+- **Styling uses the `ui-*` classes** in `sandbox/static/css/source.css`; new components land there, not as utility soup in templates.
+- **Staff accounts require MFA** — `StaffMFARequiredMiddleware` redirects staff without a TOTP device.
+- **A DEBUG process cannot talk to shared infrastructure**; `config/settings/guards.py` refuses to boot.
+
+## Quality gates
+
+CI runs pre-commit (ruff, djLint, django-upgrade), mypy, import-linter contracts, `makemigrations --check`, pytest with an 85% coverage floor, gitleaks and Trivy. Run them locally with:
+
+```bash
+just pytest
+uv run mypy sandbox config
+uv run lint-imports
+uv run pre-commit run --all-files
+```
+
+`release.yml` builds, SBOM-attaches and scans the production image into GHCR. The deploy step is intentionally absent until the hosting target is decided with NHA.
 
 ## Settings
 
@@ -39,9 +72,12 @@ To run the tests, check your test coverage, and generate an HTML coverage report
 
     uv run pytest
 
-### Live reloading and Sass CSS compilation
+### CSS
 
-Moved to [Live reloading and SASS compilation](https://cookiecutter-django.readthedocs.io/en/latest/2-local-development/developing-locally.html#using-webpack-or-gulp).
+Tailwind is compiled by the standalone CLI binary (no node anywhere):
+
+    just manage tailwind build     # one-off
+    just manage tailwind watch     # or run the `tailwind` compose service
 
 ### Celery
 

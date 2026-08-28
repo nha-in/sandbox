@@ -87,6 +87,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 USER django
 
+# Tailwind runs from the standalone binary at build time; no node in this image.
+RUN DATABASE_URL="postgres://dummy" \
+  DJANGO_SETTINGS_MODULE="config.settings.test" \
+  python manage.py tailwind build
+
 RUN DATABASE_URL="postgres://dummy" \
   DJANGO_SETTINGS_MODULE="config.settings.test" \
   python manage.py compilemessages

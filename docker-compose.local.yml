@@ -51,6 +51,14 @@ services:
     volumes:
       - sandbox_local_redis_data:/data
 
+  tailwind:
+    <<: *django
+    image: sandbox_local_tailwind
+    container_name: sandbox_local_tailwind
+    depends_on: []
+    ports: []
+    command: /start-tailwind
+
   celeryworker:
     <<: *django
     image: sandbox_local_celeryworker

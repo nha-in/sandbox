@@ -13,6 +13,28 @@
 }
 
 /*
+ * Composable primitives must be @utility in Tailwind v4 so the variants below
+ * can @apply them.
+ */
+@utility ui-btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium
+    transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
+    disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+@utility ui-alert {
+  @apply flex items-start gap-3 rounded-md border px-4 py-3 text-sm;
+}
+
+@utility ui-badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+
+@utility ui-nav-link {
+  @apply rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+}
+
+/*
  * House component classes. Screens compose these; raw utility soup in
  * templates is a review finding. Every new component lands here first.
  */
@@ -53,12 +75,6 @@
     @apply flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3;
   }
 
-  .ui-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium
-      transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
-      disabled:cursor-not-allowed disabled:opacity-60;
-  }
-
   .ui-btn-primary {
     @apply ui-btn bg-brand-600 text-white hover:bg-brand-700;
   }
@@ -90,12 +106,12 @@
     @apply mt-1 text-xs text-slate-500;
   }
 
-  .ui-error {
-    @apply mt-1 text-xs font-medium text-red-600;
+  .ui-checkbox {
+    @apply size-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600;
   }
 
-  .ui-alert {
-    @apply flex items-start gap-3 rounded-md border px-4 py-3 text-sm;
+  .ui-error {
+    @apply mt-1 text-xs font-medium text-red-600;
   }
 
   .ui-alert-info {
@@ -112,10 +128,6 @@
 
   .ui-alert-error {
     @apply ui-alert border-red-200 bg-red-50 text-red-900;
-  }
-
-  .ui-badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 
   .ui-badge-neutral {
@@ -148,10 +160,6 @@
 
   .ui-table td {
     @apply border-b border-slate-100 px-4 py-3 text-slate-700;
-  }
-
-  .ui-nav-link {
-    @apply rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900;
   }
 
   .ui-nav-link-active {

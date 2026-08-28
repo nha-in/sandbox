@@ -1,3 +1,15 @@
-{% extends "base.html" %}
+{% extends "layouts/public.html" %}
 
+{% load i18n %}
 
+{% block title %}
+  {% translate "About" %}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto max-w-2xl space-y-4">
+    <h1 class="ui-page-title">{% translate "About the sandbox" %}</h1>
+    <p class="text-sm text-slate-600">
+      {% translate "The ABDM sandbox lets health-tech providers develop and verify their integration before connecting to production." %}
+    </p>
+  </div>
+{% endblock content %}

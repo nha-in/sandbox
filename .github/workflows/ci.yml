@@ -32,6 +32,52 @@ jobs:
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
 
+  types:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://dummy
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version-file: '.python-version'
+
+      - run: uv sync --locked
+
+      - name: Type check
+        run: uv run mypy sandbox config
+
+      - name: Import contracts
+        run: uv run lint-imports
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Scan for committed secrets
+        run: |
+          docker run --rm -v "${PWD}:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo --redact --verbose --exit-code 1
+
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scan dependencies and IaC for known issues
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
   # With no caching at all the entire ci process takes 3m to complete!
   pytest:
     runs-on: ubuntu-latest
@@ -97,7 +143,7 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
 
       - name: Run Django Tests
-        run: docker compose -f docker-compose.local.yml run django pytest
+        run: docker compose -f docker-compose.local.yml run django pytest --cov --cov-report=term-missing --cov-fail-under=85
 
       - name: Tear down the Stack
         run: docker compose -f docker-compose.local.yml down
