@@ -100,6 +100,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "sandbox.theme",
     "sandbox.users",
+    "sandbox.organisations",
     "sandbox.catalog",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
