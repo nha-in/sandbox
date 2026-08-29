@@ -11,7 +11,7 @@ The portal needs reference data before anything else works: the list of sandbox 
 
 ## Background
 
-ABDM Sandbox v2 is a server-rendered Django monolith (htmx + Tailwind, Celery + Redis, Postgres 16) replacing the legacy Spring Boot + React portal. The legacy system kept lookup data in `Mst*` tables of unknown provenance with no migrations tooling. v2 keeps lookup data it owns in a `catalog` app, seeded by **idempotent** data migrations/fixtures so `migrate` from zero always yields a working system.
+ABDM Sandbox v2 is a server-rendered Django monolith (htmx + Tailwind, Celery + Redis, Postgres 16) replacing the legacy Spring Boot + React portal. The legacy system kept lookup data in `Mst*` tables of unknown provenance with no migrations tooling. v2 keeps lookup data it owns in a `catalog` app, seeded by an **idempotent management command** the deploy/setup pipeline runs after `migrate` — separate from schema migrations, since catalog rows are content, not structure.
 
 **LGD state/district are deliberately not modelled.** They are external reference data with an authoritative source; copying them into our schema buys a table, a migration, an admin and a sync job to keep a copy correct. In v0 they are a checked-in dataset file read by the selectors; in P4 the `LgdLookup` adapter ([06-integrations.md](../06-integrations.md)) becomes the source and the selectors swap behind the same signature. Organisations store the chosen values as plain codes ([A2](A2-users-organisations-org-scoping.md)), never an FK, so neither change can break a saved address.
 
@@ -19,13 +19,13 @@ ABDM Sandbox v2 is a server-rendered Django monolith (htmx + Tailwind, Celery + 
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `Milestone` model + migration | `sandbox/catalog/models.py` |
-| 2 | Idempotent milestone seed data | `db/seeds/` + data migration |
-| 3 | LGD dataset file + loader; selectors backing the wizard dropdowns | `sandbox/catalog/data/`, `selectors.py` |
-| 4 | Read-mostly admin registration | `sandbox/catalog/admin.py` |
-| 5 | Tests: seed idempotency (run twice ⇒ same counts), selectors | `sandbox/catalog/tests/` |
+| #   | Deliverable                                                        | Where                                                |
+| --- | ------------------------------------------------------------------ | ---------------------------------------------------- |
+| 1   | `Milestone` model + migration                                      | `sandbox/catalog/models.py`                          |
+| 2   | Idempotent milestone seed data + `seed_catalog` management command | `db/seeds/` + `sandbox/catalog/management/commands/` |
+| 3   | LGD dataset file + loader; selectors backing the wizard dropdowns  | `sandbox/catalog/data/`, `selectors.py`              |
+| 4   | Read-mostly admin registration                                     | `sandbox/catalog/admin.py`                           |
+| 5   | Tests: seed idempotency (run twice ⇒ same counts), selectors       | `sandbox/catalog/tests/`                             |
 
 The `sandbox/catalog/` app stub already exists from V0.1 (it hosts the `seed_sandbox_demo` skeleton). Add the models below. Conventions for every table (here and in all later tickets): all models extend the care-style shared base model — `external_id` (UUID, unique, indexed), `created_date`/`modified_date`, soft-delete `deleted` with a filtering default manager ([03-database.md §3.1](../03-database.md)); integer PKs stay internal.
 
@@ -33,13 +33,13 @@ The `sandbox/catalog/` app stub already exists from V0.1 (it hosts the `seed_san
 
 `catalog_milestone` — referenced later by milestone declarations ([A7](A7-declarations-uploads.md)):
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `key` | slug | unique — stable identifier used by seeds and code |
-| `title` | char(200) | display name |
-| `track` | char(50) | grouping shown on the milestones page |
-| `order` | int | sort within track |
-| `is_active` | bool | inactive milestones hidden from integrators |
+| Field       | Type      | Constraints / notes                               |
+| ----------- | --------- | ------------------------------------------------- |
+| `key`       | slug      | unique — stable identifier used by seeds and code |
+| `title`     | char(200) | display name                                      |
+| `track`     | char(50)  | grouping shown on the milestones page             |
+| `order`     | int       | sort within track                                 |
+| `is_active` | bool      | inactive milestones hidden from integrators       |
 
 Add role/module lookups **only if** the SANDBOX enrollment form needs them — don't port legacy tables speculatively.
 
@@ -57,12 +57,12 @@ def districts_for_state(state_code: str) -> list[tuple[str, str]]: ...  # htmx d
 ```
 
 - Both selectors validate against the dataset, so a hand-posted code that isn't real is rejected server-side.
-- Idempotent milestone seeds: fixtures/data migrations in `db/seeds/` (natural-key `update_or_create`), loaded on `migrate`; safe to re-run.
+- Idempotent milestone seeds: `db/seeds/catalog_milestones.json` (natural-key `update_or_create`) loaded by `seed_catalog`, a management command the deploy/setup pipeline invokes after `migrate` (compose `start` scripts locally; never inside a migration) — safe to re-run, and safe to run in production since it only ever adds/updates by key, unlike `seed_sandbox_demo`'s destructive `--fresh`.
 - Django admin registration for milestones, read-mostly (`list_display`, search, ordering).
 
 ## Acceptance criteria
 
-- [ ] `migrate` from zero yields populated milestones; re-running seeds produces zero duplicates (test asserts counts).
+- [ ] `migrate` from zero + `seed_catalog` yields populated milestones; re-running `seed_catalog` produces zero duplicates (test asserts counts).
 - [ ] Selectors unit-tested, including rejection of an unknown state/district code; admin usable.
 - [ ] Dropdowns work with no network access (dataset is in the repo).
 - [ ] No raw SQL; mypy/ruff clean; migrations pass `makemigrations --check` in CI.

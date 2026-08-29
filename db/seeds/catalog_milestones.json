@@ -1,0 +1,44 @@
+[
+  {
+    "key": "m1",
+    "title": "ABHA Creation/Verification - M1",
+    "track": "SANDBOX",
+    "order": 1,
+    "is_active": true
+  },
+  {
+    "key": "m2",
+    "title": "Building Health Information Provider (HIP) - M2",
+    "track": "SANDBOX",
+    "order": 2,
+    "is_active": true
+  },
+  {
+    "key": "m3",
+    "title": "Building Health Information User (HIU) - M3",
+    "track": "SANDBOX",
+    "order": 3,
+    "is_active": true
+  },
+  {
+    "key": "m4",
+    "title": "National Healthcare Provider Registry (HPR/HFR) - M4",
+    "track": "SANDBOX",
+    "order": 4,
+    "is_active": true
+  },
+  {
+    "key": "phr",
+    "title": "PHR App",
+    "track": "SANDBOX",
+    "order": 5,
+    "is_active": true
+  },
+  {
+    "key": "health_locker",
+    "title": "Health Locker",
+    "track": "SANDBOX",
+    "order": 6,
+    "is_active": true
+  }
+]

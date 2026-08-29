@@ -1,0 +1,22 @@
+{
+  "_provenance": "PLACEHOLDER — not the authoritative LGD extract. Codes below are fabricated stand-ins (prefixed PENDING-) so they can never be mistaken for real government codes. Replace this file wholesale with a real export from https://lgdirectory.gov.in before any non-local environment reads it, then update retrieved_at/source below.",
+  "source": null,
+  "retrieved_at": null,
+  "states": [
+    {
+      "code": "PENDING-01",
+      "name": "Placeholder State One",
+      "districts": [
+        { "code": "PENDING-01-01", "name": "Placeholder District A" },
+        { "code": "PENDING-01-02", "name": "Placeholder District B" }
+      ]
+    },
+    {
+      "code": "PENDING-02",
+      "name": "Placeholder State Two",
+      "districts": [
+        { "code": "PENDING-02-01", "name": "Placeholder District C" }
+      ]
+    }
+  ]
+}

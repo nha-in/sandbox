@@ -200,4 +200,4 @@ layers = [
   "(selectors)",
   "(models)",
 ]
-containers = [ "sandbox.users" ]
+containers = [ "sandbox.users", "sandbox.catalog" ]
