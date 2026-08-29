@@ -57,13 +57,13 @@ Everything in §3 ships in v0 (most of §3.1/§3.3 exists from V0.1). v0-specifi
 
 ## 5. v1 — everything else
 
-| Item | Phase |
-|---|---|
+| Item                                                                                          | Phase                                         |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | Pen test: authz matrix, IDOR (external_id-only lookups), CSRF, session fixation, upload abuse | P6 (required before public GA, not the pilot) |
-| CSP report-only burn-in → enforce | P6 |
-| Rich-text sanitize-on-save (bleach allowlist) for the content app | P5 |
-| Real AV integration behind the A7 hook | P5/P6 |
-| Rotation runbook cadence (quarterly + on-incident) for platform secrets | P6 |
+| CSP report-only burn-in → enforce                                                             | P6                                            |
+| Rich-text sanitize-on-save (bleach allowlist) for the content app                             | P5                                            |
+| Real AV integration behind the A7 hook                                                        | P5/P6                                         |
+| Rotation runbook cadence (quarterly + on-incident) for platform secrets                       | P6                                            |
 
 ## 6. Definition of done
 

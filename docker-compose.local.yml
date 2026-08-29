@@ -2,6 +2,7 @@ volumes:
   sandbox_local_postgres_data: {}
   sandbox_local_postgres_data_backups: {}
   sandbox_local_redis_data: {}
+  sandbox_local_minio_data: {}
 
 services:
   django: &django
@@ -14,6 +15,7 @@ services:
       - postgres
       - redis
       - mailpit
+      - minio
     volumes:
       - /app/.venv
       - .:/app:z
@@ -52,6 +54,34 @@ services:
     container_name: sandbox_local_redis
     volumes:
       - sandbox_local_redis_data:/data
+
+  # Declaration documents (A7). Private bucket, presigned GETs only — the
+  # console port is for debugging, nothing in the portal links to it.
+  minio:
+    image: docker.io/minio/minio:latest
+    container_name: sandbox_local_minio
+    environment:
+      MINIO_ROOT_USER: sandbox
+      MINIO_ROOT_PASSWORD: sandbox-secret
+    command: server /data --console-address ':9001'
+    volumes:
+      - sandbox_local_minio_data:/data
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+
+  # Creates the bucket once and exits; `mb --ignore-existing` keeps it idempotent.
+  minio-createbucket:
+    image: docker.io/minio/mc:latest
+    container_name: sandbox_local_minio_createbucket
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 sandbox sandbox-secret; do sleep 1; done;
+      mc mb --ignore-existing local/sandbox-uploads;
+      mc anonymous set none local/sandbox-uploads;
+      "
 
   tailwind:
     <<: *django

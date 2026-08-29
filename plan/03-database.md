@@ -54,7 +54,8 @@ erDiagram
     APPLICATION ||--o{ WORKFLOW_REVIEW : "reviewed in"
     USER ||--o{ WORKFLOW_REVIEW : "reviewer"
     APPLICATION ||--o{ DECLARATION : "declares"
-    CATALOG_MILESTONE |o--o{ DECLARATION : "for milestone"
+    DECLARATION ||--|{ DECLARATION_MILESTONE : "claims"
+    CATALOG_MILESTONE ||--o{ DECLARATION_MILESTONE : "claimed by"
     DECLARATION ||--o{ DECLARATION_DOCUMENT : "evidence"
     USER ||--o{ DECLARATION_DOCUMENT : "uploaded_by"
     APPLICATION ||--o{ PROVISIONED_RESOURCE : "provisioned in"
@@ -146,13 +147,20 @@ erDiagram
     DECLARATION {
         uuid external_id UK
         bigint application FK
-        char kind "SELF|EXIT|MILESTONE"
-        bigint milestone FK "required if MILESTONE"
+        char kind "MILESTONE|EXIT"
+        char state "SUBMITTED|APPROVED|REJECTED"
         date started_on
         date completed_on
         jsonb payload
-        char state
-        unique application_milestone UK
+        bigint declared_by FK
+    }
+    DECLARATION_MILESTONE {
+        bigint declaration FK
+        bigint milestone FK
+        bigint application FK "denormalized for the constraint"
+        char kind "denormalized for the constraint"
+        bigint superseded_by FK "null = current claim"
+        unique application_kind_milestone UK "current claims only"
     }
     DECLARATION_DOCUMENT {
         uuid external_id UK
@@ -211,7 +219,7 @@ Field-by-field specs live in the tickets — they are the authoritative table de
 | `applications_application` (+ partial-unique live app per product, payload envelope)                        | [A3](v0-tickets/A3-applications-model.md)              |
 | `workflow_transition`, `audit_event`                                                                        | [A5](v0-tickets/A5-workflow-state-machine.md)          |
 | `workflow_review`                                                                                           | [A6](v0-tickets/A6-reviews-quorum.md)                  |
-| `declarations_declaration`, `declarations_document`                                                         | [A7](v0-tickets/A7-declarations-uploads.md)            |
+| `declarations_declaration`, `declarations_declaration_milestone`, `declarations_document`                   | [A7](v0-tickets/A7-declarations-uploads.md)            |
 | `notifications_message`                                                                                     | [B6](v0-tickets/B6-notification-adapter.md)            |
 | `integrations_provisioned_resource`                                                                         | [B1](v0-tickets/B1-integration-ports-http-policy.md)   |
 

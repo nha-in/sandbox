@@ -108,6 +108,7 @@ Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in th
 | Conformance service (packs/runs/results, Celery runner) | P4/P5 | A7's declarations; reference env as counterparty |
 | `next_action(application)` selector + golden-path counter | P5 | A3/A5 selectors |
 | Support tickets (lite, SLA timers, attachments) | P5 | A7's upload pipeline |
+| CSV formula-injection neutralisation on upload/export | P3 | A7's validators — reviewers open these in Excel |
 | Content app + `import_legacy_content` + Postgres FTS | P5 | — (docs stay on the legacy site until then) |
 | Agent Skills registry · assistant (flag-gated) · reporting MVs | P5 | catalog seeds, audit trail |
 

@@ -3,6 +3,7 @@ With these settings, tests run faster.
 """
 
 from .base import *  # noqa: F403
+from .base import STORAGES
 from .base import TEMPLATES
 from .base import env
 
@@ -44,5 +45,16 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
 MEDIA_URL = "http://media.testserver/"
+
+# UPLOADS
+# ------------------------------------------------------------------------------
+# The declarations bucket stays an S3 backend so presigning is exercised for
+# real; `moto` stands in for the service (see declarations/tests/conftest.py).
+# Credentials are deliberately fake so a misconfigured run cannot reach AWS.
+STORAGES["declarations"]["OPTIONS"] |= {  # type: ignore[index]
+    "endpoint_url": None,  # standard AWS URLs, which moto intercepts
+    "access_key": "testing",
+    "secret_key": "testing",
+}
 # Your stuff...
 # ------------------------------------------------------------------------------
