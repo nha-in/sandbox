@@ -35,7 +35,15 @@ just manage seed_sandbox_demo
 ```
 
 Then open <http://localhost:8000> (emails land in Mailpit at <http://localhost:8025>).
-Seeded logins are printed by the seed command. The two env files are per-developer and deliberately untracked — nothing that looks like a credential belongs in this repository.
+Seeded logins are printed by the seed command, along with a generated password —
+pass `--password` if you want a fixed one. The two env files are per-developer and deliberately untracked — nothing that looks like a credential belongs in this repository.
+
+The seed builds a believable world rather than a few rows: two organisations (so
+wrong-organisation 404s are demonstrable), owner/developer/reviewer/admin logins,
+and a SANDBOX application parked in **every** workflow state, including the
+failure ones. Applications are driven there through the real services, so their
+history and audit trail are what a real reviewer would have produced. Re-running
+is safe; `--fresh` retires the previous set first.
 
 House rules worth knowing before the first PR:
 

@@ -19,13 +19,13 @@ This ticket stays open across V0.2–V0.4: every model-bearing ticket adds its r
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Full `seed_sandbox_demo [--fresh] [--password …]` command (grown from the V0.1 skeleton) | `sandbox/catalog/management/commands/seed_sandbox_demo.py` |
-| 2 | Seeded universe covering every state (list below), built **via the real services** | same |
-| 3 | Scoped `--fresh` (seed-marker keyed) | same |
-| 4 | Tests: idempotency, `--fresh` scope, legal seeded history | `sandbox/catalog/tests/` |
-| 5 | Offline quick-start section in the repo README | `README.md` |
+| #   | Deliverable                                                                              | Where                                                      |
+| --- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | Full `seed_sandbox_demo [--fresh] [--password …]` command (grown from the V0.1 skeleton) | `sandbox/catalog/management/commands/seed_sandbox_demo.py` |
+| 2   | Seeded universe covering every state (list below), built **via the real services**       | same                                                       |
+| 3   | Scoped `--fresh` (seed-marker keyed)                                                     | same                                                       |
+| 4   | Tests: idempotency, `--fresh` scope, legal seeded history                                | `sandbox/catalog/tests/`                                   |
+| 5   | Offline quick-start section in the repo README                                           | `README.md`                                                |
 
 ### Details
 
@@ -40,11 +40,51 @@ This ticket stays open across V0.2–V0.4: every model-bearing ticket adds its r
 
 ## Acceptance criteria
 
-- [ ] Running twice ⇒ zero duplicates (test asserts row counts stable).
-- [ ] `--fresh` removes only seeded rows (test seeds + creates one manual row + `--fresh` ⇒ manual row survives).
-- [ ] Seeded via services: every seeded application has a legal transition history + audit trail.
-- [ ] `compose up && seed_sandbox_demo` ⇒ portal navigable offline end-to-end (documented in the repo README).
-- [ ] Grows in the same PR as each new model/state (checked in review); CI runs the seed as part of e2e setup.
+- [x] Running twice ⇒ zero duplicates (test asserts row counts stable).
+- [x] `--fresh` removes only seeded rows (test seeds + creates one manual row + `--fresh` ⇒ manual row survives) — **retires rather than deletes, see below**.
+- [x] Seeded via services: every seeded application has a legal transition history + audit trail.
+- [x] `compose up && seed_sandbox_demo` ⇒ portal navigable offline end-to-end (documented in the repo README).
+- [ ] Grows in the same PR as each new model/state (checked in review); CI runs the seed as part of e2e setup. — **standing obligation, not closeable**
+
+### V0.2 shape (what exists now)
+
+15 applications across **all 13 states**, 48 transitions, 3 reviews, 51 audit
+events. Two organisations (so wrong-org 404s are demonstrable), OWNER and
+DEVELOPER members, a reviewer holding only `review_application` and an admin
+holding the approve/reject/retry permissions. One application carries a
+two-round review with a split tally for [C5](C5-console-review-queue.md).
+
+Still to come as their tickets land: provisioning-ledger rows in
+ACTIVE/DISABLED/FAILED ([B7](B7-provisioning-chain.md)), declarations and
+documents ([A7](A7-declarations-uploads.md)), notification log rows
+([B6](B6-notification-adapter.md)).
+
+### `--fresh` retires; it cannot delete
+
+The ticket says "`--fresh` removes exactly what it created". After
+[A5](A5-workflow-state-machine.md) that is not achievable, and should not be:
+
+- `workflow_transition` PROTECTs both `application` and `actor`, so a seeded
+  application or user that has ever moved cannot be hard-deleted;
+- the table has `DELETE` revoked outright — history is evidence.
+
+So `--fresh` soft-deletes the seeded applications, products, memberships and
+organisations, and leaves users in place (they are keyed by email and re-seeded
+idempotently anyway). Re-seeding then builds a fresh set alongside: the partial
+unique constraints are all `WHERE deleted = false`, so slugs and
+`(product, kind)` free up correctly. The acceptance criterion still holds in the
+way that matters — a hand-made row survives, asserted by test.
+
+This also means the previous `--fresh`, which did
+`User.objects.filter(email__in=...).delete()`, would have raised `ProtectedError`
+the moment a seeded user had transition history. It was already broken by A5 and
+is fixed here.
+
+### Passwords are generated, not hardcoded
+
+`--password` sets one for every demo login; omitted, the command generates one
+with `secrets.token_urlsafe` and prints it. There is no default credential in
+the source any more.
 
 ## Out of scope (deferred)
 
