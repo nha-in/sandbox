@@ -46,21 +46,21 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | Ticket                                                                                                 | Phase     | Status                        |
 | ------------------------------------------------------------------------------------------------------ | --------- | ----------------------------- |
 | [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**                      |
-| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **in progress**               |
-| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | blocked (A2)                  |
+| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done** (2 carry-over)       |
+| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **in progress**               |
 | [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | open                          |
 | [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | blocked (A3)                  |
 | [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | blocked (A5)                  |
 | [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | blocked (A3)                  |
 | [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | blocked (A7, open question 3) |
-| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | blocked (A2/A3)               |
+| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | blocked (A3)                  |
 
 ## Lane B — Backend: integrations
 
 | Ticket                                                                                       | Phase | Status                                |
 | -------------------------------------------------------------------------------------------- | ----- | ------------------------------------- |
 | [B1 — `integrations` ports + shared HTTP policy](B1-integration-ports-http-policy.md)        | V0.3  | **done** (1 carry-over)               |
-| [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | open                                  |
+| [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | **done**                              |
 | [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | blocked (NHA access, open question 4) |
 | [B4 — WSO2 adapter (`ApiGateway`)](B4-wso2-adapter.md)                                       | V0.3  | blocked (NHA access)                  |
 | [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | blocked (NHA access)                  |
@@ -73,7 +73,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 
 | Ticket                                                                                         | Phase | Status           |
 | ---------------------------------------------------------------------------------------------- | ----- | ---------------- |
-| [C3 — Route-gate test harness](C3-route-gate-harness.md)                                       | V0.2  | blocked (A2)     |
+| [C3 — Route-gate test harness](C3-route-gate-harness.md)                                       | V0.2  | **done**         |
 | [C4 — Enrollment wizard (SANDBOX) + OTP partial](C4-enrollment-wizard.md)                      | V0.2  | blocked (A3, A4) |
 | [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | blocked (A5, A6) |
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | blocked (A3, A5) |
@@ -94,7 +94,9 @@ unblocking ticket lands.
 | From                                      | Deliverable                                                  | Blocked on                                  | Notes                                                                                                                                                                                       |
 | ----------------------------------------- | ------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [B1](B1-integration-ports-http-policy.md) | `ProvisionedResource` ledger model + migration               | [A3](A3-applications-model.md)              | FK and `UNIQUE (application, system)` both need `applications.Application`. Only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) consume it, and both are behind A3 anyway. |
-| [A4](A4-otp-service.md)                   | Stamping `email_verified_at` / `phone_verified_at` on verify | [A2](A2-users-organisations-org-scoping.md) | The service, rate limiting and tests need nothing from A2 — only the two datetime columns are missing. Land as the ticket's last commit.                                                    |
+| [A4](A4-otp-service.md)                   | Stamping `email_verified_at` / `phone_verified_at` on verify | —                                           | Unblocked: A2 shipped both columns. Row closes when A4 lands.                                                                                                                               |
+| [A2](A2-users-organisations-org-scoping.md) | `users:detail` scoped to the signed-in user, keyed on `external_id` | —                        | Found by [C3](C3-route-gate-harness.md): any signed-in user can read any account's name and email by integer pk. Held as a `strict=True` xfail in `tests/test_route_gates.py`, so it flips to a failure the moment the rule is met. |
+| [A2](A2-users-organisations-org-scoping.md) | `users` migration `0002` cannot apply to a database with ≥2 users | —                          | `AddField(default=uuid.uuid4, unique=True)` writes one UUID to every existing row. Passes on an empty DB (CI stays green) and fails mid-deploy on staging. Needs AddField-null → RunPython → AlterField-unique. |
 
 ## Dependency sketch
 

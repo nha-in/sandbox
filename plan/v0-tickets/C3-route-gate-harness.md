@@ -40,11 +40,41 @@ The legacy authorization was `permitAll()` on all GETs plus client-side role che
 
 ## Acceptance criteria
 
-- [ ] Harness enumerates the live URLconf; adding an unlisted URL demonstrably fails CI (prove with a scratch URL in review).
-- [ ] All five actors exercised per row; wrong-org 404 and console-403 rules hold on every current URL.
-- [ ] CSRF asserted on mutating rows; public allowlist explicit and reviewed.
-- [ ] Runs in the normal pytest suite (no special job); fast (< a few seconds beyond fixtures).
-- [ ] "Add a row" instructions written; C4–C8 tickets can follow them without touching harness internals.
+- [x] Harness enumerates the live URLconf; adding an unlisted URL demonstrably fails CI (proved with a scratch URL: `URLs with no route-gate row: ['scratch_probe']`).
+- [x] All five actors exercised per row; wrong-org 404 and console-403 rules hold on every current URL.
+- [x] CSRF asserted on mutating rows; public allowlist explicit and reviewed.
+- [x] Runs in the normal pytest suite (no special job); 39 route-gate tests in ~1s.
+- [x] "Add a row" instructions written; C4–C8 tickets can follow them without touching harness internals.
+
+### Findings
+
+**`users:detail` leaks across users** — recorded as `known_gap` on its row, so the
+matrix states the intended rule (`Access.SELF_ONLY`) and the suite carries a
+`strict=True` xfail that flips to a failure the moment it is fixed.
+`UserDetailView` is a bare `LoginRequiredMixin + DetailView` with no queryset
+restriction, addressed by sequential integer pk, and the template renders name
+and email — so any signed-in user can enumerate every account. It also breaches
+[A2](A2-users-organisations-org-scoping.md)'s criterion that integer PKs never
+appear in URLs. Fix belongs in the users app: scope `get_queryset` to
+`request.user` and key the URL on `external_id`.
+
+### Access classes
+
+The matrix records a *rule*, not observed behaviour. `Access` values and what
+each asserts:
+
+| Access | Anonymous | Others |
+|---|---|---|
+| `PUBLIC` | must **not** be sent to login | never 403 |
+| `AUTHENTICATED` | redirect to login | never 403/404 |
+| `SELF_RESOURCE` | redirect to login | holder reaches it; non-holder may 404, never 403 |
+| `SELF_ONLY` | redirect to login | owner 200, everyone else **404** |
+| `ORG_SCOPED` | redirect to login | other org **404**, never 403 |
+| `CONSOLE` | redirect to login | staff reach it, others 403/404 |
+
+`SELF_RESOURCE` was added while building: allauth's MFA device URLs legitimately
+404 for a user with no device, and the reviewer/staff fixtures now hold both TOTP
+and recovery codes so "gate broken" and "no device" cannot be confused.
 
 ## Out of scope
 
