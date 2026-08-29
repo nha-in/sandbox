@@ -102,6 +102,7 @@ LOCAL_APPS = [
     "sandbox.users",
     "sandbox.organisations",
     "sandbox.catalog",
+    "sandbox.applications",
     "sandbox.integrations",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

@@ -16,9 +16,9 @@ class MembershipInline(admin.TabularInline):
 
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
-    list_display = ["name", "kind", "verification_state", "created_date"]
-    list_filter = ["kind", "verification_state"]
-    search_fields = ["name", "slug"]
+    list_display = ["name", "kind", "ownership", "category", "verification_state"]
+    list_filter = ["kind", "ownership", "category", "verification_state"]
+    search_fields = ["name", "slug", "gst_number"]
     readonly_fields = ["external_id", "created_date", "modified_date"]
     inlines = [MembershipInline]
 

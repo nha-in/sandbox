@@ -19,21 +19,22 @@ v2 replaces all of that with an explicit, audited state machine with **exactly o
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `State` choices + `WorkflowTransition`, `WorkflowAssignment` models | `sandbox/workflow/models.py` |
-| 2 | `TRANSITIONS` table (data, introspectable) | `sandbox/workflow/machine.py` |
-| 3 | `transition()` — the single state writer | `sandbox/workflow/services.py` |
-| 4 | New `audit` app: `AuditEvent` model + `audit.emit()` helper | `sandbox/audit/` |
-| 5 | Append-only enforcement migration (revoke UPDATE/DELETE) | `workflow`/`audit` migrations |
-| 6 | History + queue selectors | `sandbox/workflow/selectors.py` |
-| 7 | Tests: full legal + illegal transition table, atomicity, on-commit side-effects | `sandbox/workflow/tests/` |
+| #   | Deliverable                                                                                                                                     | Where                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 1   | `WorkflowTransition`, `WorkflowAssignment` models (`State` choices already live on `applications.Application` — [A3](A3-applications-model.md)) | `sandbox/workflow/models.py`    |
+| 2   | `TRANSITIONS` table (data, introspectable)                                                                                                      | `sandbox/workflow/machine.py`   |
+| 3   | `transition()` — the single state writer                                                                                                        | `sandbox/workflow/services.py`  |
+| 4   | New `audit` app: `AuditEvent` model + `audit.emit()` helper                                                                                     | `sandbox/audit/`                |
+| 5   | Append-only enforcement migration (revoke UPDATE/DELETE)                                                                                        | `workflow`/`audit` migrations   |
+| 6   | History + queue selectors                                                                                                                       | `sandbox/workflow/selectors.py` |
+| 7   | Tests: full legal + illegal transition table, atomicity, on-commit side-effects                                                                 | `sandbox/workflow/tests/`       |
 
 ### State machine + single entry point
 
 ```python
-# workflow/models.py
-class State(models.TextChoices):
+# applications/models.py (A3) — workflow FKs to applications, never the
+# reverse, so the enum lives here; workflow imports it rather than redefining it
+class ApplicationState(models.TextChoices):
     DRAFT, SUBMITTED,
     SANDBOX_APPROVED, PROVISIONING, PROVISIONED, PROVISIONING_FAILED,
     REJECTED, SENT_BACK,
@@ -41,7 +42,7 @@ class State(models.TextChoices):
 
 # workflow/machine.py — the table is DATA: console and tests introspect it
 # Spec = target state + guard callable + required Django permission + side-effect hooks
-TRANSITIONS: dict[tuple[State, Action], Spec]
+TRANSITIONS: dict[tuple[ApplicationState, Action], Spec]
 
 # workflow/services.py — the ONLY state writer in the system
 def transition(application, action, actor, comment="") -> WorkflowTransition: ...
@@ -61,25 +62,26 @@ def transition(application, action, actor, comment="") -> WorkflowTransition: ..
 
 `workflow_transition` — append-only history; **no UPDATE/DELETE grants for the app DB role** (enforced in a migration):
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `application` | FK → application | |
-| `from_state` / `to_state` | char | CHECK: `(from_state, action, to_state)` ∈ legal graph |
-| `action` | char | |
-| `actor` | FK → user, null | null for system moves (e.g. chain completion) |
-| `comment` | text | only for moves with no review behind them (withdraw, system notes); review-driven moves keep their comment on the review row |
-| `created_date` | datetime | append-only — no `modified_date`, no `deleted`; rows are immutable |
+| Field                     | Type             | Constraints / notes                                                                                                          |
+| ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `application`             | FK → application |                                                                                                                              |
+| `from_state` / `to_state` | char             | CHECK: `(from_state, action, to_state)` ∈ legal graph                                                                        |
+| `action`                  | char             |                                                                                                                              |
+| `actor`                   | FK → user, null  | null for system moves (e.g. chain completion)                                                                                |
+| `comment`                 | text             | only for moves with no review behind them (withdraw, system notes); review-driven moves keep their comment on the review row |
+| `created_date`            | datetime         | append-only — no `modified_date`, no `deleted`; rows are immutable                                                           |
+
 `audit_event` (new `audit` app) — append-only; replaces the legacy 3-call, content-free Kafka publisher (**no broker, no outbox**):
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `occurred_at` | datetime | BRIN index |
-| `actor` | FK → user, null | |
-| `action` | char | e.g. `application.approved` |
-| `object_type` | char | polymorphic — deliberately FK-free toward domain objects |
-| `object_external_id` | UUID | |
-| `correlation_id` | char | ties web request ↔ Celery chain |
-| `data` | JSONB | render-safe details — never secrets |
+| Field                | Type            | Constraints / notes                                      |
+| -------------------- | --------------- | -------------------------------------------------------- |
+| `occurred_at`        | datetime        | BRIN index                                               |
+| `actor`              | FK → user, null |                                                          |
+| `action`             | char            | e.g. `application.approved`                              |
+| `object_type`        | char            | polymorphic — deliberately FK-free toward domain objects |
+| `object_external_id` | UUID            |                                                          |
+| `correlation_id`     | char            | ties web request ↔ Celery chain                          |
+| `data`               | JSONB           | render-safe details — never secrets                      |
 
 `workflow_assignment` is **not** in v0 — nothing writes or reads it here, and the legacy system has no assignment, claim, due-date or SLA concept to carry over. It arrives with reviewer routing in P3, when the requirements that decide its shape (claimed vs pushed, due per stage vs per application) actually exist.
 

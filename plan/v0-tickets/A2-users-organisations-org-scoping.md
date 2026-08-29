@@ -7,7 +7,7 @@
 
 ## In plain words
 
-Two ideas, one ticket. First: *who you are* (your user account) is separate from *which company you act for* (the organisation); a membership row links them. Second, the portal's most important security tool: every page automatically limits its database queries to **your own organisation's records** — someone guessing another company's record URL just gets "not found", as if it didn't exist. Every screen built after this inherits that protection for free.
+Two ideas, one ticket. First: _who you are_ (your user account) is separate from _which company you act for_ (the organisation); a membership row links them. Second, the portal's most important security tool: every page automatically limits its database queries to **your own organisation's records** — someone guessing another company's record URL just gets "not found", as if it didn't exist. Every screen built after this inherits that protection for free.
 
 ## Background
 
@@ -19,58 +19,63 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `external_id` + `phone` on the user model + migration | `sandbox/users/models.py` |
-| 2 | `Organisation`, `Product` + `Membership` models, CHECKs, partial-unique migrations | `sandbox/organisations/models.py` |
-| 3 | `OrganisationScopedQuerySet.for_organisation()` manager | `sandbox/organisations/managers.py` |
-| 4 | `OrganisationMixin` + session active-org selection | `sandbox/organisations/mixins.py` |
-| 5 | Admin for organisation + membership | `sandbox/organisations/admin.py` |
-| 6 | Tests: constraints, wrong-org → 404 (two-org fixture) | `sandbox/organisations/tests/` |
+| #   | Deliverable                                                                        | Where                               |
+| --- | ---------------------------------------------------------------------------------- | ----------------------------------- |
+| 1   | `external_id` + `phone` on the user model + migration                              | `sandbox/users/models.py`           |
+| 2   | `Organisation`, `Product` + `Membership` models, CHECKs, partial-unique migrations | `sandbox/organisations/models.py`   |
+| 3   | `OrganisationScopedQuerySet.for_organisation()` manager                            | `sandbox/organisations/managers.py` |
+| 4   | `OrganisationMixin` + session active-org selection                                 | `sandbox/organisations/mixins.py`   |
+| 5   | Admin for organisation + membership                                                | `sandbox/organisations/admin.py`    |
+| 6   | Tests: constraints, wrong-org → 404 (two-org fixture)                              | `sandbox/organisations/tests/`      |
 
 ### Models
 
 `users_user` — extend the cookiecutter custom user (add only; email stays the login identity, unique/citext via allauth). **No Keycloak linkage on users** — portal logins are local; the integrator↔Keycloak relationship lives on the provisioning ledger ([B7](B7-provisioning-chain.md)):
 
-| Field (add) | Type | Constraints / notes |
-|---|---|---|
-| `external_id` | UUID | unique, indexed, `default=uuid4`, non-editable (care base-model convention) |
-| `name` | char(255) | already present in cookiecutter user |
-| `phone` | char(20) | optional; format validator with tests |
-| `email_verified_at` | datetime, null | stamped when allauth confirms the address |
-| `phone_verified_at` | datetime, null | stamped by the OTP service ([A4](A4-otp-service.md)) |
+| Field (add)         | Type           | Constraints / notes                                                         |
+| ------------------- | -------------- | --------------------------------------------------------------------------- |
+| `external_id`       | UUID           | unique, indexed, `default=uuid4`, non-editable (care base-model convention) |
+| `name`              | char(255)      | already present in cookiecutter user                                        |
+| `phone`             | char(20)       | optional; format validator with tests                                       |
+| `email_verified_at` | datetime, null | stamped when allauth confirms the address                                   |
+| `phone_verified_at` | datetime, null | stamped by the OTP service ([A4](A4-otp-service.md))                        |
 
 `organisations_organisation` (extends the shared base model — `external_id`/`created_date`/`modified_date`/`deleted` not repeated below):
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `name` | char(255) | |
-| `slug` | slug | unique (`WHERE deleted = false`) |
-| `kind` | char + CHECK | `ORGANIZATION \| INDIVIDUAL` |
-| `website` | URL | optional |
-| address fields | char | line1/line2/city/pincode — final list from the legacy SANDBOX form |
-| `lgd_state_code` / `lgd_district_code` | char(10) | stored **by code**; LGD is external reference data with no table of ours ([A1](A1-catalog-app.md)) |
-| `verification_state` | char + CHECK | `PENDING \| VERIFIED` (v0 minimal) |
-| `verified_by` | FK → user, null | |
-| `verified_at` | datetime, null | |
+| Field                                  | Type                | Constraints / notes                                                                                |
+| -------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
+| `name`                                 | char(255)           |                                                                                                    |
+| `slug`                                 | slug                | unique (`WHERE deleted = false`)                                                                   |
+| `kind`                                 | char + CHECK        | `ORGANIZATION \| INDIVIDUAL` — which registration path was used                                    |
+| `nature_of_entity`                     | char + CHECK, blank | legacy `natureOfEntity`: Company/Government/LLP/Partnership Firm/Proprietorship Firm/Society/Trust |
+| `ownership`                            | char + CHECK, blank | legacy `typeOfApplication` ("Type of organization"): `GOVERNMENT \| PRIVATE`                       |
+| `category`                             | char + CHECK, blank | legacy `selectCategory` — 13 values                                                                |
+| `gst_number`                           | char(15), blank     | GSTIN, regex-validated                                                                             |
+| `registered_in_india`                  | bool, null          | legacy `registerIndiaStatus`; null = never asked                                                   |
+| `website`                              | URL                 | optional                                                                                           |
+| address fields                         | char                | line1/line2/city/pincode — final list from the legacy SANDBOX form                                 |
+| `lgd_state_code` / `lgd_district_code` | char(10)            | stored **by code**; LGD is external reference data with no table of ours ([A1](A1-catalog-app.md)) |
+| `verification_state`                   | char + CHECK        | `PENDING \| VERIFIED` (v0 minimal)                                                                 |
+| `verified_by`                          | FK → user, null     |                                                                                                    |
+| `verified_at`                          | datetime, null      |                                                                                                    |
 
 `organisations_membership`:
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `organisation` | FK → organisation | `on_delete=CASCADE` |
-| `user` | FK → user | `on_delete=CASCADE` |
-| `role` | char + CHECK | `OWNER \| DEVELOPER` |
-| — | | `UNIQUE (organisation, user) WHERE deleted = false` — partial, so a soft-deleted membership never blocks re-adding |
+| Field          | Type              | Constraints / notes                                                                                                |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `organisation` | FK → organisation | `on_delete=CASCADE`                                                                                                |
+| `user`         | FK → user         | `on_delete=CASCADE`                                                                                                |
+| `role`         | char + CHECK      | `OWNER \| DEVELOPER`                                                                                               |
+| —              |                   | `UNIQUE (organisation, user) WHERE deleted = false` — partial, so a soft-deleted membership never blocks re-adding |
 
 `organisations_product` — what actually gets certified. An organisation with two products needs two applications, two sets of credentials and two milestone tracks; legacy forced them to register twice as two "companies" because `SdLogin` carried a single `product_name`:
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `organisation` | FK → organisation | `on_delete=PROTECT` |
-| `name` | char(255) | display name |
-| `slug` | slug | `UNIQUE (organisation, slug) WHERE deleted = false` |
-| `description` | text | optional |
+| Field          | Type              | Constraints / notes                                 |
+| -------------- | ----------------- | --------------------------------------------------- |
+| `organisation` | FK → organisation | `on_delete=PROTECT`                                 |
+| `name`         | char(255)         | display name                                        |
+| `slug`         | slug              | `UNIQUE (organisation, slug) WHERE deleted = false` |
+| `description`  | text              | optional                                            |
 
 ### Org-scoping API (the authz backbone)
 

@@ -6,7 +6,7 @@
 
 ## 1. In plain words
 
-One Postgres database, whose entire shape is defined by Django migrations — check out the repo, run `migrate`, and you have the exact schema, every time. Records that outsiders can reference use a random UUID (`external_id`), never a guessable number. Nothing is ever really deleted (a `deleted` flag hides it instead), and the tables that *are* history (workflow transitions, audit events) can never be edited at all. Where the five application types differ, the differences live inside a versioned JSON column instead of five near-identical table sets.
+One Postgres database, whose entire shape is defined by Django migrations — check out the repo, run `migrate`, and you have the exact schema, every time. Records that outsiders can reference use a random UUID (`external_id`), never a guessable number. Nothing is ever really deleted (a `deleted` flag hides it instead), and the tables that _are_ history (workflow transitions, audit events) can never be edited at all. Where the five application types differ, the differences live inside a versioned JSON column instead of five near-identical table sets.
 
 ## 2. Legacy findings
 
@@ -18,12 +18,12 @@ No migrations tooling (manual dated ALTER scripts — schema unreproducible); se
 
 Every model extends a shared abstract base mirroring care's `BaseModel`:
 
-| Field | Type | Notes |
-|---|---|---|
-| `external_id` | UUID | `default=uuid4`, unique, db-indexed — **the only URL identity**; integer PKs never leave the system |
-| `created_date` | datetime | `auto_now_add`, indexed |
-| `modified_date` | datetime | `auto_now`, indexed |
-| `deleted` | bool | soft delete; default manager filters `deleted=False`; `delete()` flips the flag |
+| Field           | Type     | Notes                                                                                               |
+| --------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `external_id`   | UUID     | `default=uuid4`, unique, db-indexed — **the only URL identity**; integer PKs never leave the system |
+| `created_date`  | datetime | `auto_now_add`, indexed                                                                             |
+| `modified_date` | datetime | `auto_now`, indexed                                                                                 |
+| `deleted`       | bool     | soft delete; default manager filters `deleted=False`; `delete()` flips the flag                     |
 
 Audit-bearing models add `created_by` / `updated_by` (`SET_NULL`, `%(app_label)s_%(class)s_*` related names — care's `EMRBaseModel` pattern).
 
@@ -76,6 +76,11 @@ erDiagram
         char name
         slug slug UK
         char kind "ORGANIZATION|INDIVIDUAL"
+        char nature_of_entity "Company|Government|LLP|Partnership|Proprietorship|Society|Trust"
+        char ownership "GOVERNMENT|PRIVATE"
+        char category "13 legacy categories"
+        char gst_number "GSTIN, validated"
+        bool registered_in_india "null = not asked"
         url website
         char address_fields
         char lgd_state_code
@@ -199,16 +204,16 @@ Cluster guide: **identity & tenancy** (user ⇄ org via membership — the tenan
 
 Field-by-field specs live in the tickets — they are the authoritative table definitions for v0:
 
-| Tables | Ticket |
-|---|---|
-| `catalog_milestone` | [A1](v0-tickets/A1-catalog-app.md) |
+| Tables                                                                                                      | Ticket                                                 |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `catalog_milestone`                                                                                         | [A1](v0-tickets/A1-catalog-app.md)                     |
 | `users_user` (extension), `organisations_organisation`, `organisations_product`, `organisations_membership` | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
-| `applications_application` (+ partial-unique live app per product, payload envelope) | [A3](v0-tickets/A3-applications-model.md) |
-| `workflow_transition`, `audit_event` | [A5](v0-tickets/A5-workflow-state-machine.md) |
-| `workflow_review` | [A6](v0-tickets/A6-reviews-quorum.md) |
-| `declarations_declaration`, `declarations_document` | [A7](v0-tickets/A7-declarations-uploads.md) |
-| `notifications_message` | [B6](v0-tickets/B6-notification-adapter.md) |
-| `integrations_provisioned_resource` | [B1](v0-tickets/B1-integration-ports-http-policy.md) |
+| `applications_application` (+ partial-unique live app per product, payload envelope)                        | [A3](v0-tickets/A3-applications-model.md)              |
+| `workflow_transition`, `audit_event`                                                                        | [A5](v0-tickets/A5-workflow-state-machine.md)          |
+| `workflow_review`                                                                                           | [A6](v0-tickets/A6-reviews-quorum.md)                  |
+| `declarations_declaration`, `declarations_document`                                                         | [A7](v0-tickets/A7-declarations-uploads.md)            |
+| `notifications_message`                                                                                     | [B6](v0-tickets/B6-notification-adapter.md)            |
+| `integrations_provisioned_resource`                                                                         | [B1](v0-tickets/B1-integration-ports-http-policy.md)   |
 
 ## 4. v0 (POC)
 
@@ -220,17 +225,17 @@ Field-by-field specs live in the tickets — they are the authoritative table de
 
 ## 5. v1 — everything else
 
-| Item | Phase | Notes |
-|---|---|---|
-| Conformance tables (`conformance_pack/case/run/result`) | P4/P5 | seeded, versioned packs |
-| `applications_callback` (HIP/HIU endpoints + probe status) | P4 | |
-| Support tables (`support_ticket/message/attachment`, SLA timestamps) | P5 | reuses the A7 upload pipeline |
-| Content tables (`content_node/faq/resource/snippet`) + **Postgres FTS** (tsvector + GIN) | P5 | replaces Strapi + Meilisearch |
-| `notifications_message.channel` gains `IN_APP` (+ `read_at`) | P5 | notification centre |
-| `catalog_agent_skill`; LGD daily sync refreshing catalog | P4/P5 | |
-| Reporting materialized views (`reporting_mv_*`) refreshed by beat | P5 | golden-data parity vs legacy snapshot gates cutover |
-| **Content migration:** snapshot archive (JSON + uploads, checksummed) → idempotent `import_legacy_content` → verify → freeze + delta → decommission Strapi/Meilisearch immediately | P5 | snapshot is the permanent rollback |
-| Legacy data cutover decision (migrate vs re-enroll) | before P5 | open question #1 |
+| Item                                                                                                                                                                               | Phase     | Notes                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------- |
+| Conformance tables (`conformance_pack/case/run/result`)                                                                                                                            | P4/P5     | seeded, versioned packs                             |
+| `applications_callback` (HIP/HIU endpoints + probe status)                                                                                                                         | P4        |                                                     |
+| Support tables (`support_ticket/message/attachment`, SLA timestamps)                                                                                                               | P5        | reuses the A7 upload pipeline                       |
+| Content tables (`content_node/faq/resource/snippet`) + **Postgres FTS** (tsvector + GIN)                                                                                           | P5        | replaces Strapi + Meilisearch                       |
+| `notifications_message.channel` gains `IN_APP` (+ `read_at`)                                                                                                                       | P5        | notification centre                                 |
+| `catalog_agent_skill`; LGD daily sync refreshing catalog                                                                                                                           | P4/P5     |                                                     |
+| Reporting materialized views (`reporting_mv_*`) refreshed by beat                                                                                                                  | P5        | golden-data parity vs legacy snapshot gates cutover |
+| **Content migration:** snapshot archive (JSON + uploads, checksummed) → idempotent `import_legacy_content` → verify → freeze + delta → decommission Strapi/Meilisearch immediately | P5        | snapshot is the permanent rollback                  |
+| Legacy data cutover decision (migrate vs re-enroll)                                                                                                                                | before P5 | open question #1                                    |
 
 ## 6. Definition of done
 
