@@ -52,6 +52,30 @@ class KeycloakIdpAdmin:
 ```
 
 - **Role scope mappings resolved by *name* at runtime** — look up role IDs via the Admin API at call time; role-name sets configured **per application kind** (v0: the SANDBOX set only — least privilege). Zero instance UUIDs anywhere in config.
+
+### Verified against a real Keycloak (26.0, local realm — 2026-08-29)
+
+Exercised end-to-end against `compose/local/keycloak/realm-abdm-sandbox.json`; these are measured, not assumed:
+
+| Behaviour | Result |
+|---|---|
+| `GET /clients/{uuid}/client-secret`, twice | same value — safe to read |
+| `POST /clients/{uuid}/client-secret` | rotates — the only call allowed in `rotate_client_secret` |
+| `POST /clients/{uuid}/scope-mappings/realm` | 204 |
+| `PUT /clients/{uuid}` with `enabled:false` | 204 |
+
+**Granting a role takes two calls, not one.** Scope-mapping alone puts *nothing* in a `client_credentials` token — it only filters what may appear. The role must also be granted to the client's service-account user:
+
+```
+GET  /clients/{uuid}/service-account-user      -> {id}
+POST /users/{id}/role-mappings/realm           <- [{id, name}, …]
+```
+
+With both, the integrator token carries exactly `["hip", "hiu"]`. With scope-mapping only, `realm_access.roles` is empty. **Legacy only ever scope-mapped** (`addRole`/`getAvailableRoles` are declared but never called), so legacy-issued tokens carry no ABDM realm roles at all — see the open question in [06-integrations.md](../06-integrations.md).
+
+**Service account permissions** the provisioner needs (`realm-management` client roles): `manage-clients`, `view-clients`, `query-clients`, `view-realm` (role lookup by name), `manage-users` (grant to service accounts). `view-realm` and `manage-users` are not implied by the client permissions — both were 403s before being added.
+
+**`fullScopeAllowed`** must be `false` on integrator clients (least privilege) but `true` on the provisioner itself, otherwise its own realm-management roles are stripped from its token and every Admin API call 403s.
 - **GET vs POST distinction explicit and separately tested**: read ops must never call the rotating endpoint (the legacy system's exact bug).
 - Errors → `AdapterError("KEYCLOAK", code, retryable)`; create is retry-safe only with a pre-check-by-client-id or idempotency guarantee (coordinated with the [B7](B7-provisioning-chain.md) ledger).
 - `secret_ref` only where a system genuinely requires a copy (WSO2 `map_keys`, [B4](B4-wso2-adapter.md)).
