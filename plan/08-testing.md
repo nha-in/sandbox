@@ -16,7 +16,7 @@ The legacy system's tests didn't even compile, so quality lived in people's head
 
 | Layer | Tooling | Scope |
 |---|---|---|
-| Unit | pytest | services, selectors, forms/validators, quorum policy (both configurations), state-machine guards (full table, legal + illegal) |
+| Unit | pytest | services, selectors, forms/validators, state-machine guards (full table, legal + illegal) |
 | DB/model | pytest-django | constraints (partial-unique live app incl. `deleted=false`, review uniqueness), migrations from zero, seed idempotency |
 | **Route-gate matrix** | pytest-django | §4 — the authz proof ([C3](v0-tickets/C3-route-gate-harness.md)) |
 | View/partial | pytest-django + test client | pages render, partials swap, **every mutation works as a plain POST** (htmx-off), messages/redirects correct |

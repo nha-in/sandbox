@@ -34,7 +34,7 @@ v2 replaces all of that with an explicit, audited state machine with **exactly o
 ```python
 # workflow/models.py
 class State(models.TextChoices):
-    DRAFT, SUBMITTED, OTP_VERIFIED, UNDER_REVIEW,
+    DRAFT, SUBMITTED,
     SANDBOX_APPROVED, PROVISIONING, PROVISIONED, PROVISIONING_FAILED,
     REJECTED, SENT_BACK,
     EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED, WITHDRAWN
@@ -68,9 +68,7 @@ def transition(application, action, actor, comment="") -> WorkflowTransition: ..
 | `action` | char | |
 | `actor` | FK → user, null | null for system moves (e.g. chain completion) |
 | `comment` | text | only for moves with no review behind them (withdraw, system notes); review-driven moves keep their comment on the review row |
-| `quorum_snapshot` | JSONB, null | review tally frozen on approve ([A6](A6-reviews-quorum.md)) |
 | `created_date` | datetime | append-only — no `modified_date`, no `deleted`; rows are immutable |
-
 `audit_event` (new `audit` app) — append-only; replaces the legacy 3-call, content-free Kafka publisher (**no broker, no outbox**):
 
 | Field | Type | Constraints / notes |

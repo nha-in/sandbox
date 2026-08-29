@@ -17,7 +17,7 @@
 - One Django application serving server-rendered HTML; replaces two codebases (Spring Boot backend + React SPA)
 - The product is forms, tables, review queues and dashboards; an SPA adds cost and is the source of today's client-side security problems
 - Interactivity via htmx partials; every action still works as a plain form post
-- Five enrollment tracks (core sandbox, HCX, NHCX, UHI, HIU) collapse into one application model, one review workflow (approval quorum configurable per environment), one audited state machine
+- Five enrollment tracks (core sandbox, HCX, NHCX, UHI, HIU) collapse into one application model, one review workflow, one audited state machine
 - Ecosystem provisioning becomes idempotent background jobs with a ledger, automatic deprovisioning on rejection/exit, and drift detection — failures are visible and retryable, not silently swallowed
 
 ## New capabilities (absent today)

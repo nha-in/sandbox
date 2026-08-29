@@ -11,7 +11,7 @@ Before an application goes to reviewers, the applicant proves they control their
 
 ## Background
 
-The enrollment flow requires the applicant to verify contact ownership by OTP before the application enters review (`SUBMITTED → OTP_VERIFIED` in the workflow). The legacy system had OTP but no principled rate limiting and a captcha bolted on; v2 replaces that with a Redis token bucket and attempt caps — **no captcha carry-over**.
+The enrollment flow requires the applicant to prove they control the contact details before the application can be submitted. Verification belongs to the **contact**, not the application: it stamps `users_user.email_verified_at` / `phone_verified_at`, and submit is guarded on both being set — it is not a workflow state. Legacy did the same thing (`/send-otp` takes an email address and nothing else) but with no principled rate limiting and a captcha bolted on; v2 replaces that with a Redis token bucket and attempt caps — **no captcha carry-over**.
 
 This is a pure backend service consumed by the wizard's OTP partial ([C4](C4-enrollment-wizard.md)); email delivery goes through the notification port (fake adapter prints to console/Mailpit until [B6](B6-notification-adapter.md) ships the real one).
 

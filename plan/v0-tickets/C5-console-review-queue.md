@@ -23,7 +23,7 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — review
 |---|---|---|
 | 1 | Console app skeleton: queue + detail views under `ConsoleMixin` | `sandbox/console/views.py` + `urls.py` |
 | 2 | Queue template: filters (GET), cursor pagination, state counts | `sandbox/templates/console/queue.html` |
-| 3 | Detail template: payload read-only, timeline, review rows + quorum indicator | `sandbox/templates/console/application_detail.html` |
+| 3 | Detail template: payload read-only, timeline, review rows + tally | `sandbox/templates/console/application_detail.html` |
 | 4 | Action forms/views: approve / reject / send back / record review | thin views → [A5](A5-workflow-state-machine.md)/[A6](A6-reviews-quorum.md) services |
 | 5 | V0.3 add-on: provisioning panel + Retry button → [B7](B7-provisioning-chain.md) | detail template partial |
 | 6 | Route-gate rows + guard/permission view tests | `tests/` |
@@ -35,11 +35,11 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — review
   - **cursor pagination** (not offset); filter form is GET (shareable URLs), htmx-upgraded to swap the table only;
   - minimal queue counts by state (v0's "console counts" — a full dashboard is deferred).
 - **Application detail**:
-  - payload rendered read-only (schema-aware field groups, not raw JSON), org summary, transition timeline (from [A5](A5-workflow-state-machine.md) history selectors, with actor + comment), review rows + **quorum indicator** ("2 of 3 approvals" / "admin decision pending" per the active `WORKFLOW_QUORUM_POLICY`);
+  - payload rendered read-only (schema-aware field groups, not raw JSON), org + product summary, transition timeline (from [A5](A5-workflow-state-machine.md) history selectors), review rows for the current round with their comments and a **tally** ("2 approve, 1 send back") beside the approve button — advisory, since approval is the admin's call;
   - **actions as forms**: Approve / Reject / Send back (comment mandatory for reject/send-back), Record review (APPROVE|REJECT|SEND_BACK + comment) — each a plain POST to a thin view calling the Lane A service; guard/permission failures (`DomainError`) render as messages, never 500s; buttons render only when the transition table allows the action *and* the actor holds the permission (server-side check remains authoritative);
   - **V0.3 add-on**: provisioning panel — ledger rows with per-system state, `PROVISIONING_FAILED` detail, and a **Retry** button posting to [B7](B7-provisioning-chain.md)'s retry service; polling partial shared with [C7](C7-credentials-panel.md).
 - Exit-review actions ([A8](A8-exit-workflow.md)) reuse this detail page in V0.4 — keep the action-panel template composable.
-- Route-gate rows: every console URL 403/redirects for anonymous, org members and wrong-org members; reviewer vs staff/admin differences asserted (reviewer can record reviews but not approve under `ADMIN_UNILATERAL`).
+- Route-gate rows: every console URL 403/redirects for anonymous, org members and wrong-org members; reviewer vs staff/admin differences asserted (a reviewer can record reviews but cannot approve).
 
 ## Acceptance criteria
 

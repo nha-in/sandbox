@@ -66,7 +66,7 @@ All models extend the shared care-style `BaseModel` ([03-database.md](03-databas
 
 ### 3.4 Workflow engine (the heart)
 
-States, transition table (`TRANSITIONS: dict[tuple[State, Action], Spec]` — the table is data), the single `transition()` entry point, reviews-as-rows, and the env-configurable quorum guard (`WORKFLOW_QUORUM_POLICY`: `ADMIN_UNILATERAL` | `N_OF_M`) are specified field-by-field in tickets [A5](v0-tickets/A5-workflow-state-machine.md) and [A6](v0-tickets/A6-reviews-quorum.md).
+States, transition table (`TRANSITIONS: dict[tuple[State, Action], Spec]` — the table is data), the single `transition()` entry point, reviews-as-rows, and the admin-permission approve guard are specified field-by-field in tickets [A5](v0-tickets/A5-workflow-state-machine.md) and [A6](v0-tickets/A6-reviews-quorum.md).
 
 ### 3.5 Authorization idioms
 
@@ -89,7 +89,7 @@ Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in th
 | polymorphic application + SANDBOX payload schema | [A3](v0-tickets/A3-applications-model.md) |
 | OTP service | [A4](v0-tickets/A4-otp-service.md) |
 | state machine + `transition()` + audit | [A5](v0-tickets/A5-workflow-state-machine.md) |
-| reviews + quorum guard | [A6](v0-tickets/A6-reviews-quorum.md) |
+| reviews + admin approve guard | [A6](v0-tickets/A6-reviews-quorum.md) |
 | declarations + upload pipeline | [A7](v0-tickets/A7-declarations-uploads.md) |
 | exit workflow + production approval | [A8](v0-tickets/A8-exit-workflow.md) |
 | `seed_sandbox_demo` | [A9](v0-tickets/A9-seed-sandbox-demo.md) |
@@ -116,7 +116,7 @@ Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in th
 **v0**
 
 - [ ] Import-linter contracts hold (views→services→selectors layering; integrations only via ports).
-- [ ] Every service write atomic; every transition audited; quorum policy tested both ways.
+- [ ] Every service write atomic; every transition audited.
 - [ ] Route-gate matrix covers 100% of named URLs; mypy/ruff clean; no view writes state.
 
 **v1**

@@ -32,7 +32,7 @@ This ticket stays open across V0.2–V0.4: every model-bearing ticket adds its r
 - Idempotent (natural keys + `update_or_create`) and transaction-wrapped.
 - **Seeded universe** (final V0.4 shape):
   - demo organisation (+ a second org so wrong-org 404s are demonstrable) with OWNER + DEVELOPER members; a reviewer and an admin/staff user (staff MFA-enrollable); known passwords via `--password` (never a hardcoded default in code).
-  - SANDBOX applications covering **every state**: DRAFT, SUBMITTED, OTP_VERIFIED, UNDER_REVIEW (with partial review tallies), SANDBOX_APPROVED, PROVISIONING, PROVISIONED, PROVISIONING_FAILED (with a failed ledger row for the console retry demo), REJECTED (with deprovisioned ledger rows), SENT_BACK, EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED, WITHDRAWN.
+  - SANDBOX applications covering **every state**: DRAFT, SUBMITTED (with partial review tallies), SANDBOX_APPROVED, PROVISIONING, PROVISIONED, PROVISIONING_FAILED (with a failed ledger row for the console retry demo), REJECTED (with deprovisioned ledger rows), SENT_BACK, EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED, WITHDRAWN.
   - review rows satisfying and failing quorum (both policies demonstrable), transition history + audit events consistent with each state (**seed by calling the real services/`transition()`, not raw ORM writes**, so seeded history is legal).
   - declarations + a small uploaded document per relevant app; provisioning-ledger rows in ACTIVE/DISABLED/FAILED; notification log rows.
 - `--fresh` deletes **exactly what it seeds** (scoped by a seed marker/known keys), never truncates tables.
