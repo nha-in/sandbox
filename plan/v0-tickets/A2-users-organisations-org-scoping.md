@@ -22,7 +22,7 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 | # | Deliverable | Where |
 |---|---|---|
 | 1 | `external_id` + `phone` on the user model + migration | `sandbox/users/models.py` |
-| 2 | `Organisation` + `Membership` models, CHECKs, partial-unique migrations | `sandbox/organisations/models.py` |
+| 2 | `Organisation`, `Product` + `Membership` models, CHECKs, partial-unique migrations | `sandbox/organisations/models.py` |
 | 3 | `OrganisationScopedQuerySet.for_organisation()` manager | `sandbox/organisations/managers.py` |
 | 4 | `OrganisationMixin` + session active-org selection | `sandbox/organisations/mixins.py` |
 | 5 | Admin for organisation + membership | `sandbox/organisations/admin.py` |
@@ -37,6 +37,8 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 | `external_id` | UUID | unique, indexed, `default=uuid4`, non-editable (care base-model convention) |
 | `name` | char(255) | already present in cookiecutter user |
 | `phone` | char(20) | optional; format validator with tests |
+| `email_verified_at` | datetime, null | stamped when allauth confirms the address |
+| `phone_verified_at` | datetime, null | stamped by the OTP service ([A4](A4-otp-service.md)) |
 
 `organisations_organisation` (extends the shared base model — `external_id`/`created_date`/`modified_date`/`deleted` not repeated below):
 
@@ -60,6 +62,15 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 | `user` | FK → user | `on_delete=CASCADE` |
 | `role` | char + CHECK | `OWNER \| DEVELOPER` |
 | — | | `UNIQUE (organisation, user) WHERE deleted = false` — partial, so a soft-deleted membership never blocks re-adding |
+
+`organisations_product` — what actually gets certified. An organisation with two products needs two applications, two sets of credentials and two milestone tracks; legacy forced them to register twice as two "companies" because `SdLogin` carried a single `product_name`:
+
+| Field | Type | Constraints / notes |
+|---|---|---|
+| `organisation` | FK → organisation | `on_delete=PROTECT` |
+| `name` | char(255) | display name |
+| `slug` | slug | `UNIQUE (organisation, slug) WHERE deleted = false` |
+| `description` | text | optional |
 
 ### Org-scoping API (the authz backbone)
 

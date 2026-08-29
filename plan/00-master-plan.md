@@ -81,7 +81,7 @@ flowchart LR
 | Views never write state | Services own every write; the workflow has exactly one write path |
 | Authz as unforgettable mixins | Org-scoped querysets that 404 (not 403); console gate mixin; full route matrix asserted in tests |
 | Single polymorphic `Application` aggregate | 5 enrollment flows share ~60% of fields and 100% of workflow; per-kind divergence in versioned JSONB payloads |
-| Explicit workflow state machine, reviews as rows, configurable quorum (`WORKFLOW_QUORUM_POLICY`: `N_OF_M` / `ADMIN_UNILATERAL`) | Replaces magic ints, wide tables, username-string authority, dead quorum code |
+| Explicit workflow state machine, reviews as rows, approval by admin permission | Replaces magic ints, wide tables, username-string authority, dead quorum code |
 | Adapter ports with timeouts/retries/breakers + provisioning ledger | Replaces resilience-free Feign clients and silent partial provisioning |
 | Strapi + Meilisearch removed | Content app + Postgres FTS replace them; content arrives via cutover migration then immediate decommission |
 | Kafka dropped | Legacy topic was producer-only with hash-only payloads — no audit history exists to preserve; append-only `audit_event` table is the trail |
@@ -112,7 +112,7 @@ flowchart LR
 | Auth | allauth local accounts, email verification, staff MFA | — |
 | Tenancy | organisations + membership, org-scoped 404 querysets | org verification UI, team invites |
 | Applications | polymorphic model, **SANDBOX kind only** | HCX / NHCX / UHI / HIU form sets |
-| Workflow | full state machine, reviews-as-rows, audit on every transition; quorum default `ADMIN_UNILATERAL` (legacy parity), `N_OF_M` shipped + tested | evidence gating |
+| Workflow | full state machine, reviews-as-rows, audit on every transition; approval requires the admin permission (legacy parity) | evidence gating |
 | Provisioning | complete: Keycloak + WSO2 + HIE-CM chains, ledger, `PROVISIONING_FAILED` + retry, **deprovision on rejection** | drift reconciliation, deprovision on exit |
 | Credentials UX | show-once secret, self-service rotate, polling status | callback registration + probes |
 | Milestones / exit | self-declaration + uploads; exit + production approval | conformance service, usage evidence |
@@ -166,7 +166,7 @@ Phase labels P2–P6 are kept (tickets reference them). v0 already delivers P1 e
 | Risk | Mitigation |
 |---|---|
 | htmx ceiling for rich interactions | JS islands permitted but budgeted (docs viewer is the only planned one); anything else needs written justification |
-| Workflow semantics live only in legacy code + data | State graph reverse-engineered (done — see §5 findings); quorum decision explicit and env-configurable |
+| Workflow semantics live only in legacy code + data | State graph reverse-engineered (done — see §5 findings); approval authority explicit in permissions |
 | SQL→ORM drift across ported dashboards | Golden-data parity tests; dashboards ported last (P5) |
 | Server-rendered pages under load | Cursor pagination, selector-level `select_related`, Redis fragment caching; load test at P6 |
 | Scope growth (conformance, assistant) | Both flag-gated; assistant ships lite and can slip without blocking |

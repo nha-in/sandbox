@@ -13,7 +13,7 @@ The application form itself: a signed-in integrator walks through a few short st
 
 The legacy enrollment was four duplicated ~1,000-line React wizard forms. v2 replaces the SPA class entirely: the wizard is server-rendered Django forms rendered with careui's `{% ui_field %}`, with htmx as **progressive enhancement only** — every step is a real POST + redirect that works with JS disabled; `hx-*` upgrades it in place. v0 ships one kind (SANDBOX), but the form-stack structure is what later kinds plug field groups into, so keep the per-kind divergence isolated.
 
-Flow being built: signed-in org member → wizard (org/contact details, intended roles, use case) → submit → **OTP verify** → application enters review (`DRAFT → SUBMITTED → OTP_VERIFIED`).
+Flow being built: signed-in org member → wizard (product, intended roles, use case) → **verify contact** → submit (`DRAFT → SUBMITTED`).
 
 ## What to build
 
@@ -34,7 +34,7 @@ Flow being built: signed-in org member → wizard (org/contact details, intended
 - **Address selects** from catalog selectors; district options depend on state via an htmx dependent-select partial — with a no-JS fallback (full-page re-render preserving entered data).
 - **Validation** is server-side only; validators with tests replace the legacy `NoSpecialCharacters`-style rules; errors render inline via `{% ui_field %}` + `components/form_errors.html` and the messages component.
 - **Review-and-submit** step renders the assembled payload read-only; submit calls the workflow (`DRAFT → SUBMITTED`) then redirects to the OTP step.
-- **OTP partial** (`partials/otp_verify.html`): issue + verify against [A4](A4-otp-service.md); resend with visible cooldown; rate-limit/expiry errors from `DomainError` map to form errors (never a 500). Success fires `SUBMITTED → OTP_VERIFIED` and redirects to the dashboard ([C6](C6-integrator-dashboard.md)). Plain-POST fallback for every action.
+- **OTP partial** (`partials/otp_verify.html`): issue + verify against [A4](A4-otp-service.md); resend with visible cooldown; rate-limit/expiry errors from `DomainError` map to form errors (never a 500). Verification stamps the contact's `*_verified_at`; submit is blocked until both are set. Plain-POST fallback for every action.
 - **SENT_BACK editing**: the same wizard reopens pre-filled when the application is sent back; reviewer comments shown at the top; resubmission re-enters the flow.
 - One live application per (org, kind): if one exists, the wizard entry redirects to it (constraint violation never bubbles to the user).
 - htmx conventions per [02-ui.md §3.2](../02-ui.md): partials in `partials/`, stable swap-target ids, `hx-disabled-elt` + indicator on submits.

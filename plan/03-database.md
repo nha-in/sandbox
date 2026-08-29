@@ -70,8 +70,8 @@ Field-by-field specs live in the tickets — they are the authoritative table de
 | Tables | Ticket |
 |---|---|
 | `catalog_milestone` | [A1](v0-tickets/A1-catalog-app.md) |
-| `users_user` (extension), `organisations_organisation`, `organisations_membership` | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
-| `applications_application` (+ partial-unique live app, payload envelope) | [A3](v0-tickets/A3-applications-model.md) |
+| `users_user` (extension), `organisations_organisation`, `organisations_product`, `organisations_membership` | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
+| `applications_application` (+ partial-unique live app per product, payload envelope) | [A3](v0-tickets/A3-applications-model.md) |
 | `workflow_transition`, `audit_event` | [A5](v0-tickets/A5-workflow-state-machine.md) |
 | `workflow_review` | [A6](v0-tickets/A6-reviews-quorum.md) |
 | `declarations_declaration`, `declarations_document` | [A7](v0-tickets/A7-declarations-uploads.md) |

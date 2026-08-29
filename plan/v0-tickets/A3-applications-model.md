@@ -36,7 +36,7 @@ Extends the shared base model (`external_id`/`created_date`/`modified_date`/`del
 |---|---|---|
 | `reference` | char(15) | `SBX-YYYY-NNNNN`, unique, **display-only** (no URL resolves by it) |
 | `kind` | char + CHECK | `SANDBOX \| HCX \| UHI \| HIU \| NHCX` — all five in the constraint; only SANDBOX creatable in v0 |
-| `organisation` | FK → organisation | `on_delete=PROTECT`; org-scoped manager from [A2](A2-users-organisations-org-scoping.md) |
+| `product` | FK → organisations_product | `on_delete=PROTECT`; the organisation is reached through it, so there is one owner of that fact |
 | `applicant` | FK → user | `on_delete=PROTECT` |
 | `state` | char + CHECK | workflow states; denormalized — written **only** by [A5](A5-workflow-state-machine.md)'s `transition()` |
 | `payload` | JSONB, not null | versioned envelope (below) |
@@ -44,9 +44,10 @@ Extends the shared base model (`external_id`/`created_date`/`modified_date`/`del
 
 Constraints & indexes:
 
-- `UNIQUE (organisation, kind) WHERE state NOT IN ('REJECTED','WITHDRAWN') AND deleted = false` — one live application per org per kind; rejected/withdrawn/deleted never block re-applying.
+- `UNIQUE (product, kind) WHERE state NOT IN ('REJECTED','WITHDRAWN') AND deleted = false` — one live application per product per kind; rejected/withdrawn/deleted never block re-applying, and a second product gets its own application.
 - `INDEX (kind, state)` — queue/dashboard queries.
 - `GIN (payload jsonb_path_ops)` — ad-hoc admin search only, never app queries.
+- Org scoping filters `product__organisation` ([A2](A2-users-organisations-org-scoping.md)'s manager).
 
 ### Payload envelope + schema registry
 
@@ -54,7 +55,7 @@ Constraints & indexes:
 {"schema_version": 1, "data": { "…kind-specific fields…": "…" }}
 ```
 
-- Registry keyed by `(kind, schema_version)` → validator. v0 registers **`SANDBOX` schema v1**: org/contact details, intended HIP/HIU roles, use-case description — final field list from the legacy SANDBOX form.
+- Registry keyed by `(kind, schema_version)` → validator. v0 registers **`SANDBOX` schema v1**: solution types, payer categories, intended HIP/HIU roles, integration level and use-case narrative — final field list from the legacy SANDBOX form. **Organisation and product facts do not belong here** — entity type, GST, address, LGD codes, website and product name live on their own tables, so a later edit cannot leave the application showing a stale copy.
 - Services validate on **every** write; unknown kind/version → `DomainError`. A corrupted envelope must be unsaveable through services.
 
 ### Services & selectors
