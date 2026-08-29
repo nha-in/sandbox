@@ -104,6 +104,7 @@ LOCAL_APPS = [
     "sandbox.organisations",
     "sandbox.catalog",
     "sandbox.applications",
+    "sandbox.declarations",
     "sandbox.workflow",
     "sandbox.audit",
     "sandbox.integrations",
@@ -406,6 +407,57 @@ OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
 OTP_ISSUE_MAX = env.int("OTP_ISSUE_MAX", default=5)
 OTP_ISSUE_WINDOW_SECONDS = env.int("OTP_ISSUE_WINDOW_SECONDS", default=600)
 OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=90)
+
+# UPLOADS
+# ------------------------------------------------------------------------------
+# Legacy accepted the same four types but checked only the filename extension
+# (`GeneralUtils.isFileTypeSupported`), and its per-file cap was `800 * 3024` —
+# a typo for 1024. We keep the formats, sniff the content, and pick round caps.
+UPLOAD_MAX_BYTES = env.int("UPLOAD_MAX_BYTES", default=10 * 1024 * 1024)
+UPLOAD_MAX_FILES = env.int("UPLOAD_MAX_FILES", default=10)
+UPLOAD_MAX_TOTAL_BYTES = env.int(
+    "UPLOAD_MAX_TOTAL_BYTES",
+    default=30 * 1024 * 1024,
+)
+UPLOAD_ALLOWED_EXTENSIONS = [".pdf", ".xls", ".xlsx", ".csv"]
+#: how long a download link stays valid; short because links get pasted around
+UPLOAD_DOWNLOAD_URL_TTL_SECONDS = env.int(
+    "UPLOAD_DOWNLOAD_URL_TTL_SECONDS",
+    default=300,
+)
+
+# STORAGES
+# ------------------------------------------------------------------------------
+# Declaration documents live in their own private bucket, never `default`:
+# nothing in the portal may serve them by URL, only the presigned-download view.
+AWS_S3_ENDPOINT_URL = env.str("AWS_S3_ENDPOINT_URL", default="http://minio:9000")
+AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", default="sandbox")
+AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", default="sandbox-secret")
+AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", default="sandbox-uploads")
+AWS_S3_REGION_NAME = env.str("AWS_S3_REGION_NAME", default="us-east-1")
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+    "declarations": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_STORAGE_BUCKET_NAME,
+            "endpoint_url": AWS_S3_ENDPOINT_URL,
+            "region_name": AWS_S3_REGION_NAME,
+            "access_key": AWS_ACCESS_KEY_ID,
+            "secret_key": AWS_SECRET_ACCESS_KEY,
+            "default_acl": "private",
+            "querystring_auth": True,  # url() presigns
+            "querystring_expire": UPLOAD_DOWNLOAD_URL_TTL_SECONDS,
+            "file_overwrite": False,
+            "addressing_style": "path",  # MinIO has no virtual-host DNS
+            "signature_version": "s3v4",  # botocore still defaults to v2 here
+        },
+    },
+}
 
 
 # Your stuff...

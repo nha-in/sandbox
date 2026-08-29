@@ -21,6 +21,10 @@ urlpatterns = [
         "organisations/",
         include("sandbox.organisations.urls", namespace="organisations"),
     ),
+    path(
+        "declarations/",
+        include("sandbox.declarations.urls", namespace="declarations"),
+    ),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     # ...

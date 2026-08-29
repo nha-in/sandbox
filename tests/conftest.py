@@ -7,11 +7,18 @@ could be knocking".
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
 from django.test import Client
 
+from sandbox.applications.models import ApplicationState
+from sandbox.applications.tests.factories import ApplicationFactory
+from sandbox.declarations.models import Declaration
+from sandbox.declarations.models import DeclarationDocument
+from sandbox.declarations.models import DeclarationKind
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
@@ -22,6 +29,7 @@ ORG_MEMBER = "org_member"
 MEMBER_OTHER_ORG = "member_other_org"
 REVIEWER = "reviewer"
 STAFF = "staff"
+DOCUMENT_A = "document_a"
 
 ACTORS = (ANONYMOUS, ORG_MEMBER, MEMBER_OTHER_ORG, REVIEWER, STAFF)
 STAFF_ACTORS = (REVIEWER, STAFF)
@@ -91,9 +99,43 @@ def actors(org_member, member_other_org, reviewer, staff_user):
 
 
 @pytest.fixture
-def context(actors, org_a, org_b, product_a):
+def document_a(org_a, org_member, product_a):
+    """A declaration document owned by org A, for the org-scoped download row.
+
+    Built through the ORM rather than the service: presigning needs no network,
+    so the matrix stays offline and does not depend on a mocked S3.
+    """
+    application = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=ApplicationState.PROVISIONED,
+    )
+    declaration = Declaration.objects.create(
+        application=application,
+        kind=DeclarationKind.MILESTONE,
+        declared_by=org_member,
+    )
+    return DeclarationDocument.objects.create(
+        declaration=declaration,
+        storage_key=f"declarations/{declaration.external_id}/{uuid.uuid4()}",
+        filename="evidence.pdf",
+        content_type="application/pdf",
+        size=1024,
+        sha256="0" * 64,
+        uploaded_by=org_member,
+    )
+
+
+@pytest.fixture
+def context(actors, org_a, org_b, product_a, document_a):
     """What a route's `kwargs` callable receives when it builds URL arguments."""
-    return {**actors, "org_a": org_a, "org_b": org_b, "product_a": product_a}
+    return {
+        **actors,
+        "org_a": org_a,
+        "org_b": org_b,
+        "product_a": product_a,
+        DOCUMENT_A: document_a,
+    }
 
 
 @pytest.fixture

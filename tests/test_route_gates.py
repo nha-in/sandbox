@@ -34,6 +34,7 @@ from django.urls import get_resolver
 from django.urls import reverse
 
 from tests.conftest import ANONYMOUS
+from tests.conftest import DOCUMENT_A
 from tests.conftest import MEMBER_OTHER_ORG
 from tests.conftest import ORG_MEMBER
 from tests.conftest import STAFF_ACTORS
@@ -71,6 +72,10 @@ class Route:
 
 def _member_pk(context: dict) -> dict:
     return {"pk": context[ORG_MEMBER].pk}
+
+
+def _document_id(context: dict) -> dict:
+    return {"external_id": context[DOCUMENT_A].external_id}
 
 
 # The matrix. One row per named URL; django-admin is asserted as a group below.
@@ -130,6 +135,12 @@ ROUTES: dict[str, Route] = {
         ),
     ),
     "organisations:switch": Route(Access.AUTHENTICATED, methods=("GET", "POST")),
+    # Presigned download. Org-scoped: the bucket is private, so this row is the
+    # only thing standing between another tenant and the file.
+    "declarations:document_download": Route(
+        Access.ORG_SCOPED,
+        kwargs=_document_id,
+    ),
 }
 
 # Named URLs deliberately not given individual rows.
@@ -247,10 +258,12 @@ def _assert_self_only(actor, response, where):
 
 
 def _assert_org_scoped(actor, response, where):
-    if actor == MEMBER_OTHER_ORG:
-        assert response.status_code == HTTP_NOT_FOUND, f"{where}: {NOT_FOUND_REQUIRED}"
-    else:
+    # Only the owning organisation's member gets in. Staff are not members, so
+    # an integrator URL 404s for them too — the console has its own screens.
+    if actor == ORG_MEMBER:
         assert response.status_code not in DENIED_CODES, where
+    else:
+        assert response.status_code == HTTP_NOT_FOUND, f"{where}: {NOT_FOUND_REQUIRED}"
 
 
 def _assert_console(actor, response, where):
