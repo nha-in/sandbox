@@ -19,14 +19,14 @@ v2 puts every external call behind an **anti-corruption layer**: typed ports (Pr
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Port Protocols + typed DTOs + `AdapterError` | `sandbox/integrations/ports.py` |
-| 2 | Shared httpx client factory (timeouts/retry/breaker/auth/tracing) | `sandbox/integrations/http.py` |
-| 3 | `ProvisionedResource` ledger model + migration (schema only) | `sandbox/integrations/models.py` |
-| 4 | Import-linter contract: domain → ports only | `pyproject.toml` |
-| 5 | Settings toggle: port → real adapter / fake per environment | `config/settings/*` |
-| 6 | Unit tests for every http-policy behaviour | `sandbox/integrations/tests/` |
+| #   | Deliverable                                                       | Where                            |
+| --- | ----------------------------------------------------------------- | -------------------------------- |
+| 1   | Port Protocols + typed DTOs + `AdapterError`                      | `sandbox/integrations/ports.py`  |
+| 2   | Shared httpx client factory (timeouts/retry/breaker/auth/tracing) | `sandbox/integrations/http.py`   |
+| 3   | `ProvisionedResource` ledger model + migration (schema only)      | `sandbox/integrations/models.py` |
+| 4   | Import-linter contract: domain → ports only                       | `pyproject.toml`                 |
+| 5   | Settings toggle: port → real adapter / fake per environment       | `config/settings/*`              |
+| 6   | Unit tests for every http-policy behaviour                        | `sandbox/integrations/tests/`    |
 
 > **Deliverable 3 is deferred to a follow-up PR.** The ledger's `application` FK and
 > its `UNIQUE (application, system)` backstop both require `applications.Application`,
@@ -83,26 +83,26 @@ class NotificationGateway(Protocol):  # B6
 
 Client factory applying to every adapter:
 
-| Concern | Policy |
-|---|---|
-| Timeouts | explicit per adapter: connect 3s; read 10s default (notification 5s, WSO2 admin 15s) — **no unbounded calls** |
-| Retries | tenacity: idempotent ops only, exponential backoff + jitter, max 3 — never retry non-idempotent POSTs without an idempotency guarantee |
-| Circuit breaker | pybreaker per system: open after 5 consecutive failures, half-open probe 30s; breaker state loggable/exposable |
-| Auth | server-side credentials from env/secret store; token caching with early refresh |
-| Tracing | correlation-ID + `traceparent` headers on every call; one structured log line per call (system, op, duration, outcome) — **never log secrets** |
+| Concern         | Policy                                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Timeouts        | explicit per adapter: connect 3s; read 10s default (notification 5s, WSO2 admin 15s) — **no unbounded calls**                                  |
+| Retries         | tenacity: idempotent ops only, exponential backoff + jitter, max 3 — never retry non-idempotent POSTs without an idempotency guarantee         |
+| Circuit breaker | pybreaker per system: open after 5 consecutive failures, half-open probe 30s; breaker state loggable/exposable                                 |
+| Auth            | server-side credentials from env/secret store; token caching with early refresh                                                                |
+| Tracing         | correlation-ID + `traceparent` headers on every call; one structured log line per call (system, op, duration, outcome) — **never log secrets** |
 
 ### Provisioning ledger (schema only — chain logic is [B7](B7-provisioning-chain.md))
 
 `integrations_provisioned_resource`:
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `application` | FK → application | |
-| `system` | char + CHECK | `KEYCLOAK \| WSO2 \| HIECM` |
-| `external_id` | char | id in the external system |
-| `secret_ref` | char | secret-store reference only — **never a secret value** |
-| `state` | char + CHECK | `ACTIVE \| DISABLED \| FAILED \| ORPHANED` |
-| — | | `UNIQUE (application, system) WHERE deleted = false` — the idempotency backstop |
+| Field         | Type             | Constraints / notes                                                             |
+| ------------- | ---------------- | ------------------------------------------------------------------------------- |
+| `application` | FK → application |                                                                                 |
+| `system`      | char + CHECK     | `KEYCLOAK \| WSO2 \| HIECM`                                                     |
+| `external_id` | char             | id in the external system                                                       |
+| `secret_ref`  | char             | secret-store reference only — **never a secret value**                          |
+| `state`       | char + CHECK     | `ACTIVE \| DISABLED \| FAILED \| ORPHANED`                                      |
+| —             |                  | `UNIQUE (application, system) WHERE deleted = false` — the idempotency backstop |
 
 ### Boundaries
 
@@ -119,13 +119,13 @@ Client factory applying to every adapter:
 
 ### Decisions taken while building
 
-| Question | Decision |
-|---|---|
+| Question                              | Decision                                                                                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | What counts as one breaker "failure"? | A **fully-retried** request. Breaker wraps retry, so an open circuit short-circuits without burning attempts, and `CIRCUIT_OPEN` surfaces as a retryable `AdapterError`. |
-| Do 4xx responses trip the breaker? | **No.** A 404 means we asked wrongly, not that the dependency is down; only retryable errors count toward `fail_max`. |
-| Which methods retry by default? | `GET/HEAD/OPTIONS/PUT/DELETE`. POST must pass `idempotent=True` explicitly, forcing the author to name the idempotency guarantee. |
-| Breaker scope | One per `ExternalSystem`, shared by every client pointed at it — WSO2 being down must not open Keycloak's circuit. |
-| httpx's own logging | Silenced to `WARNING` in `LOGGING`. It emitted a second INFO line per call containing the full URL; our structured line is the record of truth. |
+| Do 4xx responses trip the breaker?    | **No.** A 404 means we asked wrongly, not that the dependency is down; only retryable errors count toward `fail_max`.                                                    |
+| Which methods retry by default?       | `GET/HEAD/OPTIONS/PUT/DELETE`. POST must pass `idempotent=True` explicitly, forcing the author to name the idempotency guarantee.                                        |
+| Breaker scope                         | One per `ExternalSystem`, shared by every client pointed at it — WSO2 being down must not open Keycloak's circuit.                                                       |
+| httpx's own logging                   | Silenced to `WARNING` in `LOGGING`. It emitted a second INFO line per call containing the full URL; our structured line is the record of truth.                          |
 
 ## Out of scope (deferred)
 
