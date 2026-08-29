@@ -10,7 +10,6 @@ secret.
 
 from __future__ import annotations
 
-import contextvars
 import logging
 import threading
 import time
@@ -31,6 +30,8 @@ from tenacity import wait_exponential_jitter
 
 from sandbox.integrations.ports import AdapterError
 from sandbox.integrations.ports import ExternalSystem
+from sandbox.utils.correlation import get_correlation_id
+from sandbox.utils.correlation import set_correlation_id
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -38,28 +39,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "HttpPolicy",
+    "IntegrationClient",
+    "Token",
+    "TokenCache",
+    "breaker_for",
+    "get_correlation_id",
+    "reset_breakers",
+    "set_correlation_id",
+]
+
 # PUT/DELETE are idempotent by HTTP semantics; POST is not, and is never retried
 # unless an adapter can point at an idempotency guarantee (B7's ledger).
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
 RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
-
-_correlation_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "integration_correlation_id",
-    default="",
-)
-
-
-def get_correlation_id() -> str:
-    """Correlation id for the current context, generated on first use."""
-    cid = _correlation_id.get()
-    if not cid:
-        cid = uuid.uuid4().hex
-        _correlation_id.set(cid)
-    return cid
-
-
-def set_correlation_id(value: str) -> None:
-    _correlation_id.set(value)
 
 
 @dataclass(frozen=True, slots=True)

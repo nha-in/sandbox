@@ -19,15 +19,15 @@ v2 replaces all of that with an explicit, audited state machine with **exactly o
 
 ### Deliverables
 
-| #   | Deliverable                                                                                                                                     | Where                           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 1   | `WorkflowTransition`, `WorkflowAssignment` models (`State` choices already live on `applications.Application` — [A3](A3-applications-model.md)) | `sandbox/workflow/models.py`    |
-| 2   | `TRANSITIONS` table (data, introspectable)                                                                                                      | `sandbox/workflow/machine.py`   |
-| 3   | `transition()` — the single state writer                                                                                                        | `sandbox/workflow/services.py`  |
-| 4   | New `audit` app: `AuditEvent` model + `audit.emit()` helper                                                                                     | `sandbox/audit/`                |
-| 5   | Append-only enforcement migration (revoke UPDATE/DELETE)                                                                                        | `workflow`/`audit` migrations   |
-| 6   | History + queue selectors                                                                                                                       | `sandbox/workflow/selectors.py` |
-| 7   | Tests: full legal + illegal transition table, atomicity, on-commit side-effects                                                                 | `sandbox/workflow/tests/`       |
+| #   | Deliverable                                                                                                              | Where                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| 1   | `WorkflowTransition` model (`State` choices already live on `applications.Application` — [A3](A3-applications-model.md)) | `sandbox/workflow/models.py`    |
+| 2   | `TRANSITIONS` table (data, introspectable)                                                                               | `sandbox/workflow/machine.py`   |
+| 3   | `transition()` — the single state writer                                                                                 | `sandbox/workflow/services.py`  |
+| 4   | New `audit` app: `AuditEvent` model + `audit.emit()` helper                                                              | `sandbox/audit/`                |
+| 5   | Append-only enforcement migration (revoke UPDATE/DELETE)                                                                 | `workflow`/`audit` migrations   |
+| 6   | History + queue selectors                                                                                                | `sandbox/workflow/selectors.py` |
+| 7   | Tests: full legal + illegal transition table, atomicity, on-commit side-effects                                          | `sandbox/workflow/tests/`       |
 
 ### State machine + single entry point
 
@@ -89,12 +89,51 @@ Selectors: transition history per application; queue by state.
 
 ## Acceptance criteria
 
-- [ ] Transition table 100% test-covered — **every legal and every illegal** (state, action) pair asserted.
-- [ ] `transition()` is the only state writer (import-linter/review); views and shell move records identically.
-- [ ] Every transition writes exactly one transition row + one audit event atomically (rollback test: guard failure leaves no rows).
-- [ ] Append-only verified: UPDATE/DELETE as app role fails on transitions + audit.
-- [ ] Side-effects fire on commit only (proven with `django_capture_on_commit_callbacks`).
-- [ ] Authority = permissions, zero username strings; mypy/ruff clean.
+- [x] Transition table 100% test-covered — **every legal and every illegal** (state, action) pair asserted (13 states × 14 actions = 182 pairs, 20 legal).
+- [x] `transition()` is the only state writer (import-linter/review); views and shell move records identically.
+- [x] Every transition writes exactly one transition row + one audit event atomically (rollback test: guard failure leaves no rows).
+- [x] Append-only verified: UPDATE/DELETE as a non-superuser role fails on transitions + audit — **see the caveat below**.
+- [x] Side-effects fire on commit only (proven with `django_capture_on_commit_callbacks`).
+- [x] Authority = permissions, zero username strings; mypy/ruff clean.
+
+### Append-only only holds if the app role is not a superuser
+
+The migrations `REVOKE UPDATE, DELETE ... FROM CURRENT_USER`, which is correct
+SQL — but PostgreSQL skips every privilege check for a superuser, and the local
+and CI databases hand the app the image's superuser account. The revoke is
+therefore **inert in local and CI**, and the tests prove the mechanism against a
+purpose-made non-superuser role instead of pretending otherwise.
+
+`tests/test_append_only.py` also asserts that the local role _is_ a superuser, so
+the day that stops being true the test fails and the caveat gets revisited
+deliberately rather than by accident.
+
+**Deployment requirement** ([07-infra-cicd.md](../07-infra-cicd.md)): staging and
+production must connect as a non-superuser role that does not own these tables.
+Without that, the append-only guarantee is decorative.
+
+### Hook registry rather than direct chain calls
+
+`Spec.hooks` names side effects (`provisioning_chain`, `deprovisioning_chain`,
+the `notify_*` set); [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md)/[B6](B6-notification-adapter.md)
+register handlers with `services.register_hook()`. An unregistered name is a
+no-op, which is what lets A5 ship and be exercised before any of them exist —
+and keeps `workflow` free of imports into `integrations`.
+
+### Exit edges are provisional
+
+`REQUEST_EXIT` / `START_EXIT_REVIEW` / `APPROVE_EXIT` / `REJECT_EXIT` /
+`SEND_BACK_EXIT` are implemented against the single-exit reading of the graph. If
+[00-master-plan.md §10](../00-master-plan.md) open question 3 resolves to
+"repeatable per milestone track", [A8](A8-exit-workflow.md) replaces these edges
+with a scoped record. Nothing else in v0 depends on their shape.
+
+### `WITHDRAW` from `PROVISIONED` is the v0 deprovisioning trigger
+
+[B8](B8-deprovisioning-chain.md) asks for "whichever transitions can strand
+ACTIVE ledger rows". Rejection is only legal from `SUBMITTED` — before anything
+is provisioned — so the transition that actually strands resources is withdrawal
+after provisioning. Both carry the `deprovisioning_chain` hook.
 
 ## Out of scope (deferred)
 

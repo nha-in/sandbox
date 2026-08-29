@@ -85,6 +85,7 @@ DJANGO_APPS = [
     "django.contrib.staticfiles",
     # "django.contrib.humanize", # Handy template tags
     "django.contrib.admin",
+    "django.contrib.postgres",  # required by audit's BrinIndex
     "django.forms",
 ]
 THIRD_PARTY_APPS = [
@@ -103,6 +104,8 @@ LOCAL_APPS = [
     "sandbox.organisations",
     "sandbox.catalog",
     "sandbox.applications",
+    "sandbox.workflow",
+    "sandbox.audit",
     "sandbox.integrations",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

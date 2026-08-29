@@ -11,23 +11,23 @@ When an application is approved, the integrator must end up with three things in
 
 ## Background
 
-Provisioning is what the sandbox *is*: on approval the integrator must receive a Keycloak client, a WSO2 application + subscriptions, and an HIE-CM bridge. The legacy system ran this synchronously inside the request handler with **no idempotency** (a retry created duplicate Keycloak clients and WSO2 subscriptions), partial failures were silent, and a "provisioned" application could be missing half its resources.
+Provisioning is what the sandbox _is_: on approval the integrator must receive a Keycloak client, a WSO2 application + subscriptions, and an HIE-CM bridge. The legacy system ran this synchronously inside the request handler with **no idempotency** (a retry created duplicate Keycloak clients and WSO2 subscriptions), partial failures were silent, and a "provisioned" application could be missing half its resources.
 
-v2: a Celery chain driven off the `SANDBOX_APPROVED` transition, with the `integrations_provisioned_resource` ledger as the idempotency backstop, explicit `PROVISIONING_FAILED` visibility, and a console-triggered manual retry. The V0.3 exit criterion runs through this ticket: *approval on staging provisions real sandbox credentials end-to-end; kill-mid-chain/retry proves idempotency*.
+v2: a Celery chain driven off the `SANDBOX_APPROVED` transition, with the `integrations_provisioned_resource` ledger as the idempotency backstop, explicit `PROVISIONING_FAILED` visibility, and a console-triggered manual retry. The V0.3 exit criterion runs through this ticket: _approval on staging provisions real sandbox credentials end-to-end; kill-mid-chain/retry proves idempotency_.
 
 ## What to build
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Celery chain: Keycloak → WSO2 → HIE-CM, ledger-checked steps | `sandbox/integrations/tasks.py` (or `provisioning.py`) |
-| 2 | Trigger wiring: `SANDBOX_APPROVED` on-commit → chain → `PROVISIONING` | [A5](A5-workflow-state-machine.md) transition spec |
-| 3 | Retry policy (max 5 / ~30 min) + terminal `PROVISIONING_FAILED` transition | chain |
-| 4 | `retry_provisioning()` service for the console button | `sandbox/integrations/services.py` |
-| 5 | Show-once secret handoff: short-TTL one-time-read cache (design shared with [C7](C7-credentials-panel.md)) | same |
-| 6 | Completion: `PROVISIONED` transition + `sandbox-approved` notification | chain + [B6](B6-notification-adapter.md) |
-| 7 | Tests vs fakes: happy path, kill/retry, terminal failure, retry-completes-missing | `sandbox/integrations/tests/` |
+| #   | Deliverable                                                                                                | Where                                                  |
+| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 1   | Celery chain: Keycloak → WSO2 → HIE-CM, ledger-checked steps                                               | `sandbox/integrations/tasks.py` (or `provisioning.py`) |
+| 2   | Trigger wiring: `SANDBOX_APPROVED` on-commit → chain → `PROVISIONING`                                      | [A5](A5-workflow-state-machine.md) transition spec     |
+| 3   | Retry policy (max 5 / ~30 min) + terminal `PROVISIONING_FAILED` transition                                 | chain                                                  |
+| 4   | `retry_provisioning()` service for the console button                                                      | `sandbox/integrations/services.py`                     |
+| 5   | Show-once secret handoff: short-TTL one-time-read cache (design shared with [C7](C7-credentials-panel.md)) | same                                                   |
+| 6   | Completion: `PROVISIONED` transition + `sandbox-approved` notification                                     | chain + [B6](B6-notification-adapter.md)               |
+| 7   | Tests vs fakes: happy path, kill/retry, terminal failure, retry-completes-missing                          | `sandbox/integrations/tests/`                          |
 
 ### Chain behaviour
 
@@ -40,6 +40,7 @@ v2: a Celery chain driven off the `SANDBOX_APPROVED` transition, with the `integ
 - **Manual retry hook**: an idempotent service the console button ([C5](C5-console-review-queue.md)/[C7](C7-credentials-panel.md)) POSTs to — `PROVISIONING_FAILED → PROVISIONING`, re-enqueues the chain; completed steps skip via the ledger, only missing systems run.
 - **Completion**: all three ledger rows ACTIVE → `PROVISIONED` transition; success side-effects: `sandbox-approved` notification ([B6](B6-notification-adapter.md)) linking to the credentials panel; the initial secret reaches [C7](C7-credentials-panel.md)'s show-once flow **without persistence** (short-TTL one-time-read cache keyed to the application — never a DB column, design reviewed with C7).
 - Structured logs with correlation ID per step; ledger + state queryable by the [C7](C7-credentials-panel.md) polling partial.
+- **Carry the correlation id into every task explicitly.** `sandbox.utils.correlation` holds it in a `ContextVar`, which is per-process, so it does **not** survive `transaction.on_commit` → broker → worker: a chain that does nothing will start a fresh id, and the approval will not be linked to the provisioning it caused — the exact case the field exists for. Pass the id from `get_correlation_id()` as a task argument (or a message header) and call `set_correlation_id()` as the first line of each task. Then [A5](A5-workflow-state-machine.md)'s audit rows, this chain's audit rows, and the `X-Correlation-Id`/`traceparent` headers [B1](B1-integration-ports-http-policy.md) sends to Keycloak/WSO2/HIE-CM all share one value. Worth a test: approve, run the chain, assert every `audit_event` row for that application has the same `correlation_id`.
 
 ## Acceptance criteria
 

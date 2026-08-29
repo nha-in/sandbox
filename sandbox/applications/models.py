@@ -95,7 +95,7 @@ class Application(BaseModel):
         indexes = [
             models.Index(
                 fields=["kind", "state"],
-                name="applications_application_kind_state_idx",
+                name="applications_kind_state_idx",
             ),
         ]
 
