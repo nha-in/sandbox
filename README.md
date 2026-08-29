@@ -28,6 +28,33 @@ House rules worth knowing before the first PR:
 - **Staff accounts require MFA** — `StaffMFARequiredMiddleware` redirects staff without a TOTP device.
 - **A DEBUG process cannot talk to shared infrastructure**; `config/settings/guards.py` refuses to boot.
 
+## Working offline
+
+Nothing in local development talks to Keycloak, WSO2, HIE-CM or the notification gateway. Every one of those sits behind a port in `sandbox/integrations/ports.py`, and `local`/`test` resolve each port to an in-process fake (`sandbox/integrations/fakes.py`) via `INTEGRATION_PORTS`. `just up` plus `just manage seed_sandbox_demo` gives a fully navigable portal with no VPN and no ABDM credentials.
+
+Fake state lives in the cache rather than in module globals, so a client created by a Celery task is visible to the web process. Notifications are sent through Django's email backend, which means OTP and lifecycle mail is readable in Mailpit at <http://localhost:8025>.
+
+To rehearse a failure — the `PROVISIONING_FAILED` screen, a retry button, a slow dependency — arm the fakes from `just manage shell`:
+
+```python
+from sandbox.integrations import fakes
+from sandbox.integrations.ports import ExternalSystem
+
+fakes.fail_next(ExternalSystem.WSO2, "create_application")   # fails once, then clears
+fakes.always_fail(ExternalSystem.HIECM, retryable=False)     # until clear_failures()
+fakes.set_latency(ExternalSystem.KEYCLOAK, 3.0)              # seconds, every call
+fakes.clear_failures(ExternalSystem.HIECM)
+fakes.reset_fakes()                                          # drop all fake state
+```
+
+Tests reset the fakes automatically (autouse fixture in `sandbox/conftest.py`). To point an environment at a real system instead, set the matching env var to a dotted path — `INTEGRATION_IDP=sandbox.integrations.keycloak.adapter.KeycloakIdpAdmin`.
+
+To exercise the real Keycloak Admin API locally, a profile-gated Keycloak is available on <http://localhost:8080> (`admin`/`admin`):
+
+```bash
+docker compose -f docker-compose.local.yml --profile keycloak up -d keycloak
+```
+
 ## Quality gates
 
 CI runs pre-commit (ruff, djLint, django-upgrade), mypy, import-linter contracts, `makemigrations --check`, pytest with an 85% coverage floor, gitleaks and Trivy. Run them locally with:

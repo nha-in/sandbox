@@ -6,6 +6,10 @@ import pytest
 from django.core.exceptions import ImproperlyConfigured
 
 from sandbox.integrations import registry
+from sandbox.integrations.fakes import FakeApiGateway
+from sandbox.integrations.fakes import FakeBridgeRegistry
+from sandbox.integrations.fakes import FakeIdpAdmin
+from sandbox.integrations.fakes import FakeNotificationGateway
 from sandbox.integrations.ports import ClientCreated
 from sandbox.integrations.ports import ClientSpec
 from sandbox.integrations.ports import SecretRotated
@@ -62,3 +66,17 @@ def test_every_port_has_an_accessor(settings, accessor, port):
     settings.INTEGRATION_PORTS = {port: STUB}
 
     assert isinstance(accessor(), StubIdpAdmin)
+
+
+@pytest.mark.parametrize(
+    ("accessor", "expected"),
+    [
+        (registry.get_idp_admin, FakeIdpAdmin),
+        (registry.get_api_gateway, FakeApiGateway),
+        (registry.get_bridge_registry, FakeBridgeRegistry),
+        (registry.get_notification_gateway, FakeNotificationGateway),
+    ],
+)
+def test_shipped_defaults_resolve_to_the_fakes(accessor, expected):
+    """No env vars set means offline dev works out of the box (B2)."""
+    assert isinstance(accessor(), expected)

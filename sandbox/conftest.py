@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import pytest
 from allauth.mfa.totp.internal import auth as totp_auth
 
+from sandbox.integrations.fakes import reset_fakes
 from sandbox.users.tests.factories import UserFactory
 
 if TYPE_CHECKING:
@@ -14,6 +15,12 @@ if TYPE_CHECKING:
 @pytest.fixture(autouse=True)
 def _media_storage(settings, tmpdir) -> None:
     settings.MEDIA_ROOT = tmpdir.strpath
+
+
+@pytest.fixture(autouse=True)
+def _reset_integration_fakes() -> None:
+    """Fake state is cache-backed, so it would otherwise leak between tests."""
+    reset_fakes()
 
 
 @pytest.fixture
