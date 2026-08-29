@@ -25,7 +25,7 @@ otherwise complete, blocked on a sibling ticket.
 - CI enforces ruff / mypy / pytest / djLint / `makemigrations --check` / gitleaks / Trivy (P3)
 - staging deploys behind Traefik, Sentry wired (P4); `DEBUG` + non-local DB host hard-fails (P5)
 - careui design system ported from `ohcnetwork/experience` (Tailwind v4 standalone via django-tailwind-cli, no node; component classes in `sandbox/static/css/careui.css`; `{% ui_field %}` from `sandbox/theme/templatetags/careui.py`; htmx vendored) + `layouts/{marketing,app,console,error}.html` shells + messages/nav (C1)
-- allauth flows work offline: sign-up → email verify → login; staff MFA enforced via `StaffMFARequiredMiddleware` (C2)
+- allauth flows work offline: sign-up → OTP verify email + phone → login; staff MFA enforced via `VerificationRequiredMiddleware` (C2)
 - `sandbox/catalog/` app stub exists and hosts the `seed_sandbox_demo` skeleton
 - real Keycloak / WSO2 / HIE-CM **sandbox-tier service accounts were requested during V0.1** (longest external lead time — Lane B should confirm access on day one)
 

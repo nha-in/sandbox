@@ -18,6 +18,7 @@ from django.contrib.auth.models import Permission
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationKind
@@ -199,6 +200,18 @@ class Command(BaseCommand):
                 email=email,
                 defaults={"verified": True, "primary": True},
             )
+            # demo users must be able to submit, which is gated on both contacts
+            if not user.email_verified_at or not user.phone_verified_at:
+                user.email_verified_at = user.email_verified_at or timezone.now()
+                user.phone = user.phone or "+919999900000"
+                user.phone_verified_at = user.phone_verified_at or timezone.now()
+                user.save(
+                    update_fields=[
+                        "email_verified_at",
+                        "phone",
+                        "phone_verified_at",
+                    ],
+                )
             users[email] = user
             self.stdout.write(f"{'created' if created else 'exists '} user {email}")
 

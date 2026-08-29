@@ -8,13 +8,13 @@ from django.urls import reverse
 from sandbox.organisations.mixins import ACTIVE_ORGANISATION_SESSION_KEY
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
-from sandbox.users.tests.factories import UserFactory
+from sandbox.users.tests.factories import VerifiedUserFactory
 
 pytestmark = pytest.mark.django_db
 
 
 def test_get_lists_the_users_organisations(client):
-    user = UserFactory.create()
+    user = VerifiedUserFactory.create()
     membership = MembershipFactory.create(user=user)
     client.force_login(user)
 
@@ -25,7 +25,7 @@ def test_get_lists_the_users_organisations(client):
 
 
 def test_post_sets_active_organisation_and_redirects(client):
-    user = UserFactory.create()
+    user = VerifiedUserFactory.create()
     membership = MembershipFactory.create(user=user)
     client.force_login(user)
 
@@ -39,7 +39,7 @@ def test_post_sets_active_organisation_and_redirects(client):
 
 
 def test_post_redirects_to_next_when_safe(client):
-    user = UserFactory.create()
+    user = VerifiedUserFactory.create()
     membership = MembershipFactory.create(user=user)
     client.force_login(user)
 
@@ -56,7 +56,7 @@ def test_post_redirects_to_next_when_safe(client):
 
 
 def test_post_ignores_unsafe_next_and_falls_back_home(client):
-    user = UserFactory.create()
+    user = VerifiedUserFactory.create()
     membership = MembershipFactory.create(user=user)
     client.force_login(user)
 
@@ -73,7 +73,7 @@ def test_post_ignores_unsafe_next_and_falls_back_home(client):
 
 
 def test_post_rejects_organisation_the_user_is_not_a_member_of(client):
-    user = UserFactory.create()
+    user = VerifiedUserFactory.create()
     foreign_org = OrganisationFactory.create()
     client.force_login(user)
 

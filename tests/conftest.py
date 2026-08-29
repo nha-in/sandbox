@@ -15,7 +15,7 @@ from django.test import Client
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
-from sandbox.users.tests.factories import UserFactory
+from sandbox.users.tests.factories import VerifiedUserFactory
 
 ANONYMOUS = "anonymous"
 ORG_MEMBER = "org_member"
@@ -28,7 +28,7 @@ STAFF_ACTORS = (REVIEWER, STAFF)
 
 
 def _with_mfa(user):
-    """Staff without a TOTP device are bounced by StaffMFARequiredMiddleware.
+    """Staff without a TOTP device are bounced by VerificationRequiredMiddleware.
 
     Recovery codes too, so the matrix can assert that a user who *holds* an MFA
     resource reaches its URL — otherwise a broken gate and an absent device both
@@ -56,14 +56,14 @@ def product_a(org_a):
 
 @pytest.fixture
 def org_member(org_a):
-    user = UserFactory()
+    user = VerifiedUserFactory()
     MembershipFactory(organisation=org_a, user=user)
     return user
 
 
 @pytest.fixture
 def member_other_org(org_b):
-    user = UserFactory()
+    user = VerifiedUserFactory()
     MembershipFactory(organisation=org_b, user=user)
     return user
 
@@ -71,12 +71,12 @@ def member_other_org(org_b):
 @pytest.fixture
 def reviewer(db):
     """Console access, but not the admin-approve permission (A6 adds that)."""
-    return _with_mfa(UserFactory(is_staff=True))
+    return _with_mfa(VerifiedUserFactory(is_staff=True))
 
 
 @pytest.fixture
 def staff_user(db):
-    return _with_mfa(UserFactory(is_staff=True, is_superuser=True))
+    return _with_mfa(VerifiedUserFactory(is_staff=True, is_superuser=True))
 
 
 @pytest.fixture

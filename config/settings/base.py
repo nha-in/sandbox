@@ -164,7 +164,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
-    "sandbox.users.middleware.StaffMFARequiredMiddleware",
+    "sandbox.users.middleware.VerificationRequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
 ]
 
@@ -358,8 +358,12 @@ ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
-# https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+# A4's OTP is the contact-verification flow, so allauth must not also send a
+# confirmation link — two mechanisms for one fact.
+ACCOUNT_EMAIL_VERIFICATION = "none"
+# One address per account: `users_user.email` is unique and is the login
+# identity, and allauth rewrites it when a new address is made primary.
+ACCOUNT_MAX_EMAIL_ADDRESSES = 1
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_ADAPTER = "sandbox.users.adapters.AccountAdapter"
 # https://docs.allauth.org/en/latest/account/forms.html

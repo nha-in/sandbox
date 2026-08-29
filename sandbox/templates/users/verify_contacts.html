@@ -1,0 +1,60 @@
+{% extends "layouts/app.html" %}
+
+{% load i18n %}
+
+{% block title %}
+  {% translate "Verify your contact details" %}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-md">
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <h1 class="ui-card-title">{% translate "Verify your contact details" %}</h1>
+        <p class="ui-card-description">
+          {% translate "Both your email address and phone number must be verified before you can use the portal." %}
+        </p>
+      </div>
+      <div class="ui-card-content flex flex-col gap-6">
+        {% for item in items %}
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-4">
+              <span>{{ item.label }}: {{ item.identity|default:"—" }}</span>
+              {% if item.verified %}
+                <span class="ui-badge ui-badge--success">{% translate "Verified" %}</span>
+              {% else %}
+                <span class="ui-badge ui-badge--warning">{% translate "Not verified" %}</span>
+              {% endif %}
+            </div>
+            {% if not item.verified and item.identity %}
+              <form method="post" class="flex items-end gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="channel" value="{{ item.channel }}" />
+                <label class="flex-1">
+                  <span class="sr-only">{% translate "Verification code" %}</span>
+                  <input type="text"
+                         name="code"
+                         inputmode="numeric"
+                         autocomplete="one-time-code"
+                         maxlength="6"
+                         class="ui-input w-full"
+                         placeholder="{% translate '6-digit code' %}" />
+                </label>
+                <button type="submit" name="verify" class="ui-btn ui-btn--default">{% translate "Verify" %}</button>
+                <button type="submit"
+                        name="send"
+                        class="ui-btn ui-btn--secondary"
+                        {% if item.cooldown %}disabled{% endif %}>
+                  {% if item.cooldown %}
+                    {% blocktranslate with seconds=item.cooldown %}Resend in {{ seconds }}s{% endblocktranslate %}
+                  {% else %}
+                    {% translate "Send code" %}
+                  {% endif %}
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock content %}

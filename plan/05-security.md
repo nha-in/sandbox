@@ -25,7 +25,7 @@ sequenceDiagram
     Note over B,D: CSRF token on every POST (htmx via hx-headers)
 ```
 
-- **Portal users:** django-allauth — mandatory email verification, Argon2, rate-limited login, **TOTP MFA enforced for staff/reviewer roles** (`StaffMFARequiredMiddleware`, built in V0.1), session idle + absolute timeouts, Redis-backed sessions.
+- **Portal users:** django-allauth — Argon2, rate-limited login, **one `VerificationRequiredMiddleware`**: staff/reviewer roles must hold TOTP MFA, everyone else must OTP-verify both email and phone (allauth's own email-confirmation link is off — OTP is the single mechanism), session idle + absolute timeouts, Redis-backed sessions.
 - **No tokens in the browser, ever.** No localStorage, no JWT parsing, no client-side role checks.
 - **Integrator machine credentials:** Keycloak-issued client id/secret validated by Keycloak/WSO2 at runtime; portal shows the secret once + offers rotation ([C7](v0-tickets/C7-credentials-panel.md)). A Keycloak outage degrades credential management, never portal login.
 - **Authorization:** Django groups/permissions; org scoping via queryset mixins (**404, not 403** — [A2](v0-tickets/A2-users-organisations-org-scoping.md)); console gate mixin; the route-gate matrix ([C3](v0-tickets/C3-route-gate-harness.md)) is the enforcement proof.
