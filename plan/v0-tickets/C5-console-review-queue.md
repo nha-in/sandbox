@@ -19,14 +19,14 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — record
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Console app skeleton: queue + detail views under `ConsoleMixin` | `sandbox/console/views.py` + `urls.py` |
-| 2 | Queue template: filters (GET), cursor pagination, state counts | `sandbox/templates/console/queue.html` |
-| 3 | Detail template: payload read-only, timeline, review rows + tally | `sandbox/templates/console/application_detail.html` |
-| 4 | Action forms/views: approve / reject / send back / record review | thin views → [A5](A5-workflow-state-machine.md)/[A6](A6-reviews-quorum.md) services |
-| 5 | V0.3 add-on: provisioning panel + Retry button → [B7](B7-provisioning-chain.md) | detail template partial |
-| 6 | Route-gate rows + guard/permission view tests | `tests/` |
+| #   | Deliverable                                                                     | Where                                                                               |
+| --- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | Console app skeleton: queue + detail views under `ConsoleMixin`                 | `sandbox/console/views.py` + `urls.py`                                              |
+| 2   | Queue template: filters (GET), cursor pagination, state counts                  | `sandbox/templates/console/queue.html`                                              |
+| 3   | Detail template: payload read-only, timeline, review rows + tally               | `sandbox/templates/console/application_detail.html`                                 |
+| 4   | Action forms/views: approve / reject / send back / record review                | thin views → [A5](A5-workflow-state-machine.md)/[A6](A6-reviews-quorum.md) services |
+| 5   | V0.3 add-on: provisioning panel + Retry button → [B7](B7-provisioning-chain.md) | detail template partial                                                             |
+| 6   | Route-gate rows + guard/permission view tests                                   | `tests/`                                                                            |
 
 ### Details
 
@@ -36,18 +36,46 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — record
   - minimal queue counts by state (v0's "console counts" — a full dashboard is deferred).
 - **Application detail**:
   - payload rendered read-only (schema-aware field groups, not raw JSON), org + product summary, transition timeline (from [A5](A5-workflow-state-machine.md) history selectors), review rows for the current round with their comments and a **tally** ("2 approve, 1 send back") beside the approve button — advisory, since approval is the admin's call;
-  - **actions as forms**: Approve / Reject / Send back (comment mandatory for reject/send-back), Record review (APPROVE|REJECT|SEND_BACK + comment) — each a plain POST to a thin view calling the Lane A service; guard/permission failures (`DomainError`) render as messages, never 500s; buttons render only when the transition table allows the action *and* the actor holds the permission (server-side check remains authoritative);
+  - **actions as forms**: Approve / Reject / Send back (comment mandatory for reject/send-back), Record review (APPROVE|REJECT|SEND_BACK + comment) — each a plain POST to a thin view calling the Lane A service; guard/permission failures (`DomainError`) render as messages, never 500s; buttons render only when the transition table allows the action _and_ the actor holds the permission (server-side check remains authoritative);
   - **V0.3 add-on**: provisioning panel — ledger rows with per-system state, `PROVISIONING_FAILED` detail, and a **Retry** button posting to [B7](B7-provisioning-chain.md)'s retry service; polling partial shared with [C7](C7-credentials-panel.md).
 - Exit-review actions ([A8](A8-exit-workflow.md)) reuse this detail page in V0.4 — keep the action-panel template composable.
 - Route-gate rows: every console URL 403/redirects for anonymous, org members and wrong-org members; reviewer vs staff/admin differences asserted (a reviewer can record reviews but cannot approve).
 
 ## Acceptance criteria
 
-- [ ] Enroll→approve and enroll→reject both drivable entirely from the console, leaving correct transition + review + audit rows (integration test with [C4](C4-enrollment-wizard.md) output).
-- [ ] Review tally correct for the current round; admin can approve with zero reviews recorded (advisory, never gating).
-- [ ] Illegal actions are hidden *and* rejected server-side if forced (guard test).
-- [ ] Queue filters + cursor pagination correct on seeded data; plain-POST pass for every action.
-- [ ] Matrix rows for all console URLs; djLint/i18n/mypy/ruff clean.
+- [x] Enroll→approve and enroll→reject both drivable entirely from the console, leaving correct transition + review + audit rows. (Driven from [A9](A9-seed-sandbox-demo.md)'s seeded applications; the [C4](C4-enrollment-wizard.md) half of the journey lands with C4.)
+- [x] Review tally correct for the current round; admin can approve with zero reviews recorded (advisory, never gating).
+- [x] Illegal actions are hidden _and_ rejected server-side if forced (guard tests for an illegal action and for a reviewer forcing approve).
+- [x] Queue filters + cursor pagination correct on seeded data; plain-POST pass for every action.
+- [x] Matrix rows for all console URLs; djLint/i18n/mypy/ruff clean.
+
+### A decision's comment is recorded as a review
+
+[A5](A5-workflow-state-machine.md) refuses a comment on a review-driven
+transition, because the review row is the single home for that text
+([03-database.md](../03-database.md)). So `DecideView` records the actor's
+comment as their review row first, then transitions without one. Rejecting or
+sending back requires a comment; approving does not.
+
+### A reviewer can send back, but not approve or reject
+
+`SEND_BACK` is gated on `review_application` in A5's table, so the console offers
+it to reviewers: asking for fixes is part of reviewing, whereas approving and
+rejecting decide the outcome and need the admin permissions. Asserted both ways —
+the button is absent, and a forced POST is refused by the service.
+
+### Buttons come from the transition table
+
+`decision_actions` is filtered through `workflow.selectors.available_actions()`,
+the same table `transition()` enforces. A screen therefore cannot offer a move
+the engine would refuse, and the server-side guard remains authoritative either
+way.
+
+### Queue ordering
+
+Cursor pagination keyed on descending `id`, not `created_date`: the seed and any
+bulk import create many rows in one transaction, so timestamps tie and are not
+stable enough to paginate against.
 
 ## Out of scope (deferred)
 

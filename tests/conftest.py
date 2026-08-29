@@ -91,9 +91,28 @@ def actors(org_member, member_other_org, reviewer, staff_user):
 
 
 @pytest.fixture
-def context(actors, org_a, org_b, product_a):
+def application(product_a, org_member):
+    """A submitted application, so console detail and action URLs resolve."""
+    from sandbox.applications.models import ApplicationState  # noqa: PLC0415
+    from sandbox.applications.tests.factories import ApplicationFactory  # noqa: PLC0415
+
+    return ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=ApplicationState.SUBMITTED,
+    )
+
+
+@pytest.fixture
+def context(actors, org_a, org_b, product_a, application):
     """What a route's `kwargs` callable receives when it builds URL arguments."""
-    return {**actors, "org_a": org_a, "org_b": org_b, "product_a": product_a}
+    return {
+        **actors,
+        "org_a": org_a,
+        "org_b": org_b,
+        "product_a": product_a,
+        "application": application,
+    }
 
 
 @pytest.fixture

@@ -54,7 +54,9 @@ class ActorKind(enum.StrEnum):
 # permission check, never a username string — the legacy system matched "HTC1".
 PERM_APPROVE = "workflow.approve_application"
 PERM_REJECT = "workflow.reject_application"
+#: recording an opinion only — deliberately grants no transition
 PERM_REVIEW = "workflow.review_application"
+PERM_SEND_BACK = "workflow.send_back_application"
 PERM_RETRY_PROVISIONING = "workflow.retry_provisioning"
 
 
@@ -97,7 +99,7 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
     (S.SUBMITTED, Action.SEND_BACK): Spec(
         S.SENT_BACK,
         ActorKind.STAFF,
-        PERM_REVIEW,
+        PERM_SEND_BACK,
         review_driven=True,
     ),
     # Provisioning (B7). The chain owns these; a person never drives them.
@@ -136,7 +138,7 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
     (S.EXIT_REQUESTED, Action.START_EXIT_REVIEW): Spec(
         S.EXIT_REVIEW,
         ActorKind.STAFF,
-        PERM_REVIEW,
+        PERM_APPROVE,
     ),
     (S.EXIT_REVIEW, Action.APPROVE_EXIT): Spec(
         S.PRODUCTION_APPROVED,
@@ -155,7 +157,7 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
     (S.EXIT_REVIEW, Action.SEND_BACK_EXIT): Spec(
         S.PROVISIONED,
         ActorKind.STAFF,
-        PERM_REVIEW,
+        PERM_SEND_BACK,
         hooks=("notify_exit_sent_back",),
         review_driven=True,
     ),

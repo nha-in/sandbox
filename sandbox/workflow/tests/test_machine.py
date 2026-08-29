@@ -108,3 +108,24 @@ def test_only_staff_moves_are_review_driven():
     for (state, action), spec in TRANSITIONS.items():
         if spec.review_driven:
             assert spec.actor_kind is ActorKind.STAFF, f"{state} -{action}->"
+
+
+def test_review_permission_grants_no_transition():
+    """`review_application` records opinions; moving an application needs more."""
+    moves = {
+        (state, action)
+        for (state, action), spec in TRANSITIONS.items()
+        if spec.permission == "workflow.review_application"
+    }
+
+    assert not moves, f"review_application still moves state: {sorted(moves)}"
+
+
+def test_send_back_has_its_own_permission():
+    send_backs = {
+        spec.permission
+        for (_state, action), spec in TRANSITIONS.items()
+        if action in (Action.SEND_BACK, Action.SEND_BACK_EXIT)
+    }
+
+    assert send_backs == {"workflow.send_back_application"}

@@ -73,6 +73,10 @@ def _member_pk(context: dict) -> dict:
     return {"pk": context[ORG_MEMBER].pk}
 
 
+def _application_id(context: dict) -> dict:
+    return {"external_id": context["application"].external_id}
+
+
 # The matrix. One row per named URL; django-admin is asserted as a group below.
 ROUTES: dict[str, Route] = {
     # Marketing
@@ -130,6 +134,20 @@ ROUTES: dict[str, Route] = {
         ),
     ),
     "organisations:switch": Route(Access.AUTHENTICATED, methods=("GET", "POST")),
+    # Console (C5). Staff-only; an org member must be refused even for their own
+    # application, because the console is a different surface, not a nicer view.
+    "console:queue": Route(Access.CONSOLE),
+    "console:application_detail": Route(Access.CONSOLE, kwargs=_application_id),
+    "console:record_review": Route(
+        Access.CONSOLE,
+        kwargs=_application_id,
+        methods=("POST",),
+    ),
+    "console:decide": Route(
+        Access.CONSOLE,
+        kwargs=_application_id,
+        methods=("POST",),
+    ),
 }
 
 # Named URLs deliberately not given individual rows.

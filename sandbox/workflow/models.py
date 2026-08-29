@@ -62,7 +62,8 @@ class WorkflowTransition(models.Model):
         permissions = [
             ("approve_application", "Can approve an application"),
             ("reject_application", "Can reject an application"),
-            ("review_application", "Can send back or start an exit review"),
+            ("send_back_application", "Can return an application to the applicant"),
+            ("review_application", "Can record a review (moves nothing)"),
             ("retry_provisioning", "Can retry a failed provisioning chain"),
         ]
 

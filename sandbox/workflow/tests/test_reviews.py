@@ -73,6 +73,7 @@ def admin():
         "review_application",
         "approve_application",
         "reject_application",
+        "send_back_application",
     )
 
 
@@ -352,8 +353,8 @@ def test_available_actions_offers_only_what_the_actor_may_do(
 ):
     """A screen must not offer a move `transition()` would then refuse."""
     assert set(available_actions(submitted, admin)) >= {Action.APPROVE, Action.REJECT}
-    assert Action.APPROVE not in available_actions(submitted, reviewer)
-    assert Action.SEND_BACK in available_actions(submitted, reviewer)
+    # review_application is opinion-only: a reviewer may move nothing at all
+    assert available_actions(submitted, reviewer) == ()
 
 
 def test_available_actions_hides_system_moves(submitted, admin):

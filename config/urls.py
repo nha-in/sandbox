@@ -21,6 +21,7 @@ urlpatterns = [
         "organisations/",
         include("sandbox.organisations.urls", namespace="organisations"),
     ),
+    path("console/", include("sandbox.console.urls", namespace="console")),
     path("accounts/", include("allauth.urls")),
     # Your stuff: custom urls includes go here
     # ...

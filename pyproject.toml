@@ -212,6 +212,7 @@ containers = [
   "sandbox.applications",
   "sandbox.workflow",
   "sandbox.audit",
+  "sandbox.console",
 ]
 
 # The anti-corruption layer (06-integrations.md §3). Domain apps may name ports and

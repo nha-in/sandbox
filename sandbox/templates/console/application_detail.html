@@ -1,0 +1,135 @@
+{% extends "layouts/console.html" %}
+
+{% load i18n %}
+{% load careui %}
+
+{% block nav_items %}
+  <a class="ui-nav-link" href="{% url 'console:queue' %}">{% translate "Queue" %}</a>
+{% endblock nav_items %}
+{% block page_actions %}
+  <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ application.get_state_display }}</span>
+{% endblock page_actions %}
+{% block content %}
+  <div class="grid gap-6 lg:grid-cols-3">
+    <div class="space-y-6 lg:col-span-2">
+      <div class="ui-card">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "Application" %}</h2>
+          <p class="ui-card-description">{{ application.product.organisation.name }} · {{ application.product.name }}</p>
+        </div>
+        <div class="ui-card-content">
+          <dl class="grid gap-4 sm:grid-cols-2">
+            {% for group in payload_groups %}
+              <div{% if group.heading == "Use case" %} class="sm:col-span-2"{% endif %}>
+                <dt class="ui-label">{{ group.heading }}</dt>
+                <dd class="text-sm text-foreground">
+                  {% for value in group.values %}
+                    {{ value }}{% if not forloop.last %},{% endif %}
+                  {% empty %}
+                    —
+                  {% endfor %}
+                </dd>
+              </div>
+            {% endfor %}
+            <div>
+              <dt class="ui-label">{% translate "Applicant" %}</dt>
+              <dd class="text-sm text-foreground">
+                {{ application.applicant.email }}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+      <div class="ui-card">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "History" %}</h2>
+        </div>
+        <div class="ui-card-content">
+          <ol class="space-y-3">
+            {% for entry in history %}
+              <li class="flex items-start justify-between gap-4 text-sm">
+                <div>
+                  <span class="font-medium text-foreground">{{ entry.action }}</span>
+                  <span class="text-muted-foreground">{{ entry.from_state }} → {{ entry.to_state }}</span>
+                  {% if entry.comment %}<p class="mt-1 text-muted-foreground">{{ entry.comment }}</p>{% endif %}
+                </div>
+                <div class="shrink-0 text-right text-xs text-muted-foreground">
+                  {{ entry.actor.email|default:_("system") }}
+                  <br />
+                  {{ entry.created_date|date:"j M Y, H:i" }}
+                </div>
+              </li>
+            {% empty %}
+              <li class="text-sm text-muted-foreground">{% translate "Not submitted yet." %}</li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+    </div>
+    <div class="space-y-6">
+      <div class="ui-card">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "Reviews" %}</h2>
+          <p class="ui-card-description">{% blocktranslate %}Round {{ round }} — advisory only{% endblocktranslate %}</p>
+        </div>
+        <div class="ui-card-content space-y-4">
+          <div class="flex flex-wrap gap-2">
+            {% for decision, count in tally.items %}
+              <span class="ui-badge ui-badge--neutral ui-badge--size-xs">{{ decision }}: {{ count }}</span>
+            {% endfor %}
+          </div>
+          {% for review in reviews %}
+            <div class="border-t border-border pt-3 text-sm">
+              <p class="font-medium text-foreground">{{ review.reviewer.email }} · {{ review.decision }}</p>
+              <p class="text-muted-foreground">{{ review.comment }}</p>
+            </div>
+          {% empty %}
+            <p class="text-sm text-muted-foreground">{% translate "Nobody has reviewed this round." %}</p>
+          {% endfor %}
+        </div>
+      </div>
+      {% if can_review %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Record a review" %}</h2>
+          </div>
+          <form method="post"
+                action="{% url 'console:record_review' application.external_id %}">
+            {% csrf_token %}
+            <div class="ui-card-content space-y-4">
+              {% ui_field review_form.decision %}
+              {% ui_field review_form.comment %}
+            </div>
+            <div class="ui-card-footer">
+              <button class="ui-btn ui-btn--secondary ui-btn--size-sm" type="submit">{% translate "Record" %}</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+      {% if decision_actions %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Decide" %}</h2>
+            <p class="ui-card-description">{% translate "A comment is recorded as your review." %}</p>
+          </div>
+          <form method="post"
+                action="{% url 'console:decide' application.external_id %}">
+            {% csrf_token %}
+            <div class="ui-card-content space-y-4">
+              <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
+              <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
+            </div>
+            <div class="ui-card-footer flex flex-wrap gap-2">
+              {% for action in decision_actions %}
+                <button class="ui-btn {% if action == "REJECT" %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
+                        type="submit"
+                        name="action"
+                        value="{{ action }}">{{ action }}</button>
+              {% endfor %}
+            </div>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}

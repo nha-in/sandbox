@@ -62,6 +62,7 @@ DEMO_USERS = [
 ADMIN_PERMISSIONS = (
     "approve_application",
     "reject_application",
+    "send_back_application",
     "review_application",
     "retry_provisioning",
 )
