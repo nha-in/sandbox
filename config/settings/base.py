@@ -392,6 +392,17 @@ INTEGRATION_PORTS = {
     ),
 }
 
+# OTP
+# ------------------------------------------------------------------------------
+# Carried from legacy `OtpServiceImpl` / `SandboxConstant`: OTP_VALIDITY_MINUTES=10,
+# MAX_RESEND_ATTEMPTS=5, MAX_WRONG_ATTEMPTS=5, and RESEND_COOLDOWN_SECONDS=90000 —
+# which is milliseconds despite the name, so 90 seconds.
+OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=600)
+OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
+OTP_ISSUE_MAX = env.int("OTP_ISSUE_MAX", default=5)
+OTP_ISSUE_WINDOW_SECONDS = env.int("OTP_ISSUE_WINDOW_SECONDS", default=600)
+OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=90)
+
 
 # Your stuff...
 # ------------------------------------------------------------------------------

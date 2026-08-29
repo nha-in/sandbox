@@ -14,3 +14,8 @@ class DomainError(Exception):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+OTP_RATE_LIMITED = "OTP_RATE_LIMITED"
+OTP_EXPIRED = "OTP_EXPIRED"
+OTP_INVALID = "OTP_INVALID"

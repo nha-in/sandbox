@@ -30,6 +30,7 @@ from sandbox.integrations.ports import ClientSpec
 from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.ports import GatewayAppCreated
 from sandbox.integrations.ports import GatewayAppSpec
+from sandbox.integrations.ports import NotificationChannel
 from sandbox.integrations.ports import NotificationMessage
 from sandbox.integrations.ports import SecretRotated
 from sandbox.integrations.ports import SendResult
@@ -325,17 +326,20 @@ class FakeNotificationGateway:
         _guard(ExternalSystem.NOTIFICATION, "send")
         provider_message_id = uuid.uuid4().hex
 
-        EmailMessage(
-            subject=f"[sandbox] {message.template}",
-            body=self._body(message),
-            to=[message.to],
-        ).send(fail_silently=False)
+        # no local SMS sink exists, so those are recorded only
+        if message.channel is NotificationChannel.EMAIL:
+            EmailMessage(
+                subject=f"[sandbox] {message.template}",
+                body=self._body(message),
+                to=[message.to],
+            ).send(fail_silently=False)
 
         sent = _store(ExternalSystem.NOTIFICATION)
         sent.setdefault("sends", []).append(
             {
                 "template": message.template,
                 "to": message.to,
+                "channel": str(message.channel),
                 "context": dict(message.context),
                 "provider_message_id": provider_message_id,
             },

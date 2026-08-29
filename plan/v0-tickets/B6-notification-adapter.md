@@ -19,38 +19,38 @@ v0 needs these template events: `send-otp`, `sandbox-approved` (link to credenti
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `notifications` app: `NotificationMessage` model + migration | `sandbox/notifications/models.py` |
-| 2 | `enqueue()` service (on-commit scheduling) | `sandbox/notifications/services.py` |
-| 3 | `send_notification` Celery task (retry/backoff, terminal FAILED) | `sandbox/notifications/tasks.py` |
-| 4 | Real gateway adapter implementing `NotificationGateway` | `sandbox/integrations/notification/adapter.py` |
-| 5 | Template-key → gateway-ID mapping in typed settings | `config/settings/*` |
-| 6 | Staff delivery-log list (admin or console view) | `admin.py` / console |
-| 7 | Tests: on-commit, retry, no-secrets-in-params, per-template params | `sandbox/notifications/tests/` |
+| #   | Deliverable                                                        | Where                                          |
+| --- | ------------------------------------------------------------------ | ---------------------------------------------- |
+| 1   | `notifications` app: `NotificationMessage` model + migration       | `sandbox/notifications/models.py`              |
+| 2   | `enqueue()` service (on-commit scheduling)                         | `sandbox/notifications/services.py`            |
+| 3   | `send_notification` Celery task (retry/backoff, terminal FAILED)   | `sandbox/notifications/tasks.py`               |
+| 4   | Real gateway adapter implementing `NotificationGateway`            | `sandbox/integrations/notification/adapter.py` |
+| 5   | Template-key → gateway-ID mapping in typed settings                | `config/settings/*`                            |
+| 6   | Staff delivery-log list (admin or console view)                    | `admin.py` / console                           |
+| 7   | Tests: on-commit, retry, no-secrets-in-params, per-template params | `sandbox/notifications/tests/`                 |
 
 ### `notifications_message` (delivery log, new `notifications` app)
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `application` | FK → application, null | |
-| `user` | FK → user, null | |
-| `channel` | char + CHECK | `EMAIL \| SMS` |
-| `template_key` | char | see table below |
-| `params` | JSONB | render-safe values only — **no secrets, ever** (deny-list check on secret-ish keys) |
-| `state` | char + CHECK | `PENDING \| SENT \| FAILED` |
-| `attempts` | int | |
-| `last_error` | text | |
+| Field          | Type                   | Constraints / notes                                                                 |
+| -------------- | ---------------------- | ----------------------------------------------------------------------------------- |
+| `application`  | FK → application, null |                                                                                     |
+| `user`         | FK → user, null        |                                                                                     |
+| `channel`      | char + CHECK           | `EMAIL \| SMS`                                                                      |
+| `template_key` | char                   | see table below                                                                     |
+| `params`       | JSONB                  | render-safe values only — **no secrets, ever** (deny-list check on secret-ish keys) |
+| `state`        | char + CHECK           | `PENDING \| SENT \| FAILED`                                                         |
+| `attempts`     | int                    |                                                                                     |
+| `last_error`   | text                   |                                                                                     |
 
 ### v0 template keys
 
-| Key | Fired by | Content notes |
-|---|---|---|
-| `send-otp` | [A4](A4-otp-service.md) | OTP code |
-| `sandbox-approved` | [B7](B7-provisioning-chain.md) completion | **link to the credentials panel — never credentials** |
-| `sandbox-rejected` | rejection transition ([B8](B8-deprovisioning-chain.md)) | |
-| `exit-rejected` / `exit-sent-back` | [A8](A8-exit-workflow.md) | reviewer comment |
-| `production-approved` | [A8](A8-exit-workflow.md) | |
+| Key                                | Fired by                                                | Content notes                                         |
+| ---------------------------------- | ------------------------------------------------------- | ----------------------------------------------------- |
+| `send-otp`                         | [A4](A4-otp-service.md)                                 | OTP code                                              |
+| `sandbox-approved`                 | [B7](B7-provisioning-chain.md) completion               | **link to the credentials panel — never credentials** |
+| `sandbox-rejected`                 | rejection transition ([B8](B8-deprovisioning-chain.md)) |                                                       |
+| `exit-rejected` / `exit-sent-back` | [A8](A8-exit-workflow.md)                               | reviewer comment                                      |
+| `production-approved`              | [A8](A8-exit-workflow.md)                               |                                                       |
 
 Map keys to gateway template IDs in **typed settings**, re-mapped from the legacy inventory (sandbox-approved/rejected, production-approved, send-otp, exit-sent-back).
 
@@ -86,4 +86,11 @@ def send_notification(message_id: int) -> None:
 
 ## Out of scope (deferred)
 
-IN_APP channel + notification centre (P5) · SMS unless SANDBOX flow requires it (same port if so) · digest/batching.
+IN_APP channel + notification centre (P5) · digest/batching.
+
+**SMS is in scope.** The deferral used to read "SMS unless SANDBOX flow requires
+it" — it does: [A4](A4-otp-service.md) and [C4](C4-enrollment-wizard.md) both
+block submit until `email_verified_at` **and** `phone_verified_at` are set, and
+OTP is the only way a phone gets verified. `NotificationMessage` carries a
+`channel` (`EMAIL|SMS`) and the fake records SMS sends; **this ticket owes the
+real SMS adapter**, which needs an ABDM SMS provider endpoint.
