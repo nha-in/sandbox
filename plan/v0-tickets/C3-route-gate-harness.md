@@ -17,13 +17,13 @@ The legacy authorization was `permitAll()` on all GETs plus client-side role che
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | URLconf-introspecting harness + drift check | `tests/test_route_gates.py` |
-| 2 | Declarative matrix: `(url, kwargs_factory, method) × actor → expected` | same |
-| 3 | Actor fixtures: two orgs w/ members, reviewer, staff | `tests/conftest.py` (on [A2](A2-users-organisations-org-scoping.md)) |
-| 4 | Generic rule assertions (wrong-org 404, console 403, deny-by-default, CSRF) | same |
-| 5 | Seeded rows for every URL existing today + "how to add a row" docstring | same |
+| #   | Deliverable                                                                 | Where                                                                |
+| --- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1   | URLconf-introspecting harness + drift check                                 | `tests/test_route_gates.py`                                          |
+| 2   | Declarative matrix: `(url, kwargs_factory, method) × actor → expected`      | same                                                                 |
+| 3   | Actor fixtures: two orgs w/ members, reviewer, staff                        | `tests/conftest.py` (on [A2](A2-users-organisations-org-scoping.md)) |
+| 4   | Generic rule assertions (wrong-org 404, console 403, deny-by-default, CSRF) | same                                                                 |
+| 5   | Seeded rows for every URL existing today + "how to add a row" docstring     | same                                                                 |
 
 ### Details
 
@@ -60,17 +60,17 @@ appear in URLs. Fix belongs in the users app: scope `get_queryset` to
 
 ### Access classes
 
-The matrix records a *rule*, not observed behaviour. `Access` values and what
+The matrix records a _rule_, not observed behaviour. `Access` values and what
 each asserts:
 
-| Access | Anonymous | Others |
-|---|---|---|
-| `PUBLIC` | must **not** be sent to login | never 403 |
-| `AUTHENTICATED` | redirect to login | never 403/404 |
-| `SELF_RESOURCE` | redirect to login | holder reaches it; non-holder may 404, never 403 |
-| `SELF_ONLY` | redirect to login | owner 200, everyone else **404** |
-| `ORG_SCOPED` | redirect to login | other org **404**, never 403 |
-| `CONSOLE` | redirect to login | staff reach it, others 403/404 |
+| Access          | Anonymous                     | Others                                           |
+| --------------- | ----------------------------- | ------------------------------------------------ |
+| `PUBLIC`        | must **not** be sent to login | never 403                                        |
+| `AUTHENTICATED` | redirect to login             | never 403/404                                    |
+| `SELF_RESOURCE` | redirect to login             | holder reaches it; non-holder may 404, never 403 |
+| `SELF_ONLY`     | redirect to login             | owner 200, everyone else **404**                 |
+| `ORG_SCOPED`    | redirect to login             | other org **404**, never 403                     |
+| `CONSOLE`       | redirect to login             | staff reach it, others 403/404                   |
 
 `SELF_RESOURCE` was added while building: allauth's MFA device URLs legitimately
 404 for a user with no device, and the reviewer/staff fixtures now hold both TOTP
