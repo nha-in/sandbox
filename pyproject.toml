@@ -205,7 +205,7 @@ layers = [
   "(selectors)",
   "(models)",
 ]
-containers = [ "sandbox.users", "sandbox.catalog" ]
+containers = [ "sandbox.users", "sandbox.catalog", "sandbox.organisations" ]
 
 # The anti-corruption layer (06-integrations.md §3). Domain apps may name ports and
 # DTOs; the HTTP machinery and every concrete adapter stay behind them.
@@ -215,6 +215,7 @@ type = "forbidden"
 source_modules = [
   "sandbox.users",
   "sandbox.catalog",
+  "sandbox.organisations",
   "sandbox.theme",
 ]
 forbidden_modules = [

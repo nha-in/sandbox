@@ -12,11 +12,23 @@ import uuid
 from django.db import models
 
 
-class BaseManager(models.Manager):
-    """Default manager — hides soft-deleted rows from every ordinary query."""
+class BaseQuerySet(models.QuerySet):
+    """Base queryset for every BaseModel manager.
+
+    Subclass to add chainable filters (e.g.
+    organisations.OrganisationScopedQuerySet) without losing soft-delete filtering.
+    """
+
+
+class SoftDeleteManagerMixin:
+    """Shared `get_queryset()` override — hides soft-deleted rows for any manager."""
 
     def get_queryset(self):
-        return super().get_queryset().filter(deleted=False)
+        return super().get_queryset().filter(deleted=False)  # type: ignore[misc]
+
+
+class BaseManager(SoftDeleteManagerMixin, models.Manager.from_queryset(BaseQuerySet)):  # type: ignore[misc]
+    """Default manager — hides soft-deleted rows from every ordinary query."""
 
 
 class BaseModel(models.Model):
