@@ -17,52 +17,52 @@ Integrators progress through sandbox milestones by **self-declaration** (v0 has 
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `Declaration` + `DeclarationMilestone` + `DeclarationDocument` models + migrations | `sandbox/declarations/models.py` |
-| 2 | Upload validation (extension + sniffed magic bytes + size) with settings-driven caps | `sandbox/declarations/validators.py` |
-| 3 | Storage wiring: django-storages private bucket (MinIO in compose), UUID storage keys, sha256 | `sandbox/declarations/services.py` |
-| 4 | `submit_milestone_declaration` / `submit_exit_declaration` services | same |
-| 5 | Org-scoped presigned-download view + URL | `sandbox/declarations/views.py` |
-| 6 | AV-scan hook registry (no-op v0) · coverage + timeline selectors | services/selectors |
-| 7 | Tests: abuse cases (oversize, spoofed content), sha256, download authz | `sandbox/declarations/tests/` |
+| #   | Deliverable                                                                                  | Where                                |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 1   | `Declaration` + `DeclarationMilestone` + `DeclarationDocument` models + migrations           | `sandbox/declarations/models.py`     |
+| 2   | Upload validation (extension + sniffed magic bytes + size) with settings-driven caps         | `sandbox/declarations/validators.py` |
+| 3   | Storage wiring: django-storages private bucket (MinIO in compose), UUID storage keys, sha256 | `sandbox/declarations/services.py`   |
+| 4   | `submit_milestone_declaration` / `submit_exit_declaration` services                          | same                                 |
+| 5   | Org-scoped presigned-download view + URL                                                     | `sandbox/declarations/views.py`      |
+| 6   | AV-scan hook registry (no-op v0) · coverage + timeline selectors                             | services/selectors                   |
+| 7   | Tests: abuse cases (oversize, spoofed content), sha256, download authz                       | `sandbox/declarations/tests/`        |
 
 ### Models
 
 `declarations_declaration` (extends the shared base model — [03-database.md §3.1](../03-database.md)):
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `application` | FK → application | |
-| `kind` | char + CHECK | `MILESTONE \| EXIT` |
-| `state` | char + CHECK | `SUBMITTED \| APPROVED \| REJECTED` — v0 only writes SUBMITTED |
-| `started_on` / `completed_on` | date, null | real columns, not payload — reporting filters and sorts on these |
-| `payload` | JSONB | the rest of the declaration form content |
-| `declared_by` | FK → user | |
-| — | | CHECK: `completed_on >= started_on` when both present |
+| Field                         | Type             | Constraints / notes                                              |
+| ----------------------------- | ---------------- | ---------------------------------------------------------------- |
+| `application`                 | FK → application |                                                                  |
+| `kind`                        | char + CHECK     | `MILESTONE \| EXIT`                                              |
+| `state`                       | char + CHECK     | `SUBMITTED \| APPROVED \| REJECTED` — v0 only writes SUBMITTED   |
+| `started_on` / `completed_on` | date, null       | real columns, not payload — reporting filters and sorts on these |
+| `payload`                     | JSONB            | the rest of the declaration form content                         |
+| `declared_by`                 | FK → user        |                                                                  |
+| —                             |                  | CHECK: `completed_on >= started_on` when both present            |
 
 `declarations_declaration_milestone` — which milestones a declaration covers. Not a `BaseModel`: never addressed externally, and it must not carry `deleted`, because supersession is not deletion.
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `declaration` | FK → declaration | |
-| `milestone` | FK → catalog_milestone | |
-| `application` | FK → application | denormalized; a partial index sees only its own table |
-| `kind` | char + CHECK | denormalized, same reason |
-| `superseded_by` | FK → declaration, null | null = this is the current claim |
-| — | | `UNIQUE (application, kind, milestone) WHERE superseded_by IS NULL` |
+| Field           | Type                   | Constraints / notes                                                 |
+| --------------- | ---------------------- | ------------------------------------------------------------------- |
+| `declaration`   | FK → declaration       |                                                                     |
+| `milestone`     | FK → catalog_milestone |                                                                     |
+| `application`   | FK → application       | denormalized; a partial index sees only its own table               |
+| `kind`          | char + CHECK           | denormalized, same reason                                           |
+| `superseded_by` | FK → declaration, null | null = this is the current claim                                    |
+| —               |                        | `UNIQUE (application, kind, milestone) WHERE superseded_by IS NULL` |
 
 `declarations_document`:
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `declaration` | FK → declaration | |
-| `storage_key` | char | UUID-based — non-derivable |
-| `filename` | char(255) | original name, for display only |
-| `content_type` | char(100) | sniffed server-side — never trusted from the client |
-| `size` | int | bytes |
-| `sha256` | char(64) | computed server-side on receipt |
-| `uploaded_by` | FK → user | |
+| Field          | Type             | Constraints / notes                                 |
+| -------------- | ---------------- | --------------------------------------------------- |
+| `declaration`  | FK → declaration |                                                     |
+| `storage_key`  | char             | UUID-based — non-derivable                          |
+| `filename`     | char(255)        | original name, for display only                     |
+| `content_type` | char(100)        | sniffed server-side — never trusted from the client |
+| `size`         | int              | bytes                                               |
+| `sha256`       | char(64)         | computed server-side on receipt                     |
+| `uploaded_by`  | FK → user        |                                                     |
 
 ### Upload pipeline (the security-sensitive part)
 
@@ -74,12 +74,12 @@ Integrators progress through sandbox milestones by **self-declaration** (v0 has 
 ### Decisions taken while building
 
 - **`kind=SELF` dropped.** Legacy's `self_declaration` header fields were dead: the frontend writes only `completeMil` ([sandbox-declaration-form.js L495](../../../sandbox-website/src/pages/user-dashboard/components/sandbox-declaration-form.js)), which is exactly the set of v2 MILESTONE rows. `willCompleteMil`, `workingOn` and `tentativeDate` have no producer anywhere.
-- **Milestone coverage is a join table, not an FK.** An exit covers the *set* of milestones going to production while carrying one document bundle — legacy stored that set as a CSV in `sd_exit.integration_detail`. A nullable FK cannot hold it, and a JSONB list cannot be constrained.
+- **Milestone coverage is a join table, not an FK.** An exit covers the _set_ of milestones going to production while carrying one document bundle — legacy stored that set as a CSV in `sd_exit.integration_detail`. A nullable FK cannot hold it, and a JSONB list cannot be constrained.
 - **Supersession, not soft delete.** A resubmission stamps `superseded_by` on the claims it replaces, inside the same transaction that inserts the new ones. The replaced declaration and its documents stay fully readable; only its claim on the milestone moves. Using `deleted` would have hidden history behind the soft-delete manager by default.
 - **Claims are per kind.** Declaring M1 and exiting M1 are separate claims, so the unique index carries `kind`.
 - **An APPROVED claim cannot be superseded** — otherwise a resubmission silently retracts evidence that a milestone reached production. Rejection frees nothing; the resubmission does.
 - **Formats follow legacy** (`pdf/xls/xlsx/csv`). PDF, XLS and XLSX are verified by signature; CSV has none, so it is checked negatively (not a known binary, no NULs, decodes as UTF-8) — which still stops the `.exe`-renamed case.
-- **Open question 3 is answered by the legacy code**, though not yet by NHA: [utils.js L514](../../../sandbox-website/src/constants/utils.js) resolves an exit record *per milestone* from its `integration_detail`, and `getBySdIdOrderByCreatedDateDesc` returns many exits per integrator. This model supports repeatable per-milestone exits without committing [A8](A8-exit-workflow.md) to changing the application state machine.
+- **Open question 3 is answered by the legacy code**, though not yet by NHA: [utils.js L514](../../../sandbox-website/src/constants/utils.js) resolves an exit record _per milestone_ from its `integration_detail`, and `getBySdIdOrderByCreatedDateDesc` returns many exits per integrator. This model supports repeatable per-milestone exits without committing [A8](A8-exit-workflow.md) to changing the application state machine.
 
 ### Services & selectors
 

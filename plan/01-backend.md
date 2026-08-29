@@ -6,7 +6,7 @@
 
 ## 1. In plain words
 
-The backend is one Django project. Each business area (users, organisations, applications, workflow, …) is its own Django app with the same internal shape, so any engineer can find their way around any app. The most important idea: **an application moves through a pipeline of states** (draft → submitted → reviewed → approved → provisioned → … → production-approved), and there is exactly **one function in the whole codebase allowed to move it** — `transition()`. Everything else (web pages, admin console, scripts) calls that function, which also writes the history row and the audit trail. Web pages never touch the database directly for writes; they call *services* (write) and *selectors* (read).
+The backend is one Django project. Each business area (users, organisations, applications, workflow, …) is its own Django app with the same internal shape, so any engineer can find their way around any app. The most important idea: **an application moves through a pipeline of states** (draft → submitted → reviewed → approved → provisioned → … → production-approved), and there is exactly **one function in the whole codebase allowed to move it** — `transition()`. Everything else (web pages, admin console, scripts) calls that function, which also writes the history row and the audit trail. Web pages never touch the database directly for writes; they call _services_ (write) and _selectors_ (read).
 
 ## 2. Legacy findings
 
@@ -46,13 +46,13 @@ sandbox/                     # APPS_DIR
 
 Mirrors the care backend's model/spec/viewset separation, adapted to server-rendered Django:
 
-| File | Owns | care analogue |
-|---|---|---|
-| `models.py` | schema + domain methods that own state changes | `emr/models/*` |
-| `forms.py` | validation + rendering (careui `{% ui_field %}`) | pydantic specs |
-| `views.py` | HTTP only — **never writes state** | viewsets (thin) |
-| `services.py` | use-cases (writes), `transaction.atomic` | `perform_*`/`handle_*` |
-| `selectors.py` | reads | filtersets/queries |
+| File           | Owns                                             | care analogue          |
+| -------------- | ------------------------------------------------ | ---------------------- |
+| `models.py`    | schema + domain methods that own state changes   | `emr/models/*`         |
+| `forms.py`     | validation + rendering (careui `{% ui_field %}`) | pydantic specs         |
+| `views.py`     | HTTP only — **never writes state**               | viewsets (thin)        |
+| `services.py`  | use-cases (writes), `transaction.atomic`         | `perform_*`/`handle_*` |
+| `selectors.py` | reads                                            | filtersets/queries     |
 
 All models extend the shared care-style `BaseModel` ([03-database.md](03-database.md) §3.1): `external_id` UUID lookups, `created_date`/`modified_date`, soft delete. Side-effects (Celery, email) dispatch via `transaction.on_commit`.
 
@@ -82,35 +82,35 @@ Celery + beat (Redis broker): provisioning/deprovisioning chains ([06-integratio
 
 Everything needed for the SANDBOX-only pilot journey. Dev-level specs live in the tickets:
 
-| Build | Ticket |
-|---|---|
-| catalog app: milestones, seeds | [A1](v0-tickets/A1-catalog-app.md) |
+| Build                                                  | Ticket                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------ |
+| catalog app: milestones, seeds                         | [A1](v0-tickets/A1-catalog-app.md)                     |
 | users + organisations + membership + org-scoping mixin | [A2](v0-tickets/A2-users-organisations-org-scoping.md) |
-| polymorphic application + SANDBOX payload schema | [A3](v0-tickets/A3-applications-model.md) |
-| OTP service | [A4](v0-tickets/A4-otp-service.md) |
-| state machine + `transition()` + audit | [A5](v0-tickets/A5-workflow-state-machine.md) |
-| reviews + admin approve guard | [A6](v0-tickets/A6-reviews-quorum.md) |
-| declarations + upload pipeline | [A7](v0-tickets/A7-declarations-uploads.md) |
-| exit workflow + production approval | [A8](v0-tickets/A8-exit-workflow.md) |
-| `seed_sandbox_demo` | [A9](v0-tickets/A9-seed-sandbox-demo.md) |
-| route-gate harness | [C3](v0-tickets/C3-route-gate-harness.md) |
+| polymorphic application + SANDBOX payload schema       | [A3](v0-tickets/A3-applications-model.md)              |
+| OTP service                                            | [A4](v0-tickets/A4-otp-service.md)                     |
+| state machine + `transition()` + audit                 | [A5](v0-tickets/A5-workflow-state-machine.md)          |
+| reviews + admin approve guard                          | [A6](v0-tickets/A6-reviews-quorum.md)                  |
+| declarations + upload pipeline                         | [A7](v0-tickets/A7-declarations-uploads.md)            |
+| exit workflow + production approval                    | [A8](v0-tickets/A8-exit-workflow.md)                   |
+| `seed_sandbox_demo`                                    | [A9](v0-tickets/A9-seed-sandbox-demo.md)               |
+| route-gate harness                                     | [C3](v0-tickets/C3-route-gate-harness.md)              |
 
 **Exit criteria:** enroll→approve and enroll→reject green with audit rows (V0.2); full journey incl. exit green (V0.4); matrix covers every shipped URL.
 
 ## 5. v1 — everything else
 
-| Item | Phase | Builds on (v0 artifact) |
-|---|---|---|
-| HCX/UHI/HIU/NHCX kinds: payload schemas + form sets | P2 | A3's envelope + registry — no model change |
-| Org verification workflow + team invites | P2 | A2's models |
-| Evidence-gating guard on milestone evidence (flag-gated) | P3/P5 | A5's pluggable guard point |
-| Reviewer assignment/routing | P3 | new `workflow_assignment` table — shape decided with the routing requirements, not before |
-| Conformance service (packs/runs/results, Celery runner) | P4/P5 | A7's declarations; reference env as counterparty |
-| `next_action(application)` selector + golden-path counter | P5 | A3/A5 selectors |
-| Support tickets (lite, SLA timers, attachments) | P5 | A7's upload pipeline |
-| CSV formula-injection neutralisation on upload/export | P3 | A7's validators — reviewers open these in Excel |
-| Content app + `import_legacy_content` + Postgres FTS | P5 | — (docs stay on the legacy site until then) |
-| Agent Skills registry · assistant (flag-gated) · reporting MVs | P5 | catalog seeds, audit trail |
+| Item                                                           | Phase | Builds on (v0 artifact)                                                                   |
+| -------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| HCX/UHI/HIU/NHCX kinds: payload schemas + form sets            | P2    | A3's envelope + registry — no model change                                                |
+| Org verification workflow + team invites                       | P2    | A2's models                                                                               |
+| Evidence-gating guard on milestone evidence (flag-gated)       | P3/P5 | A5's pluggable guard point                                                                |
+| Reviewer assignment/routing                                    | P3    | new `workflow_assignment` table — shape decided with the routing requirements, not before |
+| Conformance service (packs/runs/results, Celery runner)        | P4/P5 | A7's declarations; reference env as counterparty                                          |
+| `next_action(application)` selector + golden-path counter      | P5    | A3/A5 selectors                                                                           |
+| Support tickets (lite, SLA timers, attachments)                | P5    | A7's upload pipeline                                                                      |
+| CSV formula-injection neutralisation on upload/export          | P3    | A7's validators — reviewers open these in Excel                                           |
+| Content app + `import_legacy_content` + Postgres FTS           | P5    | — (docs stay on the legacy site until then)                                               |
+| Agent Skills registry · assistant (flag-gated) · reporting MVs | P5    | catalog seeds, audit trail                                                                |
 
 ## 6. Definition of done
 
