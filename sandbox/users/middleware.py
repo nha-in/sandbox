@@ -6,11 +6,14 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 
-class StaffMFARequiredMiddleware:
-    """Staff and reviewers must finish MFA setup before using any staff surface.
+class VerificationRequiredMiddleware:
+    """Every signed-in user owes one proof before the portal opens to them.
 
-    allauth has no "MFA required" setting, and the console/admin are the two
-    surfaces where a stolen password is most damaging.
+    Staff owe TOTP: allauth has no "MFA required" setting, and the console and
+    admin are where a stolen password does the most damage. Everyone else owes
+    OTP on both contacts. The fork is `is_staff` because that is the line
+    between the two populations — console users are created, integrators
+    enrol — and neither obligation means anything for the other side.
     """
 
     def __init__(self, get_response):
@@ -18,53 +21,28 @@ class StaffMFARequiredMiddleware:
 
     def __call__(self, request):
         user = getattr(request, "user", None)
-        if (
-            user is not None
-            and user.is_authenticated
-            and user.is_staff
-            and not self._is_exempt(request.path)
-            and not get_mfa_adapter().is_mfa_enabled(user)
-        ):
-            messages.warning(
-                request,
-                _("Set up two-factor authentication to continue."),
-            )
-            return redirect(reverse("mfa_activate_totp"))
-        return self.get_response(request)
+        if user is None or not user.is_authenticated or self._is_exempt(request.path):
+            return self.get_response(request)
 
-    @staticmethod
-    def _is_exempt(path: str) -> bool:
-        exempt = ("/accounts/", settings.STATIC_URL, settings.MEDIA_URL)
-        return path.startswith(tuple(p for p in exempt if p))
-
-
-class ContactVerificationRequiredMiddleware:
-    """Nothing in the portal opens until both contacts are OTP-verified.
-
-    Staff are exempt: they are created by the console, not by enrolling, and
-    the MFA gate above already covers them.
-    """
-
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        user = getattr(request, "user", None)
-        if (
-            user is not None
-            and user.is_authenticated
-            and not user.is_staff
-            and not (user.email_verified_at and user.phone_verified_at)
-            and not self._is_exempt(request.path)
-        ):
+        if user.is_staff:
+            if not get_mfa_adapter().is_mfa_enabled(user):
+                messages.warning(
+                    request,
+                    _("Set up two-factor authentication to continue."),
+                )
+                return redirect(reverse("mfa_activate_totp"))
+        elif not (user.email_verified_at and user.phone_verified_at):
             return redirect(reverse("users:verify_contacts"))
+
         return self.get_response(request)
 
     @staticmethod
     def _is_exempt(path: str) -> bool:
+        # Both destinations must be exempt or the redirect loops; allauth's MFA
+        # setup lives under /accounts/, which also keeps logout reachable.
         exempt = (
             "/accounts/",
-            "/users/verify-contacts/",
+            reverse("users:verify_contacts"),
             settings.STATIC_URL,
             settings.MEDIA_URL,
         )

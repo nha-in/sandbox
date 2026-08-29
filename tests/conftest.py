@@ -28,7 +28,7 @@ STAFF_ACTORS = (REVIEWER, STAFF)
 
 
 def _with_mfa(user):
-    """Staff without a TOTP device are bounced by StaffMFARequiredMiddleware.
+    """Staff without a TOTP device are bounced by VerificationRequiredMiddleware.
 
     Recovery codes too, so the matrix can assert that a user who *holds* an MFA
     resource reaches its URL — otherwise a broken gate and an absent device both

@@ -30,7 +30,7 @@ def user(db) -> User:
 
 @pytest.fixture
 def enable_mfa():
-    """Give a user a TOTP authenticator, as StaffMFARequiredMiddleware demands."""
+    """Give a user a TOTP authenticator, as VerificationRequiredMiddleware demands."""
 
     def _enable(user: User) -> User:
         totp_auth.TOTP.activate(user, totp_auth.generate_totp_secret())
