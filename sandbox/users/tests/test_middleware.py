@@ -4,6 +4,7 @@ import pytest
 from django.urls import reverse
 
 from sandbox.users.tests.factories import UserFactory
+from sandbox.users.tests.factories import VerifiedUserFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -33,6 +34,6 @@ def test_staff_with_mfa_passes_through(client, enable_mfa):
 
 
 def test_non_staff_users_are_not_forced_into_mfa(client):
-    client.force_login(UserFactory())
+    client.force_login(VerifiedUserFactory())
 
     assert client.get(reverse("home")).status_code == HTTPStatus.OK

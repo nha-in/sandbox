@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -106,6 +107,9 @@ def verify_otp(
             raise DomainError(message)
         user.email_verified_at = timezone.now()
         fields = ["email_verified_at"]
+        # allauth no longer sends its own confirmation link, so keep its record
+        # in step rather than leaving a permanently unverified EmailAddress
+        EmailAddress.objects.filter(user=user, email=identity).update(verified=True)
     else:
         # a verified number is trustworthy enough to store
         user.phone = identity

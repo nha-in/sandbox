@@ -114,6 +114,9 @@ ROUTES: dict[str, Route] = {
     "socialaccount_login_error": Route(Access.PUBLIC),
     "socialaccount_signup": Route(Access.AUTHENTICATED),
     # Portal
+    # The contact-verification gate. Authenticated but deliberately
+    # reachable while unverified, otherwise the gate would loop on itself.
+    "users:verify_contacts": Route(Access.AUTHENTICATED),
     "users:redirect": Route(Access.AUTHENTICATED),
     "users:update": Route(Access.AUTHENTICATED),
     "users:detail": Route(

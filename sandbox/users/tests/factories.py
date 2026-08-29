@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from django.utils import timezone
 from factory import Faker
+from factory import LazyFunction
 from factory import post_generation
 from factory.django import DjangoModelFactory
 
@@ -33,3 +35,15 @@ class UserFactory(DjangoModelFactory[User]):
         model = User
         django_get_or_create = ["email"]
         skip_postgeneration_save = True
+
+
+class VerifiedUserFactory(UserFactory):
+    """A user who has cleared the contact-verification gate.
+
+    Use this in tests that exercise something *behind* the gate. UserFactory
+    stays deliberately unverified so the OTP tests cannot pass by accident.
+    """
+
+    phone = "+919876543210"
+    email_verified_at = LazyFunction(timezone.now)
+    phone_verified_at = LazyFunction(timezone.now)

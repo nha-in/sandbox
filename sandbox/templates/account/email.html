@@ -1,0 +1,33 @@
+{% extends "account/base_manage_email.html" %}
+
+{% comment %}
+  Overrides allauth's default, which offers Make Primary / Remove / Re-send.
+  None of those apply: one address per account, and OTP does the verifying.
+{% endcomment %}
+{% load i18n %}
+
+{% block head_title %}
+  {% translate "Email address" %}
+{% endblock head_title %}
+{% block settings_content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Email address" %}</h2>
+      <p class="ui-card-description">
+        {% translate "Your email address is also how you sign in, so it cannot be changed here." %}
+      </p>
+    </div>
+    <div class="ui-card-content">
+      {% for emailaddress in emailaddresses %}
+        <div class="flex items-center justify-between gap-4">
+          <span>{{ emailaddress.email }}</span>
+          {% if user.email_verified_at %}
+            <span class="ui-badge ui-badge--success">{% translate "Verified" %}</span>
+          {% else %}
+            <span class="ui-badge ui-badge--warning">{% translate "Not verified" %}</span>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock settings_content %}
