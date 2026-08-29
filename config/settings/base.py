@@ -101,6 +101,7 @@ LOCAL_APPS = [
     "sandbox.theme",
     "sandbox.users",
     "sandbox.catalog",
+    "sandbox.integrations",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -279,6 +280,12 @@ LOGGING = {
         },
     },
     "root": {"level": "INFO", "handlers": ["console"]},
+    "loggers": {
+        # httpx logs a full URL per request; our own structured line is the record
+        # of truth and keeps identifiers out of the message.
+        "httpx": {"level": "WARNING"},
+        "httpcore": {"level": "WARNING"},
+    },
 }
 
 REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
@@ -356,6 +363,29 @@ ACCOUNT_FORMS = {"signup": "sandbox.users.forms.UserSignupForm"}
 SOCIALACCOUNT_ADAPTER = "sandbox.users.adapters.SocialAccountAdapter"
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_FORMS = {"signup": "sandbox.users.forms.UserSocialSignupForm"}
+
+# INTEGRATIONS
+# ------------------------------------------------------------------------------
+# Each port resolves to a real adapter (B3-B6) or a fake (B2). Defaults are the
+# fakes so a laptop with no VPN runs the whole portal; deployments override.
+INTEGRATION_PORTS = {
+    "IDP": env.str(
+        "INTEGRATION_IDP",
+        default="sandbox.integrations.fakes.FakeIdpAdmin",
+    ),
+    "API_GATEWAY": env.str(
+        "INTEGRATION_API_GATEWAY",
+        default="sandbox.integrations.fakes.FakeApiGateway",
+    ),
+    "BRIDGE_REGISTRY": env.str(
+        "INTEGRATION_BRIDGE_REGISTRY",
+        default="sandbox.integrations.fakes.FakeBridgeRegistry",
+    ),
+    "NOTIFICATION": env.str(
+        "INTEGRATION_NOTIFICATION",
+        default="sandbox.integrations.fakes.FakeNotificationGateway",
+    ),
+}
 
 
 # Your stuff...

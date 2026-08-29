@@ -28,6 +28,13 @@ v2 puts every external call behind an **anti-corruption layer**: typed ports (Pr
 | 5 | Settings toggle: port → real adapter / fake per environment | `config/settings/*` |
 | 6 | Unit tests for every http-policy behaviour | `sandbox/integrations/tests/` |
 
+> **Deliverable 3 is deferred to a follow-up PR.** The ledger's `application` FK and
+> its `UNIQUE (application, system)` backstop both require `applications.Application`,
+> which [A3](A3-applications-model.md) has not shipped. Deliverables 1, 2, 4, 5 and 6
+> are complete and unblock [B2](B2-fake-adapters.md)–[B6](B6-notification-adapter.md);
+> only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) need the ledger,
+> and they are behind A3 anyway.
+
 ### Layout
 
 ```
@@ -65,6 +72,12 @@ class NotificationGateway(Protocol):  # B6
 ```
 
 - **`AdapterError(system, code, retryable)`** — the only exception type adapters may raise; unexpected response shapes must raise it rather than leak.
+- **Ports take DTOs, never domain models.** `create_client(spec: ClientSpec)` rather than
+  `create_client(application: Application)`: a port that imported `Application` would point
+  the dependency arrow back at the domain and defeat the anti-corruption layer. Adapters
+  never see an ORM object; the caller maps.
+- **DTOs carrying a secret set `repr=False` on that field**, so a traceback or a naive log
+  line cannot leak it.
 
 ### Shared client policy (`http.py`)
 
@@ -98,11 +111,21 @@ Client factory applying to every adapter:
 
 ## Acceptance criteria
 
-- [ ] Ports + DTOs defined, mypy-strict clean; adapters interchangeable with fakes behind settings.
-- [ ] http factory unit-tested: timeout honored, retry count on idempotent op, no retry on non-idempotent op, breaker opens after 5 failures and half-opens after 30s.
-- [ ] `AdapterError` carries system/code/retryable; unknown shapes mapped, not propagated.
-- [ ] Ledger migration applied; uniqueness enforced.
-- [ ] Import-linter contract green in CI.
+- [x] Ports + DTOs defined, mypy-strict clean; adapters interchangeable with fakes behind settings.
+- [x] http factory unit-tested: timeout honored, retry count on idempotent op, no retry on non-idempotent op, breaker opens after 5 failures and half-opens after 30s.
+- [x] `AdapterError` carries system/code/retryable; unknown shapes mapped, not propagated.
+- [ ] Ledger migration applied; uniqueness enforced. — **deferred, blocked on [A3](A3-applications-model.md)**
+- [x] Import-linter contract green in CI.
+
+### Decisions taken while building
+
+| Question | Decision |
+|---|---|
+| What counts as one breaker "failure"? | A **fully-retried** request. Breaker wraps retry, so an open circuit short-circuits without burning attempts, and `CIRCUIT_OPEN` surfaces as a retryable `AdapterError`. |
+| Do 4xx responses trip the breaker? | **No.** A 404 means we asked wrongly, not that the dependency is down; only retryable errors count toward `fail_max`. |
+| Which methods retry by default? | `GET/HEAD/OPTIONS/PUT/DELETE`. POST must pass `idempotent=True` explicitly, forcing the author to name the idempotency guarantee. |
+| Breaker scope | One per `ExternalSystem`, shared by every client pointed at it — WSO2 being down must not open Keycloak's circuit. |
+| httpx's own logging | Silenced to `WARNING` in `LOGGING`. It emitted a second INFO line per call containing the full URL; our structured line is the record of truth. |
 
 ## Out of scope (deferred)
 
