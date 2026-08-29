@@ -59,6 +59,22 @@ services:
     ports: []
     command: /start-tailwind
 
+  # Stand-in for ABDM's central-registry realm. Profile-gated: the fake adapter
+  # covers day-to-day work, this is for exercising the real Admin API.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: sandbox_local_keycloak
+    profiles: ['keycloak']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: 'true'
+    command: ['start-dev', '--import-realm', '--http-port=8080']
+    volumes:
+      - ./compose/local/keycloak:/opt/keycloak/data/import:z
+    ports:
+      - '8080:8080'
+
   celeryworker:
     <<: *django
     image: sandbox_local_celeryworker
