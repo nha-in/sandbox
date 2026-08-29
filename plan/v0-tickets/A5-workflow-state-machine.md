@@ -67,8 +67,7 @@ def transition(application, action, actor, comment="") -> WorkflowTransition: ..
 | `from_state` / `to_state` | char | CHECK: `(from_state, action, to_state)` ∈ legal graph |
 | `action` | char | |
 | `actor` | FK → user, null | null for system moves (e.g. chain completion) |
-| `actor_role` | char | snapshot at transition time |
-| `comment` | text | reviewer/admin comment |
+| `comment` | text | only for moves with no review behind them (withdraw, system notes); review-driven moves keep their comment on the review row |
 | `quorum_snapshot` | JSONB, null | review tally frozen on approve ([A6](A6-reviews-quorum.md)) |
 | `created_date` | datetime | append-only — no `modified_date`, no `deleted`; rows are immutable |
 

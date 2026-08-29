@@ -34,12 +34,13 @@ The legacy system recorded HTC reviewer opinions in fifteen wide-table columns k
 |---|---|---|
 | `application` | FK → application | |
 | `reviewer` | FK → user | |
+| `round` | int | increments when the application re-enters review after a send-back |
 | `decision` | char + CHECK | `APPROVE \| REJECT \| SEND_BACK` |
-| `comment` | text | |
+| `comment` | text | the single home for reviewer/admin comment text — never copied elsewhere |
 | `decided_at` | datetime | |
-| — | | `UNIQUE (application, reviewer) WHERE deleted = false` per review round |
+| — | | `UNIQUE (application, reviewer, round) WHERE deleted = false` |
 
-A send-back/re-submission opens a new round — pick the round mechanism (soft-deleting rows on re-entry to UNDER_REVIEW is a natural fit given the base model) and document it in one place.
+A send-back/re-submission opens a new round by incrementing `round`; earlier rows stay visible and queryable rather than being soft-deleted, so the console timeline can show what each round said without reaching past the default manager.
 
 ### Service + quorum policy
 
