@@ -13,7 +13,7 @@ The finish line. When an integrator believes they're ready for the real ABDM net
 
 The sandbox journey ends with the integrator requesting **exit to production**: they submit an exit declaration with supporting documents, an admin reviews it, and approval marks the application `PRODUCTION_APPROVED` — the credential for entering the real ABDM ecosystem. In the legacy system, exit approval was Super Admin–only and one of only three events that were (uselessly) audited; v2 runs exit through the same state machine, service layer and audit trail as everything else.
 
-> **Blocked on an NHA answer before this ticket is designed** ([00-master-plan.md §10](../00-master-plan.md), open question 3): legacy exit is **scoped to a milestone set and repeatable** — `SdExit.integration_detail` holds `"M1,M2,M3"`, an integrator can have several exit rows, and the legacy UI picks the one matching the milestone track on screen. The single terminal `PRODUCTION_APPROVED` state below assumes one exit per application. If NHA confirm exits repeat per track, exit becomes its own scoped record rather than a terminal application state — a model change, not a wiring change.
+> **Half-answered by [A7](A7-declarations-uploads.md); the rest still needs NHA** ([00-master-plan.md §10](../00-master-plan.md), open question 3): legacy exit is **scoped to a milestone set and repeatable** — `SdExit.integration_detail` holds `"M1,M2,M3"`, an integrator can have several exit rows, and the legacy UI picks the one matching the milestone track on screen. A7 has already taken the cheap half: an exit declaration records its own milestone set and carries its own `state`, and several exits per application are legal. What is left for this ticket is narrower — whether `PRODUCTION_APPROVED` stays a **terminal application state** when an integrator can be production-approved for M1 while still sandboxing M3. Decide that before wiring the transitions; the declaration model does not need to change either way.
 
 The exit states (`EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED`) already exist in [A5](A5-workflow-state-machine.md)'s graph — this ticket implements their guards, services and side-effects.
 
@@ -23,22 +23,32 @@ The exit states (`EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTE
 
 | # | Deliverable | Where |
 |---|---|---|
-| 1 | Exit transitions + guards wired into the table | `sandbox/workflow/machine.py` |
+| 1 | Guards on the exit transitions (the edges themselves already ship in [A5](A5-workflow-state-machine.md)) | `sandbox/workflow/machine.py` |
 | 2 | `request_exit()` service (declaration-bundle guard) | `sandbox/workflow/services.py` |
-| 3 | Notification side-effects on approve/reject | transition specs → [B6](B6-notification-adapter.md) `enqueue` |
-| 4 | Exit-queue + exit-detail selectors for the console | `sandbox/workflow/selectors.py` |
-| 5 | Tests: full path, reject + re-request loop, permission denials | `sandbox/workflow/tests/` |
+| 3 | **Settle the exit declaration** on approve/reject — see below | same |
+| 4 | Notification side-effects on approve/reject | transition specs → [B6](B6-notification-adapter.md) `enqueue` |
+| 5 | Exit-queue + exit-detail selectors for the console | `sandbox/workflow/selectors.py` |
+| 6 | Tests: full path, reject + re-request loop, permission denials | `sandbox/workflow/tests/` |
+
+### What A7 leaves for this ticket
+
+- **`Declaration.state` has no writer yet.** A7 only ever writes `SUBMITTED`, so its guard against superseding a settled claim (`already_settled`) is currently inert. `approve_exit` must set the exit declaration to `APPROVED` and `reject_exit` to `REJECTED` — otherwise an integrator can resubmit over an exit that already reached production, silently retracting it. This is the single most important thing A8 owes A7.
+- **Which declaration is being acted on**: the current one, i.e. the exit declaration holding unsuperseded claims. A7 ships `milestone_coverage(application)`; a `current_exit_declaration(application)` selector belongs here or in `declarations/selectors.py`.
+- **`submit_exit_declaration` takes `milestones`** (not just payload + files), so the bundle guard checks claims rather than mere existence.
+- **[A9](A9-seed-sandbox-demo.md)'s seed will break**: [`seed_sandbox_demo.py`](../../sandbox/catalog/management/commands/seed_sandbox_demo.py) drives `REQUEST_EXIT` with no exit declaration present. Seed the declaration in the same PR that adds the guard.
 
 ### Transitions (wired into [A5](A5-workflow-state-machine.md)'s table)
 
 | From | Action | To | Actor / permission | Guard |
 |---|---|---|---|---|
-| `PROVISIONED` | `request_exit` | `EXIT_REQUESTED` | integrator (org member) | exit declaration + required documents exist ([A7](A7-declarations-uploads.md)); milestone prerequisite — define it (all active milestones declared, or explicitly none) and record the choice in the ticket PR |
-| `EXIT_REQUESTED` | `start_exit_review` | `EXIT_REVIEW` | staff pickup, or automatic on request — decide and document | — |
-| `EXIT_REVIEW` | `approve_exit` | `PRODUCTION_APPROVED` | admin permission (legacy parity: Super Admin–level) | — |
-| `EXIT_REVIEW` | `reject_exit` | `EXIT_REJECTED` | admin permission | comment mandatory |
+| `PROVISIONED` | `request_exit` | `EXIT_REQUESTED` | integrator (org member) | a current exit declaration exists with its documents ([A7](A7-declarations-uploads.md)); every milestone in that declaration's set must already hold a `MILESTONE` claim — which is what `milestone_coverage()` answers |
+| `EXIT_REJECTED` | `request_exit` | `EXIT_REQUESTED` | integrator (org member) | same guard — the re-request edge already exists in the shipped machine |
+| `EXIT_REQUESTED` | `start_exit_review` | `EXIT_REVIEW` | `workflow.review_application` | — |
+| `EXIT_REVIEW` | `approve_exit` | `PRODUCTION_APPROVED` | `workflow.approve_application` | sets the declaration to `APPROVED` |
+| `EXIT_REVIEW` | `reject_exit` | `EXIT_REJECTED` | `workflow.reject_application` | comment mandatory; sets the declaration to `REJECTED` |
+| `EXIT_REVIEW` | `send_back_exit` | `PROVISIONED` | `workflow.review_application` | already in the shipped machine but absent from this table — decide whether it also settles the declaration |
 
-Re-request after rejection is allowed — document whether via SENT_BACK-style edit or a fresh exit declaration.
+**Re-request after rejection is a fresh exit declaration**, not a SENT_BACK-style edit — settled by A7. Submitting one supersedes the rejected declaration's claims in the same transaction, and the rejected declaration stays readable with its documents and reviewer comment. Nothing needs to release claims on rejection; the resubmission does it.
 
 ### Services
 
@@ -48,7 +58,8 @@ def request_exit(*, application, actor) -> None:
     """Validates the declaration bundle (A7), then
     transition(application, "request_exit", actor)."""
 
-# approve_exit / reject_exit go through transition() directly — no bespoke write path
+# approve_exit / reject_exit go through transition() directly, and additionally
+# settle the exit declaration — the only writer of Declaration.state.
 ```
 
 ### Side-effects & surfaces
@@ -60,9 +71,11 @@ def request_exit(*, application, actor) -> None:
 ## Acceptance criteria
 
 - [ ] Full exit path green in tests: request (guard passes/fails correctly) → review → approve → `PRODUCTION_APPROVED`, and the reject + re-request loop.
+- [ ] Approval settles the exit declaration (`APPROVED`), and a later resubmission over it is refused with A7's `already_settled`.
 - [ ] Exit approval requires the admin permission; integrator/reviewer roles cannot approve (matrix rows added).
 - [ ] Every exit transition audited with actor + comment; approval freezes state history like any other transition.
 - [ ] Approval/rejection notifications enqueued on commit (asserted).
+- [ ] [A9](A9-seed-sandbox-demo.md)'s seed still reaches every exit state under the new guard.
 - [ ] mypy/ruff clean; no view writes.
 
 ## Out of scope (deferred)
