@@ -62,7 +62,7 @@ services:
   # Stand-in for ABDM's central-registry realm. Profile-gated: the fake adapter
   # covers day-to-day work, this is for exercising the real Admin API.
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak:26.7
     container_name: sandbox_local_keycloak
     profiles: ['keycloak']
     environment:
