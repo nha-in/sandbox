@@ -226,6 +226,7 @@ source_modules = [
   "sandbox.applications",
   "sandbox.workflow",
   "sandbox.audit",
+  "sandbox.otp",
   "sandbox.theme",
 ]
 forbidden_modules = [

@@ -151,11 +151,19 @@ class BridgeRegistry(Protocol):
 
 
 # Notification gateway — B6
+class NotificationChannel(enum.StrEnum):
+    """Mirrors `notifications_message.channel` (B6)."""
+
+    EMAIL = "EMAIL"
+    SMS = "SMS"
+
+
 @dataclass(frozen=True, slots=True)
 class NotificationMessage:
     template: str
     to: str
     context: Mapping[str, object]
+    channel: NotificationChannel = NotificationChannel.EMAIL
 
 
 @dataclass(frozen=True, slots=True)
