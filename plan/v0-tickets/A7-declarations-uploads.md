@@ -36,7 +36,8 @@ Integrators progress through sandbox milestones by **self-declaration** (v0 has 
 | `application` | FK → application | |
 | `kind` | char + CHECK | `SELF \| EXIT \| MILESTONE` |
 | `milestone` | FK → catalog_milestone, null | CHECK: required when kind=MILESTONE |
-| `payload` | JSONB | declaration form content |
+| `started_on` / `completed_on` | date, null | real columns, not payload — reporting filters and sorts on these |
+| `payload` | JSONB | the rest of the declaration form content |
 | `state` | char | |
 | — | | `UNIQUE (application, milestone) WHERE deleted = false` where milestone is not null |
 
