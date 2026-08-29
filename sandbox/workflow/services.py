@@ -17,10 +17,14 @@ from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
 from sandbox.audit.services import emit
 from sandbox.utils.errors import DomainError
+from sandbox.workflow.machine import PERM_REVIEW
 from sandbox.workflow.machine import TRANSITIONS
 from sandbox.workflow.machine import Action
 from sandbox.workflow.machine import ActorKind
+from sandbox.workflow.models import ReviewDecision
+from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
+from sandbox.workflow.selectors import current_round
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -142,3 +146,48 @@ def transition(
             )
 
     return record
+
+
+@transaction.atomic
+def record_review(
+    *,
+    application: Application,
+    reviewer: User,
+    decision: str,
+    comment: str = "",
+) -> WorkflowReview:
+    """Record a reviewer's opinion. Advisory — this never moves the application.
+
+    Re-reviewing within the same round updates that reviewer's row; a send-back
+    opens a new round, leaving the previous one readable.
+    """
+    if application.state != ApplicationState.SUBMITTED:
+        message = f"cannot review an application in state {application.state}"
+        raise DomainError(message, code="illegal_review")
+
+    if decision not in ReviewDecision.values:
+        message = f"{decision} is not a review decision"
+        raise DomainError(message, code="invalid")
+
+    if not reviewer.has_perm(PERM_REVIEW):
+        message = f"recording a review requires {PERM_REVIEW}"
+        raise DomainError(message, code="forbidden")
+
+    review, _created = WorkflowReview.objects.update_or_create(
+        application=application,
+        reviewer=reviewer,
+        round=current_round(application),
+        defaults={"decision": decision, "comment": comment},
+    )
+
+    emit(
+        "application.reviewed",
+        obj=application,
+        actor=reviewer,
+        data={
+            "decision": decision,
+            "round": review.round,
+            "reference": application.reference,
+        },
+    )
+    return review

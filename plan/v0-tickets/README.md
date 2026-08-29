@@ -50,7 +50,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**                      |
 | [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | open                          |
 | [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**                      |
-| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | open (A5 done)                |
+| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | **done**                      |
 | [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | open (A3 done)                |
 | [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | blocked (A7, open question 3) |
 | [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | open (A2/A3 done)             |
@@ -75,7 +75,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | ---------------------------------------------------------------------------------------------- | ----- | ---------------- |
 | [C3 — Route-gate test harness](C3-route-gate-harness.md)                                       | V0.2  | **done**         |
 | [C4 — Enrollment wizard (SANDBOX) + OTP partial](C4-enrollment-wizard.md)                      | V0.2  | blocked (A4)     |
-| [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | blocked (A6)     |
+| [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | open (A5/A6 done) |
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | open (A3/A5 done) |
 | [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | blocked (B7, C6) |
 | [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | blocked (A7, A8) |

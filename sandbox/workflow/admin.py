@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.contrib import admin
 
+from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
 
 
@@ -22,3 +23,11 @@ class WorkflowTransitionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None) -> bool:
         return False
+
+
+@admin.register(WorkflowReview)
+class WorkflowReviewAdmin(admin.ModelAdmin):
+    list_display = ("decided_at", "application", "round", "decision", "reviewer")
+    list_filter = ("decision",)
+    search_fields = ("application__reference",)
+    readonly_fields = ("decided_at",)

@@ -11,7 +11,7 @@ Reviewers look at an application and record an opinion: approve, reject, or send
 
 ## Background
 
-The legacy system recorded HTC reviewer opinions in fifteen wide-table columns keyed by JWT *username string* (`HTC1`…`HTC4`, `Admin`), and its 2-of-4 quorum checks were dead code — in practice a Super Admin approval alone triggered provisioning. v2 makes reviews **rows** and the approve guard an explicit permission check.
+The legacy system recorded HTC reviewer opinions in fifteen wide-table columns keyed by JWT _username string_ (`HTC1`…`HTC4`, `Admin`), and its 2-of-4 quorum checks were dead code — in practice a Super Admin approval alone triggered provisioning. v2 makes reviews **rows** and the approve guard an explicit permission check.
 
 **Approval requires the admin-approve permission and nothing else** — deliberate parity with real legacy behaviour. There is no configurable quorum policy: an unused abstraction plus an environment variable nobody will change is more machinery than the rule deserves. If NHA later want "N reviewers must agree", it is a guard function and a test, and the review rows needed to evaluate it are already being written.
 
@@ -19,25 +19,25 @@ The legacy system recorded HTC reviewer opinions in fifteen wide-table columns k
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `WorkflowReview` model + partial-unique migration | `sandbox/workflow/models.py` |
-| 2 | `record_review()` service | `sandbox/workflow/services.py` |
-| 3 | Approve-guard wiring (admin permission) | `sandbox/workflow/machine.py` |
-| 4 | Tally selectors for [C5](C5-console-review-queue.md) | `sandbox/workflow/selectors.py` |
-| 5 | Tests: authority, rounds, tally | `sandbox/workflow/tests/` |
+| #   | Deliverable                                          | Where                           |
+| --- | ---------------------------------------------------- | ------------------------------- |
+| 1   | `WorkflowReview` model + partial-unique migration    | `sandbox/workflow/models.py`    |
+| 2   | `record_review()` service                            | `sandbox/workflow/services.py`  |
+| 3   | Approve-guard wiring (admin permission)              | `sandbox/workflow/machine.py`   |
+| 4   | Tally selectors for [C5](C5-console-review-queue.md) | `sandbox/workflow/selectors.py` |
+| 5   | Tests: authority, rounds, tally                      | `sandbox/workflow/tests/`       |
 
 ### `workflow_review`
 
-| Field | Type | Constraints / notes |
-|---|---|---|
-| `application` | FK → application | |
-| `reviewer` | FK → user | |
-| `round` | int | increments when the application re-enters review after a send-back |
-| `decision` | char + CHECK | `APPROVE \| REJECT \| SEND_BACK` |
-| `comment` | text | the single home for reviewer/admin comment text — never copied elsewhere |
-| `decided_at` | datetime | |
-| — | | `UNIQUE (application, reviewer, round) WHERE deleted = false` |
+| Field         | Type             | Constraints / notes                                                      |
+| ------------- | ---------------- | ------------------------------------------------------------------------ |
+| `application` | FK → application |                                                                          |
+| `reviewer`    | FK → user        |                                                                          |
+| `round`       | int              | increments when the application re-enters review after a send-back       |
+| `decision`    | char + CHECK     | `APPROVE \| REJECT \| SEND_BACK`                                         |
+| `comment`     | text             | the single home for reviewer/admin comment text — never copied elsewhere |
+| `decided_at`  | datetime         |                                                                          |
+| —             |                  | `UNIQUE (application, reviewer, round) WHERE deleted = false`            |
 
 A send-back/re-submission opens a new round by incrementing `round`; earlier rows stay visible and queryable rather than being soft-deleted, so the console timeline can show what each round said without reaching past the default manager.
 
@@ -59,10 +59,33 @@ The approve guard in [A5](A5-workflow-state-machine.md)'s transition table is a 
 
 ## Acceptance criteria
 
-- [ ] Admin approves with zero reviews recorded; a non-admin holding only the review permission cannot approve (both asserted).
-- [ ] Review uniqueness enforced per `(application, reviewer, round)`; re-review after send-back opens a new round and leaves the previous round readable.
-- [ ] Comments live only on review rows — no copy on the transition (asserted).
-- [ ] Authority via permissions/groups only, zero username strings.
+- [x] Admin approves with zero reviews recorded; a non-admin holding only the review permission cannot approve (both asserted).
+- [x] Review uniqueness enforced per `(application, reviewer, round)`; re-review after send-back opens a new round and leaves the previous round readable.
+- [x] Comments live only on review rows — no copy on the transition (asserted, and enforced by [A5](A5-workflow-state-machine.md)'s `review_driven` rule, which raises `DomainError(code="comment_not_allowed")`).
+- [x] Authority via permissions/groups only, zero username strings.
+
+### `round` is derived, not stored
+
+There is no `round` counter on the application. The current round is
+`1 + the number of SEND_BACK transitions`, read from A5's append-only log
+(`selectors.current_round`). A stored counter is a second source of truth that
+can drift from the history; a derived one cannot. It also means a send-back
+recorded by any path — console, shell, future automation — opens the next round
+without anyone remembering to increment anything.
+
+### `record_review()` does not move the application
+
+Reviews are advisory, so the service records the opinion and audits it, and
+nothing else. The admin's separate `transition()` call is what moves state.
+[C5](C5-console-review-queue.md) will do both inside one atomic view action.
+Keeping them apart is what makes "admin approves with zero reviews" work, which
+is the real legacy behaviour this ticket deliberately preserves.
+
+### Re-review within a round updates, across rounds appends
+
+`update_or_create` on `(application, reviewer, round)`: a reviewer changing
+their mind in round 1 edits their row rather than adding a second one, while
+round 2 gets a fresh row and round 1 stays readable and un-deleted.
 
 ## Out of scope (deferred)
 

@@ -8,12 +8,29 @@ ABDM integrator sandbox portal — v2 rewrite. Plan of record lives in [plan/](p
 ## Getting started
 
 Everything runs in Docker; no VPN or ABDM credentials are needed for local work.
+You need Docker and [`just`](https://github.com/casey/just) — the command runner
+cookiecutter-django ships with, in place of a Makefile:
+
+```bash
+brew install just          # macOS; see the just README for Linux/Windows
+```
+
+Then, from a fresh clone:
+
+```bash
+just bootstrap
+```
+
+That copies the example env files if you have none, builds, starts every
+container, migrates, seeds demo data and prints the URLs. The individual steps,
+if you would rather run them yourself:
 
 ```bash
 cp .envs/.local/.django.example .envs/.local/.django
 cp .envs/.local/.postgres.example .envs/.local/.postgres
 just build
 just up
+just manage migrate
 just manage seed_sandbox_demo
 ```
 

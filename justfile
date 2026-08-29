@@ -9,6 +9,44 @@ export COMPOSE_FILE := "docker-compose.local.yml"
 default:
     @just --list
 
+# bootstrap: Everything from a fresh clone to a running, seeded portal.
+bootstrap:
+    @test -f .envs/.local/.django   || cp .envs/.local/.django.example   .envs/.local/.django
+    @test -f .envs/.local/.postgres || cp .envs/.local/.postgres.example .envs/.local/.postgres
+    @echo "Building images..."
+    @docker compose build
+    @echo "Starting containers..."
+    @docker compose up -d --remove-orphans
+    @echo "Applying migrations..."
+    @docker compose run --rm django python manage.py migrate
+    @echo "Seeding demo data..."
+    @docker compose run --rm django python manage.py seed_sandbox_demo
+    @just urls
+
+# urls: Where everything is listening.
+urls:
+    @echo ""
+    @echo "  portal    http://localhost:8000"
+    @echo "  mailpit   http://localhost:8025"
+    @echo "  flower    http://localhost:5555"
+    @echo "  postgres  127.0.0.1:5434 (db 'sandbox', creds in .envs/.local/.postgres)"
+    @echo "  keycloak  http://localhost:8080  (just keycloak — profile-gated, admin/admin)"
+    @echo ""
+
+# keycloak: Start the profile-gated local Keycloak.
+keycloak:
+    @docker compose --profile keycloak up -d keycloak
+
+# check: Everything CI runs, in the same order.
+check:
+    @docker compose run --rm django ruff check sandbox config tests
+    @docker compose run --rm django ruff format --check sandbox config tests
+    @docker compose run --rm django mypy sandbox config tests
+    @docker compose run --rm django lint-imports
+    @docker compose run --rm django python manage.py check
+    @docker compose run --rm django python manage.py makemigrations --check --dry-run
+    @docker compose run --rm django pytest --cov --cov-fail-under=85
+
 # build: Build python image.
 build *args:
     @echo "Building python image..."
