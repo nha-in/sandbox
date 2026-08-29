@@ -33,8 +33,8 @@ Two CI tiers (per [07-infra-cicd.md §3](../07-infra-cicd.md)): a smoke subset o
 - **Harness**: a test hook (or fake-adapter knob, [B2](B2-fake-adapters.md)) to trigger provisioning-failure scenarios; stable `data-testid`/semantic selectors.
 - **The full v0 journey**, one scenario chain (fresh user, not seeded):
   1. register → verify email (via Mailpit) → login;
-  2. enrollment wizard → submit → OTP verify (via Mailpit);
-  3. as reviewer/admin: console review → approve (quorum per active policy);
+  2. enrollment wizard → OTP verify (via Mailpit) → submit;
+  3. as reviewer: record advisory review → as admin: approve;
   4. provisioning completes against fakes → integrator dashboard reaches Credentials;
   5. credentials panel: reveal show-once (assert re-render masks it) → rotate → new secret shown once;
   6. milestone declaration with a file upload → timeline shows it;

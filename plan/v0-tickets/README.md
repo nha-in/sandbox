@@ -45,7 +45,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md) | V0.2 |
 | [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md) | V0.2 |
 | [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md) | V0.2 |
-| [A6 — Reviews + quorum guard](A6-reviews-quorum.md) | V0.2 |
+| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md) | V0.2 |
 | [A7 — Declarations + document uploads](A7-declarations-uploads.md) | V0.4 |
 | [A8 — Exit workflow + production approval](A8-exit-workflow.md) | V0.4 |
 | [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md) | V0.2→V0.4 |

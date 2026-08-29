@@ -44,24 +44,156 @@ Rules that follow from soft delete:
 
 ```mermaid
 erDiagram
+    USER ||--o{ MEMBERSHIP : "belongs via"
     ORGANISATION ||--o{ MEMBERSHIP : "has members"
-    USER ||--o{ MEMBERSHIP : "joins via"
-    ORGANISATION ||--o{ APPLICATION : "submits"
+    ORGANISATION ||--o{ PRODUCT : "owns"
+    PRODUCT ||--o{ APPLICATION : "certified by"
+    USER ||--o{ APPLICATION : "applicant"
     APPLICATION ||--o{ WORKFLOW_TRANSITION : "state history"
-    APPLICATION ||--o{ WORKFLOW_REVIEW : "is reviewed in"
+    USER |o--o{ WORKFLOW_TRANSITION : "actor"
+    APPLICATION ||--o{ WORKFLOW_REVIEW : "reviewed in"
+    USER ||--o{ WORKFLOW_REVIEW : "reviewer"
     APPLICATION ||--o{ DECLARATION : "declares"
     CATALOG_MILESTONE |o--o{ DECLARATION : "for milestone"
-    DECLARATION ||--o{ DECLARATION_DOCUMENT : "uploads"
+    DECLARATION ||--o{ DECLARATION_DOCUMENT : "evidence"
+    USER ||--o{ DECLARATION_DOCUMENT : "uploaded_by"
     APPLICATION ||--o{ PROVISIONED_RESOURCE : "provisioned in"
     APPLICATION |o--o{ NOTIFICATION_MESSAGE : "about"
+    USER |o--o{ NOTIFICATION_MESSAGE : "to"
     USER |o--o{ AUDIT_EVENT : "actor"
+
+    USER {
+        uuid external_id UK
+        citext email UK
+        char name
+        char phone
+        datetime email_verified_at
+        datetime phone_verified_at
+        bool is_staff
+    }
+    ORGANISATION {
+        uuid external_id UK
+        char name
+        slug slug UK
+        char kind "ORGANIZATION|INDIVIDUAL"
+        url website
+        char address_fields
+        char lgd_state_code
+        char lgd_district_code
+        char verification_state "PENDING|VERIFIED"
+        bigint verified_by FK
+        datetime verified_at
+    }
+    PRODUCT {
+        uuid external_id UK
+        bigint organisation FK
+        char name
+        slug slug
+        text description
+        unique organisation_slug UK
+    }
+    MEMBERSHIP {
+        uuid external_id UK
+        bigint organisation FK
+        bigint user FK
+        char role "OWNER|DEVELOPER"
+        unique organisation_user UK
+    }
+    APPLICATION {
+        uuid external_id UK
+        char reference UK "SBX-YYYY-NNNNN"
+        char kind "SANDBOX|HCX|UHI|HIU|NHCX"
+        bigint product FK "org reached through this"
+        bigint applicant FK
+        char state
+        jsonb payload "no org or product facts"
+        datetime submitted_at
+        unique product_kind UK "live app only"
+    }
+    WORKFLOW_TRANSITION {
+        bigint application FK
+        char from_state
+        char action
+        char to_state
+        bigint actor FK "null = system move"
+        text comment "only when no review behind it"
+        datetime created_date
+    }
+    WORKFLOW_REVIEW {
+        uuid external_id UK
+        bigint application FK
+        bigint reviewer FK
+        int round
+        char decision "APPROVE|REJECT|SEND_BACK"
+        text comment "single home for the text"
+        datetime decided_at
+        unique application_reviewer_round UK
+    }
+    AUDIT_EVENT {
+        datetime occurred_at
+        bigint actor FK
+        char action
+        char object_type "FK-free by design"
+        uuid object_external_id
+        char correlation_id
+        jsonb data
+    }
+    DECLARATION {
+        uuid external_id UK
+        bigint application FK
+        char kind "SELF|EXIT|MILESTONE"
+        bigint milestone FK "required if MILESTONE"
+        date started_on
+        date completed_on
+        jsonb payload
+        char state
+        unique application_milestone UK
+    }
+    DECLARATION_DOCUMENT {
+        uuid external_id UK
+        bigint declaration FK
+        char storage_key "non-derivable"
+        char filename
+        char content_type "sniffed server-side"
+        int size
+        char sha256
+        bigint uploaded_by FK
+    }
+    PROVISIONED_RESOURCE {
+        uuid external_id UK
+        bigint application FK
+        char system "KEYCLOAK|WSO2|HIECM"
+        char external_ref
+        char secret_ref "never a secret value"
+        char state "ACTIVE|DISABLED|FAILED|ORPHANED"
+        unique application_system UK
+    }
+    NOTIFICATION_MESSAGE {
+        uuid external_id UK
+        bigint application FK
+        bigint user FK
+        char channel "EMAIL|SMS"
+        char template_key
+        jsonb params "no secrets"
+        char state "PENDING|SENT|FAILED"
+        int attempts
+        text last_error
+    }
+    CATALOG_MILESTONE {
+        uuid external_id UK
+        slug key UK
+        char title
+        char track
+        int order
+        bool is_active
+    }
 ```
 
 State/district are **not** modelled: LGD is external reference data, held as a bundled dataset in v0 and read through the `LgdLookup` adapter from P4 ([A1](v0-tickets/A1-catalog-app.md)). Organisations store the chosen codes as plain values, so neither source change can break a saved address.
 
-v1 adds: `CONFORMANCE_PACK/CASE/RUN/RESULT`, `APPLICATION_CALLBACK`, `SUPPORT_TICKET/MESSAGE/ATTACHMENT`, `CONTENT_NODE`/FAQ/resources/snippets, `CATALOG_AGENT_SKILL`, `WORKFLOW_ASSIGNMENT` usage beyond the queue.
+v1 adds: `CONFORMANCE_PACK/CASE/RUN/RESULT`, `APPLICATION_CALLBACK`, `SUPPORT_TICKET/MESSAGE/ATTACHMENT`, `CONTENT_NODE`/FAQ/resources/snippets, `CATALOG_AGENT_SKILL`, `WORKFLOW_ASSIGNMENT` (reviewer routing — arrives in P3 with the requirements that decide its shape).
 
-Cluster guide: **identity & tenancy** (user ⇄ org via membership — the tenancy boundary; org-scoped querysets 404 outside it) · **application core** (one row per enrollment; kind + versioned payload; one live app per (org, kind)) · **workflow** (denormalized `state` on the application; truth = append-only transitions; reviewer opinions = review rows; quorum tally frozen into the approve transition) · **evidence** (declarations + sha256'd documents; v1 adds conformance) · **provisioning ledger** (one row per (application, system) — the idempotency backstop) · **comms & audit** (delivery log; FK-free audit events).
+Cluster guide: **identity & tenancy** (user ⇄ org via membership — the tenancy boundary; org-scoped querysets 404 outside it; an org's products are what actually get certified) · **application core** (one row per enrollment; kind + versioned payload; one live app per (product, kind)) · **workflow** (denormalized `state` on the application; truth = append-only transitions; reviewer opinions = advisory review rows in rounds — approval is an admin permission check, not a quorum) · **evidence** (declarations + sha256'd documents; v1 adds conformance) · **provisioning ledger** (one row per (application, system) — the idempotency backstop) · **comms & audit** (delivery log; FK-free audit events).
 
 ### 3.4 Table specs
 
@@ -105,7 +237,7 @@ Field-by-field specs live in the tickets — they are the authoritative table de
 **v0**
 
 - [ ] `migrate` from zero reproduces the full schema; every table on the base model (external_id, timestamps, soft delete); no secrets in schema.
-- [ ] Partial-unique constraints include `deleted = false`; quorum snapshot on every approve; append-only enforcement verified.
+- [ ] Partial-unique constraints include `deleted = false`; review comments single-homed on review rows; append-only enforcement verified.
 - [ ] Seed command idempotent; `--fresh` touches only its rows.
 
 **v1**

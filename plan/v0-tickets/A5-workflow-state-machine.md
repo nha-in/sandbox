@@ -50,7 +50,7 @@ def transition(application, action, actor, comment="") -> WorkflowTransition: ..
 `transition()` runs one atomic block:
 
 1. legal-transition check (illegal → `DomainError`),
-2. guard (e.g. quorum satisfied — pluggable, [A6](A6-reviews-quorum.md)),
+2. guard (per-action checks, e.g. the exit milestone prerequisite — [A8](A8-exit-workflow.md)),
 3. permission check (Django groups/permissions — **never username matching**),
 4. append `workflow_transition` row,
 5. update denormalized `Application.state` in the same transaction,

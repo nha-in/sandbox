@@ -13,7 +13,7 @@ The staff side of the portal: reviewers and admins see a filterable queue of app
 
 Reviewers (HTC role) and admins work the application pipeline from the console. In the legacy system this UI ran on client-side role checks and username-string authority; v2's console is server-rendered under a **`ConsoleMixin`** (staff/reviewer gate + nav state in one class — a console screen cannot be added without the gate), and every action goes through `workflow.services.transition()` / `record_review()` — the console has no write path of its own.
 
-v0 scope: the SANDBOX queue and the actions needed for the pilot loop — review, approve (quorum-aware), reject, send back — plus, once V0.3 lands, provisioning status + manual retry.
+v0 scope: the SANDBOX queue and the actions needed for the pilot loop — record review (advisory), approve, reject, send back — plus, once V0.3 lands, provisioning status + manual retry.
 
 ## What to build
 
@@ -44,7 +44,7 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — review
 ## Acceptance criteria
 
 - [ ] Enroll→approve and enroll→reject both drivable entirely from the console, leaving correct transition + review + audit rows (integration test with [C4](C4-enrollment-wizard.md) output).
-- [ ] Quorum indicator correct under both policies (parametrised test).
+- [ ] Review tally correct for the current round; admin can approve with zero reviews recorded (advisory, never gating).
 - [ ] Illegal actions are hidden *and* rejected server-side if forced (guard test).
 - [ ] Queue filters + cursor pagination correct on seeded data; plain-POST pass for every action.
 - [ ] Matrix rows for all console URLs; djLint/i18n/mypy/ruff clean.
