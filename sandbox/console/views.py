@@ -55,7 +55,7 @@ class QueueView(ConsoleMixin, ListView):
         context = super().get_context_data(**kwargs)
         rows = list(context["applications"])
         has_more = len(rows) > PAGE_SIZE
-        counts = state_counts()
+        counts = state_counts(self.request.GET.get("q", "").strip())
         context["applications"] = rows[:PAGE_SIZE]
         context["next_cursor"] = rows[PAGE_SIZE - 1].id if has_more else None
         # shaped here because a template cannot index a dict by a loop variable

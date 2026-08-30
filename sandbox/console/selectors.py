@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from django.db.models import Count
+from django.db.models import Q
 
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
@@ -26,6 +27,18 @@ _PAYLOAD_CHOICES = {
 }
 
 
+def _matching(search: str) -> QuerySet[Application]:
+    """One definition of "matches the search", so the badges and the table can
+    never disagree about how many results there are."""
+    applications = Application.objects.all()
+    if search:
+        applications = applications.filter(
+            Q(reference__icontains=search)
+            | Q(product__organisation__name__icontains=search),
+        )
+    return applications
+
+
 def queue(
     *,
     state: str = "",
@@ -38,28 +51,32 @@ def queue(
     import create many rows inside one transaction, so timestamps tie and an
     ordering on them is not stable enough to paginate against.
     """
-    applications = Application.objects.select_related(
-        "product__organisation",
-        "applicant",
-    ).order_by("-id")
+    applications = (
+        _matching(search)
+        .select_related(
+            "product__organisation",
+            "applicant",
+        )
+        .order_by("-id")
+    )
 
     if state:
         applications = applications.filter(state=state)
-    if search:
-        applications = applications.filter(
-            reference__icontains=search,
-        ) | applications.filter(product__organisation__name__icontains=search)
     if after is not None:
         applications = applications.filter(id__lt=after)
 
     return applications
 
 
-def state_counts() -> dict[str, int]:
-    """Every state with its count, zeros included, in workflow order."""
+def state_counts(search: str = "") -> dict[str, int]:
+    """Every state with its count, zeros included, in workflow order.
+
+    Counts what the search is showing: a badge reading "Draft 1" next to a
+    filtered table that has no drafts is worse than no badge at all.
+    """
     counted = {
         row["state"]: row["total"]
-        for row in Application.objects.values("state").annotate(total=Count("id"))
+        for row in _matching(search).values("state").annotate(total=Count("id"))
     }
     return {state: counted.get(state, 0) for state in ApplicationState.values}
 

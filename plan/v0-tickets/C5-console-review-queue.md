@@ -57,12 +57,19 @@ transition, because the review row is the single home for that text
 comment as their review row first, then transitions without one. Rejecting or
 sending back requires a comment; approving does not.
 
-### A reviewer can send back, but not approve or reject
+### Reviewers are purely advisory
 
-`SEND_BACK` is gated on `review_application` in A5's table, so the console offers
-it to reviewers: asking for fixes is part of reviewing, whereas approving and
-rejecting decide the outcome and need the admin permissions. Asserted both ways —
-the button is absent, and a forced POST is refused by the service.
+A reviewer records opinions and moves nothing. `review_application` gates the
+review row; every transition needs its own permission, and the seeded reviewer
+holds none of them. Asserted both ways — no decision button renders, and a forced
+POST is refused by the service.
+
+This reverses what this ticket originally said. It was written when `SEND_BACK`
+was gated on `review_application`, so reviewers could ask for changes; [A5](A5-workflow-state-machine.md)
+later split `send_back_application` out as its own permission and nothing granted
+it to reviewers. The behaviour changed silently — the test was updated to match
+the code rather than the intent, which is how a regression becomes a spec.
+Whether reviewers *should* be able to send back is [open question 10](../00-master-plan.md#10-open-questions).
 
 ### Buttons come from the transition table
 

@@ -11,7 +11,11 @@
       <div class="ui-card-header">
         <h1 class="ui-card-title">{% translate "Verify your contact details" %}</h1>
         <p class="ui-card-description">
-          {% translate "Both your email address and phone number must be verified before you can use the portal." %}
+          {% if all_verified %}
+            {% translate "Both contacts are verified. You can use the portal." %}
+          {% else %}
+            {% translate "Both your email address and phone number must be verified before you can use the portal." %}
+          {% endif %}
         </p>
       </div>
       <div class="ui-card-content flex flex-col gap-6">
@@ -54,6 +58,17 @@
             {% endif %}
           </div>
         {% endfor %}
+        {% if all_verified %}
+          {% if is_organisation_member %}
+            <a class="ui-btn ui-btn--primary"
+               href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Continue to your dashboard" %}</a>
+          {% elif not request.user.is_staff %}
+            <a class="ui-btn ui-btn--primary"
+               href="{% url 'organisations:create' %}">{% translate "Create your organisation" %}</a>
+          {% else %}
+            <a class="ui-btn ui-btn--primary" href="{% url 'console:queue' %}">{% translate "Go to the console" %}</a>
+          {% endif %}
+        {% endif %}
       </div>
     </div>
   </div>

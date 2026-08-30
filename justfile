@@ -52,6 +52,14 @@ build *args:
     @echo "Building python image..."
     @docker compose build {{args}}
 
+# resync: Rebuild and pick up dependency changes.
+# `build` alone is not enough: /app/.venv is an anonymous volume, so a rebuilt
+# image keeps mounting the OLD venv and new packages never appear.
+resync *args:
+    @echo "Rebuilding and renewing the venv volume..."
+    @docker compose build {{args}}
+    @docker compose up -d --force-recreate --renew-anon-volumes {{args}}
+
 # up: Start up containers.
 up:
     @echo "Starting up containers..."
