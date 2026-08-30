@@ -81,6 +81,23 @@ def state_counts(search: str = "") -> dict[str, int]:
     return {state: counted.get(state, 0) for state in ApplicationState.values}
 
 
+#: states where the ball is in a reviewer's court. Deliberately not "everything
+#: that is not finished": a SENT_BACK application is waiting on the integrator,
+#: and counting it would have the console nag reviewers about work they cannot do.
+AWAITING_REVIEW_STATES = (
+    ApplicationState.SUBMITTED,
+    ApplicationState.EXIT_REQUESTED,
+    ApplicationState.EXIT_REVIEW,
+)
+
+
+def awaiting_review_count() -> int:
+    """The sidebar badge. One query, ignoring any search or state filter — it
+    reports the size of the reviewers' backlog, not of the view they happen to
+    be looking at."""
+    return Application.objects.filter(state__in=AWAITING_REVIEW_STATES).count()
+
+
 def payload_groups(application: Application) -> list[dict[str, Any]]:
     """Payload as labelled groups — never a raw JSON dump on a reviewer's screen."""
     data = application.payload.get("data", {})

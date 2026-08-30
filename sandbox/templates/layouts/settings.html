@@ -1,0 +1,24 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  Settings shell: the integrator rail, plus a 200px sub-rail for the screens
+  that configure the account rather than move an application forward.
+
+  Screens fill `settings_content` and set `settings_section`
+  ("organisation" | "profile"). Below md the sub-rail becomes a scrolling row of
+  tabs above the panel rather than collapsing into another drawer — two nested
+  drawers on one screen is a maze.
+{% endcomment %}
+{% load i18n %}
+
+{% block content %}
+  <div class="grid gap-6 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
+    {% include "components/settings_nav.html" %}
+    {# Held to a readable measure. These are all forms, and a text input three #}
+    {# columns wide is harder to fill in, not easier. #}
+    <div class="min-w-0 max-w-2xl">
+      {% block settings_content %}
+      {% endblock settings_content %}
+    </div>
+  </div>
+{% endblock content %}

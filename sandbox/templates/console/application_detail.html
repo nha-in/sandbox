@@ -3,9 +3,6 @@
 {% load i18n %}
 {% load careui %}
 
-{% block nav_items %}
-  <a class="ui-nav-link" href="{% url 'console:queue' %}">{% translate "Queue" %}</a>
-{% endblock nav_items %}
 {% block page_actions %}
   <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ application.get_state_display }}</span>
 {% endblock page_actions %}

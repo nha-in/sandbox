@@ -216,6 +216,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "sandbox.users.context_processors.allauth_settings",
                 "sandbox.organisations.context_processors.active_organisation",
+                "sandbox.organisations.context_processors.navigation",
             ],
         },
     },

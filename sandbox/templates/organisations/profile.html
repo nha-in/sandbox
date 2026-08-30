@@ -1,33 +1,31 @@
-{% extends "layouts/app.html" %}
+{% extends "layouts/settings.html" %}
 
 {% load i18n %}
 
 {% block title %}
   {% translate "Organisation profile" %}
 {% endblock title %}
-{% block content %}
-  <div class="mx-auto w-full max-w-2xl">
-    <div class="ui-card">
-      <div class="ui-card-header">
-        <h1 class="ui-card-title">{{ organisation.name }}</h1>
-        <p class="ui-card-description">
-          {% translate "These details describe your organisation. Reviewers see them with every application you file." %}
-        </p>
-      </div>
-      <div class="ui-card-content">
-        <form method="post" class="flex flex-col gap-4">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ next }}" />
-          {% include "organisations/partials/profile_fields.html" %}
-          <div class="flex items-center justify-between gap-3">
-            <button type="submit"
-                    name="action"
-                    value="reload"
-                    class="ui-btn ui-btn--ghost">{% translate "Load districts" %}</button>
-            <button type="submit" class="ui-btn ui-btn--primary">{% translate "Save" %}</button>
-          </div>
-        </form>
-      </div>
+{% block settings_content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h1 class="ui-card-title">{{ organisation.name }}</h1>
+      <p class="ui-card-description">
+        {% translate "These details describe your organisation. Reviewers see them with every application you file." %}
+      </p>
+    </div>
+    <div class="ui-card-content">
+      <form method="post" class="flex flex-col gap-4">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}" />
+        {% include "organisations/partials/profile_fields.html" %}
+        <div class="flex items-center justify-between gap-3">
+          <button type="submit"
+                  name="action"
+                  value="reload"
+                  class="ui-btn ui-btn--ghost">{% translate "Load districts" %}</button>
+          <button type="submit" class="ui-btn ui-btn--primary">{% translate "Save" %}</button>
+        </div>
+      </form>
     </div>
   </div>
-{% endblock content %}
+{% endblock settings_content %}

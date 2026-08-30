@@ -41,7 +41,6 @@ DECISION_ACTIONS = (Action.APPROVE, Action.REJECT, Action.SEND_BACK)
 class QueueView(ConsoleMixin, ListView):
     template_name = "console/queue.html"
     context_object_name = "applications"
-    console_section = "queue"
 
     def get_queryset(self):
         after = self.request.GET.get("after")
@@ -73,7 +72,6 @@ class QueueView(ConsoleMixin, ListView):
 class ApplicationDetailView(ConsoleMixin, DetailView):
     template_name = "console/application_detail.html"
     context_object_name = "application"
-    console_section = "queue"
     slug_field = "external_id"
     slug_url_kwarg = "external_id"
 
@@ -88,6 +86,10 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
         context.update(
             {
                 "page_title": application.reference,
+                "breadcrumbs": [
+                    {"label": "Queue", "url": reverse("console:queue")},
+                    {"label": application.reference},
+                ],
                 "payload_groups": payload_groups(application),
                 "history": history_for(application),
                 "reviews": reviews_for_round(application),

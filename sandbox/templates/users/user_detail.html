@@ -1,43 +1,41 @@
-{% extends "layouts/app.html" %}
+{% extends "layouts/settings.html" %}
 
 {% load i18n %}
 
 {% block title %}
   {{ object.name|default:object.email }}
 {% endblock title %}
-{% block content %}
-  <div class="mx-auto w-full max-w-2xl">
-    <div class="ui-card">
-      <div class="ui-card-header">
-        <h1 class="ui-card-title">{{ object.name|default:object.email }}</h1>
-        <p class="ui-card-description">{% translate "Your account details." %}</p>
-      </div>
-      <div class="ui-card-content">
-        <dl class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <dt class="ui-label">{% translate "Name" %}</dt>
-            <dd class="text-sm text-foreground">
-              {{ object.name|default:"—" }}
-            </dd>
-          </div>
-          <div>
-            <dt class="ui-label">{% translate "Email" %}</dt>
-            <dd class="text-sm text-foreground">
-              {{ object.email }}
-            </dd>
-          </div>
-        </dl>
-      </div>
-      {% if object == request.user %}
-        <div class="ui-card-footer">
-          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-             href="{% url 'users:update' %}">{% translate "Edit profile" %}</a>
-          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-             href="{% url 'account_email' %}">{% translate "Email addresses" %}</a>
-          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-             href="{% url 'mfa_index' %}">{% translate "Two-factor authentication" %}</a>
-        </div>
-      {% endif %}
+{% block settings_content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h1 class="ui-card-title">{{ object.name|default:object.email }}</h1>
+      <p class="ui-card-description">{% translate "Your account details." %}</p>
     </div>
+    <div class="ui-card-content">
+      <dl class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <dt class="ui-label">{% translate "Name" %}</dt>
+          <dd class="text-sm text-foreground">
+            {{ object.name|default:"—" }}
+          </dd>
+        </div>
+        <div>
+          <dt class="ui-label">{% translate "Email" %}</dt>
+          <dd class="text-sm text-foreground">
+            {{ object.email }}
+          </dd>
+        </div>
+      </dl>
+    </div>
+    {% if object == request.user %}
+      <div class="ui-card-footer">
+        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+           href="{% url 'users:update' %}">{% translate "Edit profile" %}</a>
+        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+           href="{% url 'account_email' %}">{% translate "Email addresses" %}</a>
+        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+           href="{% url 'mfa_index' %}">{% translate "Two-factor authentication" %}</a>
+      </div>
+    {% endif %}
   </div>
-{% endblock content %}
+{% endblock settings_content %}

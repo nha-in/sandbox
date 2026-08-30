@@ -31,6 +31,9 @@ urlpatterns = [
         include("sandbox.declarations.urls", namespace="declarations"),
     ),
     path("accounts/", include("allauth.urls")),
+    # The component gallery. Routed unconditionally so `{% url %}` and the route
+    # tests always resolve; the view itself 404s unless DEBUG and staff.
+    path("styleguide/", include("sandbox.theme.urls", namespace="theme")),
     # Your stuff: custom urls includes go here
     # ...
     # Media files
