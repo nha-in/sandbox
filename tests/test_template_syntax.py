@@ -57,3 +57,29 @@ def test_every_template_compiles():
             failures.append(f"{name}: {error}")
 
     assert not failures, "Templates that do not compile:\n  " + "\n  ".join(failures)
+
+
+#: The other two tokens Django's `tag_re` recognises, under the same rule.
+OTHER_TOKENS_SPANNING_LINES = re.compile(r"{#.*?#}|{{.*?}}", re.S)
+
+
+def test_no_template_comment_or_variable_is_split_across_lines():
+    """`{# #}` and `{{ }}` are single-line for the same reason `{% %}` is.
+
+    A wrapped comment is the quietest of the three: it is not a comment any
+    more, so its prose renders into the page. The template still compiles and
+    djLint still passes, so the first sign of it is paragraphs of explanation
+    sitting in the sidebar — which is exactly how it reached a browser twice.
+    """
+    offenders = [
+        f"{path.relative_to(TEMPLATES)}: {match.group(0)[:60]!r}"
+        for path in sorted(TEMPLATES.rglob("*.html"))
+        for match in OTHER_TOKENS_SPANNING_LINES.finditer(path.read_text())
+        if "\n" in match.group(0)
+    ]
+
+    assert not offenders, (
+        "A comment or variable broken across a newline is neither — Django "
+        "renders it as text. Put each back on one line, or use "
+        "{% comment %}...{% endcomment %} for prose:\n  " + "\n  ".join(offenders)
+    )

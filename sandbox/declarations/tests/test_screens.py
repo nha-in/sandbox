@@ -17,6 +17,7 @@ from django.test import Client
 from django.urls import reverse
 
 from sandbox.applications.models import ApplicationState
+from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.declarations import services
 from sandbox.declarations.models import Declaration
 from sandbox.declarations.models import DeclarationKind
@@ -39,8 +40,14 @@ def client_(member):
     return client
 
 
-def _url(name: str, organisation, **kwargs) -> str:
-    return f"{reverse(name, kwargs=kwargs)}?{organisation_query(organisation)}"
+def _url(name: str, application, **kwargs) -> str:
+    """Every declaration screen names its application; the tenant rides in the
+    query string, as it does everywhere else."""
+    organisation = application.product.organisation
+    return (
+        f"{reverse(name, kwargs={'external_id': application.external_id, **kwargs})}"
+        f"?{organisation_query(organisation)}"
+    )
 
 
 # Milestones
@@ -53,7 +60,7 @@ def test_every_active_milestone_is_listed_declared_or_not(
     milestone,
     other_milestone,
 ):
-    response = client_.get(_url("declarations:milestones", organisation))
+    response = client_.get(_url("declarations:milestones", application))
 
     assert response.status_code == HTTP_OK
     listed = [row["milestone"] for row in response.context["rows"]]
@@ -78,23 +85,23 @@ def test_an_exit_claim_does_not_count_as_a_milestone_declaration(
         actor=application.applicant,
     )
 
-    response = client_.get(_url("declarations:milestones", organisation))
+    response = client_.get(_url("declarations:milestones", application))
 
     assert response.context["declared_count"] == 0
 
 
-def test_a_member_with_no_application_gets_a_page_not_a_404(
+def test_another_organisations_application_is_404_not_403(
     client_,
-    organisation,
     milestone,
+    db,
 ):
-    """Milestones is a permanent sidebar item, so it is followed by people who
-    have not applied. A 404 here would be a dead link in the shell."""
-    response = client_.get(_url("declarations:milestones", organisation))
+    """Scoping is the whole authorization here. A 403 would confirm that the
+    application exists, which A2 forbids."""
+    theirs = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
 
-    assert response.status_code == HTTP_OK
-    assert response.context["application"] is None
-    assert response.context["can_declare"] is False
+    response = client_.get(_url("declarations:milestones", theirs))
+
+    assert response.status_code == HTTP_NOT_FOUND
 
 
 # Declaring
@@ -108,7 +115,7 @@ def test_declaring_a_milestone_stores_the_evidence(
     milestone,
 ):
     response = client_.post(
-        _url("declarations:declare_milestone", organisation, key=milestone.key),
+        _url("declarations:declare_milestone", application, key=milestone.key),
         {
             "started_on": "2026-01-05",
             "completed_on": "2026-02-05",
@@ -132,7 +139,7 @@ def test_declaring_twice_supersedes_rather_than_duplicates(
 ):
     """The designed path: come back next month and re-declare the same
     milestone against the same application."""
-    url = _url("declarations:declare_milestone", organisation, key=milestone.key)
+    url = _url("declarations:declare_milestone", application, key=milestone.key)
     client_.post(url, {"notes": "First attempt."})
     client_.post(url, {"notes": "Corrected."})
 
@@ -154,7 +161,7 @@ def test_a_future_completion_date_is_shown_as_a_form_error(
 ):
     """The rule lives in A7. The screen's job is to surface it, not restate it."""
     response = client_.post(
-        _url("declarations:declare_milestone", organisation, key=milestone.key),
+        _url("declarations:declare_milestone", application, key=milestone.key),
         {"completed_on": "2099-01-01"},
     )
 
@@ -165,7 +172,7 @@ def test_a_future_completion_date_is_shown_as_a_form_error(
 
 def test_an_unknown_milestone_key_is_404(client_, organisation, application):
     response = client_.get(
-        _url("declarations:declare_milestone", organisation, key="not-a-milestone"),
+        _url("declarations:declare_milestone", application, key="not-a-milestone"),
     )
 
     assert response.status_code == HTTP_NOT_FOUND
@@ -182,7 +189,7 @@ def test_a_state_that_cannot_declare_is_refused_by_the_service(
     application.save(update_fields=["state"])
 
     response = client_.post(
-        _url("declarations:declare_milestone", organisation, key=milestone.key),
+        _url("declarations:declare_milestone", application, key=milestone.key),
         {"notes": "Trying anyway."},
     )
 
@@ -198,7 +205,7 @@ def test_exit_is_locked_until_something_is_declared(
     organisation,
     application,
 ):
-    response = client_.get(_url("declarations:exit", organisation))
+    response = client_.get(_url("declarations:exit", application))
 
     assert response.context["is_locked"] is True
     assert response.context["declared_milestones"] == []
@@ -219,7 +226,7 @@ def test_exit_offers_only_the_milestones_already_declared(
     )
 
     response = client_.get(
-        _url("declarations:exit", application.product.organisation),
+        _url("declarations:exit", application),
     )
 
     assert response.context["declared_milestones"] == [milestone]
@@ -238,7 +245,7 @@ def test_requesting_exit_moves_the_application(
     )
 
     response = client_.post(
-        _url("declarations:exit", application.product.organisation),
+        _url("declarations:exit", application),
         {
             "milestones": [milestone.key],
             "summary": "Two HIPs live, consent flows exercised.",
@@ -265,7 +272,7 @@ def test_an_exit_with_no_evidence_is_refused_and_the_state_does_not_move(
     )
 
     response = client_.post(
-        _url("declarations:exit", application.product.organisation),
+        _url("declarations:exit", application),
         {"milestones": [milestone.key], "summary": "Nothing attached."},
     )
 

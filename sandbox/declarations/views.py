@@ -5,6 +5,12 @@ shape context and turn `DomainError` into a message. The guards stay in the
 services on purpose — a view that decided for itself when a declaration was
 legal would be a second copy of the rule, and the two would drift.
 
+Every screen here names its application in the URL. Sandbox access is granted
+per product, so an organisation can hold several at once, and a claim belongs to
+one of them — `DeclarationMilestone` has the foreign key to prove it. An
+unscoped page had to guess, and guessed at the newest, which is a draft the
+moment someone starts a second application beside a live one.
+
 Milestones are declared one at a time against the *same* application, over as
 long as it takes: `DeclarationMilestone` holds one current claim each, so coming
 back next month to declare M3 is the designed path, not a new application.
@@ -25,7 +31,7 @@ from django.views.generic import FormView
 from django.views.generic import TemplateView
 from django.views.generic import View
 
-from sandbox.applications.selectors import dashboard_application
+from sandbox.applications.models import Application
 from sandbox.catalog.selectors import active_milestones
 from sandbox.declarations.forms import ExitDeclarationForm
 from sandbox.declarations.forms import MilestoneDeclarationForm
@@ -45,22 +51,19 @@ from sandbox.workflow.services import request_exit
 if TYPE_CHECKING:
     from django.http import HttpRequest
 
-    from sandbox.applications.models import Application
     from sandbox.catalog.models import Milestone
     from sandbox.users.models import User
 
 
 class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
-    """Resolves the organisation's application. There may not be one.
+    """Resolves the application named in the URL, inside the caller's org.
 
-    Milestones and Exit are permanent sidebar items, so a member who has not
-    applied at all still follows those links — 404ing them would put a dead
-    link in the shell, which is the defect C10's navigation test exists to
-    catch. The read screens render an empty state instead; writing still needs
-    an application, and `require_application()` is what insists on it.
+    Wrong organisation 404s rather than 403s — a 403 would confirm the
+    application exists (A2).
     """
 
     request: HttpRequest
+    kwargs: dict
 
     @property
     def actor(self) -> User:
@@ -68,22 +71,38 @@ class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
         return cast("User", self.request.user)
 
     @cached_property
-    def application(self) -> Application | None:
-        return dashboard_application(self.organisation)
-
-    def require_application(self) -> Application:
-        if self.application is None:
+    def application(self) -> Application:
+        application = (
+            Application.objects.for_organisation(self.organisation)
+            .filter(external_id=self.kwargs["external_id"])
+            .select_related("product")
+            .first()
+        )
+        if application is None:
             raise Http404
-        return self.application
+        return application
+
+    def milestones_url(self) -> str:
+        return url_for(
+            "declarations:milestones",
+            self.organisation,
+            external_id=self.application.external_id,
+        )
+
+    def exit_url(self) -> str:
+        return url_for(
+            "declarations:exit",
+            self.organisation,
+            external_id=self.application.external_id,
+        )
 
     def base_context(self) -> dict:
-        application = self.application
         return {
-            "application": application,
+            "application": self.application,
             "organisation": self.organisation,
-            "can_declare": (
-                application is not None and application.state in DECLARABLE_STATES
-            ),
+            "can_declare": self.application.state in DECLARABLE_STATES,
+            "milestones_url": self.milestones_url(),
+            "exit_url": self.exit_url(),
         }
 
 
@@ -95,14 +114,10 @@ class MilestonesView(ApplicationScopedMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         application = self.application
-        claims = (
-            {
-                claim.milestone_id: claim
-                for claim in declared_milestone_claims(application)
-            }
-            if application is not None
-            else {}
-        )
+        claims = {
+            claim.milestone_id: claim
+            for claim in declared_milestone_claims(application)
+        }
         rows = [
             {"milestone": milestone, "claim": claims.get(milestone.pk)}
             for milestone in active_milestones()
@@ -113,9 +128,7 @@ class MilestonesView(ApplicationScopedMixin, TemplateView):
                 "page_title": _("Milestones"),
                 "rows": rows,
                 "declared_count": len(claims),
-                "timeline": (
-                    declaration_timeline(application) if application is not None else []
-                ),
+                "timeline": declaration_timeline(application),
             },
         )
         return context
@@ -138,7 +151,7 @@ class DeclareMilestoneView(ApplicationScopedMixin, FormView):
         context = super().get_context_data(**kwargs)
         claims = {
             claim.milestone_id: claim
-            for claim in declared_milestone_claims(self.require_application())
+            for claim in declared_milestone_claims(self.application)
         }
         context.update(
             {
@@ -153,7 +166,7 @@ class DeclareMilestoneView(ApplicationScopedMixin, FormView):
     def form_valid(self, form):
         try:
             submit_milestone_declaration(
-                application=self.require_application(),
+                application=self.application,
                 milestone=self.milestone,
                 payload=form.payload(),
                 files=form.cleaned_data["documents"],
@@ -169,7 +182,7 @@ class DeclareMilestoneView(ApplicationScopedMixin, FormView):
             self.request,
             _("%(milestone)s declared complete.") % {"milestone": self.milestone.title},
         )
-        return redirect(url_for("declarations:milestones", self.organisation))
+        return redirect(self.milestones_url())
 
 
 class ExitView(ApplicationScopedMixin, FormView):
@@ -180,8 +193,6 @@ class ExitView(ApplicationScopedMixin, FormView):
 
     def declared_milestones(self) -> list[Milestone]:
         """Only what has been declared: A8's guard refuses to exit the rest."""
-        if self.application is None:
-            return []
         claims = declared_milestone_claims(self.application)
         return [claim.milestone for claim in claims]
 
@@ -203,18 +214,14 @@ class ExitView(ApplicationScopedMixin, FormView):
                 "page_title": _("Exit to production"),
                 "declared_milestones": declared,
                 "is_locked": not declared,
-                "exit_declaration": (
-                    current_exit_declaration(self.application)
-                    if self.application is not None
-                    else None
-                ),
+                "exit_declaration": current_exit_declaration(self.application),
             },
         )
         return context
 
     def form_valid(self, form):
         by_key = {milestone.key: milestone for milestone in self.declared_milestones()}
-        application = self.require_application()
+        application = self.application
         try:
             submit_exit_declaration(
                 application=application,
@@ -229,7 +236,7 @@ class ExitView(ApplicationScopedMixin, FormView):
             return self.form_invalid(form)
 
         messages.success(self.request, _("Exit requested. NHA will review it."))
-        return redirect(url_for("declarations:exit", self.organisation))
+        return redirect(self.exit_url())
 
 
 class DocumentDownloadView(LoginRequiredMixin, OrganisationMixin, View):

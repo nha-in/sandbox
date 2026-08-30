@@ -1,20 +1,18 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  The Enrolment section's home. Every application this organisation has made,
-  and the way to make another.
+  The integrator's home: every application this organisation holds.
 
-  Deliberately a list even when there is one row: sandbox access is granted per
-  product, so an organisation with three products has three applications, and
-  the dashboard only ever narrates the newest of them.
-
-  Renaming a product is not here. It belongs to the draft that named it, on the
-  product step you reach with Back.
+  Deliberately minimal. It exists so you can say which application you mean —
+  sandbox access is granted per product, so an organisation with three products
+  has three of them. The detail is one click away, in that application's
+  Overview. The screen this replaced narrated whichever was newest, which is a
+  draft the moment someone starts a second one beside a live sandbox.
 {% endcomment %}
 {% load i18n %}
 
 {% block title %}
-  {% translate "Enrolment" %}
+  {% translate "Applications" %}
 {% endblock title %}
 {% block page_actions %}
   <a class="ui-btn ui-btn--primary ui-btn--size-sm no-underline"
@@ -34,17 +32,24 @@
               <dd class="ui-kv-value flex flex-wrap items-center justify-between gap-3">
                 <span class="flex items-center gap-2">
                   <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ row.application.get_state_display }}</span>
-                  <span class="text-soft-foreground">
-                    {% blocktranslate with when=row.application.created_date|date:"j M Y" %}Started {{ when }}{% endblocktranslate %}
-                  </span>
+                  {% if row.milestones %}
+                    <span class="text-soft-foreground">
+                      {% blocktranslate with declared=row.milestones.declared total=row.milestones.total %}{{ declared }} of {{ total }} milestones{% endblocktranslate %}
+                    </span>
+                  {% else %}
+                    <span class="text-soft-foreground">
+                      {% blocktranslate with when=row.application.created_date|date:"j M Y" %}Started {{ when }}{% endblocktranslate %}
+                    </span>
+                  {% endif %}
                 </span>
-                {% if row.is_editable %}
-                  <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
-                     href="{% url 'applications:step_details' external_id=row.application.external_id %}{{ org_query }}">{% translate "Continue" %}</a>
-                {% else %}
+                <span class="flex flex-wrap gap-2">
+                  {% if row.is_editable %}
+                    <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
+                       href="{% url 'applications:step_details' external_id=row.application.external_id %}{{ org_query }}">{% translate "Continue" %}</a>
+                  {% endif %}
                   <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
-                     href="{% url 'applications:step_review' external_id=row.application.external_id %}{{ org_query }}">{% translate "View" %}</a>
-                {% endif %}
+                     href="{% url 'applications:overview' external_id=row.application.external_id %}{{ org_query }}">{% translate "Open" %}</a>
+                </span>
               </dd>
             </div>
           {% endfor %}

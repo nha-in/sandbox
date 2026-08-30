@@ -1,0 +1,97 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  One application's home: where it stands and what to do next.
+
+  The application is named in the URL, so there is no "have you applied yet?"
+  branch here — that question belongs to the list this page is reached from.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {{ application.reference }}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-3xl">
+    <div class="ui-card mb-6">
+      <div class="ui-card-header">
+        <h1 class="ui-card-title">{{ application.product.name }}</h1>
+        <p class="ui-card-description">{{ organisation.name }} · {{ application.reference }}</p>
+      </div>
+      <div class="ui-card-content">{% include "dashboard/partials/application_status.html" %}</div>
+    </div>
+    <div class="ui-card mb-6">
+      <div class="ui-card-header">
+        <h2 class="ui-card-title">{% translate "Summary" %}</h2>
+      </div>
+      <div class="ui-card-content">
+        <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <dt class="ui-label">{% translate "Reference" %}</dt>
+            <dd>
+              {{ application.reference }}
+            </dd>
+          </div>
+          <div>
+            <dt class="ui-label">{% translate "Status" %}</dt>
+            <dd>
+              <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ application.get_state_display }}</span>
+            </dd>
+          </div>
+          <div>
+            <dt class="ui-label">{% translate "Kind" %}</dt>
+            <dd>
+              {{ application.get_kind_display }}
+            </dd>
+          </div>
+          <div>
+            <dt class="ui-label">{% translate "Started" %}</dt>
+            <dd>
+              {{ application.created_date|date:"j M Y" }}
+            </dd>
+          </div>
+        </dl>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+             href="{% url 'applications:step_review' external_id=application.external_id %}{{ org_query }}">{% translate "View application" %}</a>
+          {% if can_start_new %}
+            <a class="ui-btn ui-btn--primary ui-btn--size-sm"
+               href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start a new application" %}</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% if milestones %}
+      <div class="ui-card mb-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "Milestones" %}</h2>
+          <p class="ui-card-description">
+            {% blocktranslate with declared=milestones.declared total=milestones.total %}{{ declared }} of {{ total }} declared complete{% endblocktranslate %}
+          </p>
+        </div>
+        <div class="ui-card-content">
+          {% if milestones.next %}
+            <p class="text-sm text-muted-foreground">
+              {% translate "Still to declare:" %}
+              {% for title in milestones.next %}
+                {{ title }}{% if not forloop.last %},{% endif %}
+              {% endfor %}
+            </p>
+          {% else %}
+            <p class="text-sm text-muted-foreground">
+              {% translate "Everything is declared. You can request your exit to production." %}
+            </p>
+          {% endif %}
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+               href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "View milestones" %}</a>
+            {% if milestones.declared %}
+              <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+                 href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Exit to production" %}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock content %}

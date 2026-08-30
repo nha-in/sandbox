@@ -14,8 +14,7 @@
 {% load careui i18n %}
 
 {% if field|is_checkbox_group %}
-  {# min-w-0: a fieldset's default min-inline-size is min-content, so a long
-     summary would push it past its container rather than being clipped. #}
+  {# min-w-0: a fieldset defaults to min-inline-size:min-content, so a long summary would push it past its container rather than being clipped. #}
   <fieldset class="min-w-0">
     <legend class="ui-label">
       {{ label }}

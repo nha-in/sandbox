@@ -26,8 +26,10 @@ urlpatterns = [
         include("sandbox.applications.urls", namespace="applications"),
     ),
     path("console/", include("sandbox.console.urls", namespace="console")),
+    # Root-mounted: its screens hang off an application's URL, so the prefixes
+    # are spelled inside the module. See the note there.
     path(
-        "declarations/",
+        "",
         include("sandbox.declarations.urls", namespace="declarations"),
     ),
     path("accounts/", include("allauth.urls")),

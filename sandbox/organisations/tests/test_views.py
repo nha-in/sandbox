@@ -223,7 +223,7 @@ def test_shell_links_a_member_to_their_dashboard(client):
         reverse("users:detail", kwargs={"external_id": user.external_id}),
     )
 
-    assert reverse("applications:dashboard") in response.content.decode()
+    assert reverse("applications:index") in response.content.decode()
 
 
 def test_shell_shows_no_wizard_link_to_a_non_member(client):
@@ -235,7 +235,7 @@ def test_shell_shows_no_wizard_link_to_a_non_member(client):
     )
 
     assert "is_organisation_member" not in response.context
-    assert reverse("applications:enrolment") not in response.content.decode()
+    assert reverse("applications:index") not in response.content.decode()
 
 
 def test_choose_offers_creating_another_organisation(client):

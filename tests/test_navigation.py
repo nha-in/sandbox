@@ -22,6 +22,7 @@ from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 
+from sandbox.applications.models import ApplicationState
 from sandbox.organisations.context_processors import NAV_SECTIONS
 from sandbox.organisations.mixins import organisation_query
 from sandbox.users.tests.factories import VerifiedUserFactory
@@ -52,8 +53,8 @@ CHROME_LESS = {
     # A JSON fragment for the district select.
     "organisations:district_options",
     # Fragments and POST targets inside the dashboard, not places you navigate
-    # to. The credentials panel is a region of applications:dashboard.
-    "applications:credentials",
+    # to. The credentials panel is a region of applications:overview.
+    "applications:credentials_panel",
     "applications:reveal_credentials",
     "applications:rotate_credentials",
     # POST-only console actions and a presigned redirect: no page, no chrome.
@@ -93,7 +94,7 @@ _HREF_ATTR = re.compile(rb'href="(/[^"]*)"')
 @pytest.mark.parametrize(
     ("actor", "destination"),
     [
-        (ORG_MEMBER, "applications:dashboard"),
+        (ORG_MEMBER, "applications:index"),
         (STAFF, "console:queue"),
     ],
 )
@@ -197,7 +198,7 @@ def test_nav_sections_do_not_outlive_their_urls():
 @pytest.mark.parametrize(
     ("actor", "landing", "nav_id"),
     [
-        (ORG_MEMBER, "applications:dashboard", b"app-nav"),
+        (ORG_MEMBER, "applications:index", b"app-nav"),
         (STAFF, "console:queue", b"console-nav"),
     ],
 )
@@ -236,12 +237,12 @@ def test_a_member_reaches_the_wizard_and_the_switcher_from_the_sidebar(
     """Both of these once existed with no inbound link. Name them explicitly so
     a future tidy-up of the nav cannot quietly strand them again."""
     query = f"?{organisation_query(org_member.memberships.get().organisation)}"
-    response = clients[ORG_MEMBER].get(reverse("applications:dashboard") + query)
+    response = clients[ORG_MEMBER].get(reverse("applications:index") + query)
     links = {
         href.split("?")[0] for href in _sidebar_links(response.content, b"app-nav")
     }
 
-    assert reverse("applications:enrolment") in links
+    assert reverse("applications:index") in links
     assert reverse("organisations:choose") in links
 
 
@@ -263,7 +264,7 @@ def test_a_user_with_no_organisation_is_offered_the_one_screen_that_helps(
     links = _sidebar_links(response.content, b"app-nav")
     assert reverse("organisations:create") in links
     assert reverse("organisations:profile") not in links
-    assert reverse("applications:dashboard") not in links
+    assert reverse("applications:index") not in links
 
 
 def test_the_console_does_not_offer_staff_an_integrator_view_they_cannot_open(
@@ -275,7 +276,7 @@ def test_the_console_does_not_offer_staff_an_integrator_view_they_cannot_open(
         href.split("?")[0] for href in _sidebar_links(response.content, b"console-nav")
     }
 
-    assert reverse("applications:dashboard") not in links
+    assert reverse("applications:index") not in links
 
 
 def test_the_queue_badge_counts_the_reviewers_backlog(clients, application):
@@ -292,7 +293,7 @@ def test_the_mobile_drawer_needs_no_javascript(clients, org_member):
     may be required to open it, because the ticket's constraint is that every
     mutation works with JavaScript disabled."""
     query = f"?{organisation_query(org_member.memberships.get().organisation)}"
-    html = clients[ORG_MEMBER].get(reverse("applications:dashboard") + query).content
+    html = clients[ORG_MEMBER].get(reverse("applications:index") + query).content
 
     assert b'id="app-drawer"' in html
     assert b'type="checkbox"' in html
@@ -356,3 +357,83 @@ def test_styleguide_renders_every_primitive(clients):
         "ui-code-chip",
     ):
         assert primitive in html, f"the gallery does not show {primitive}"
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        ApplicationState.DRAFT,
+        ApplicationState.PROVISIONED,
+        ApplicationState.EXIT_REQUESTED,
+        ApplicationState.PRODUCTION_APPROVED,
+    ],
+)
+def test_every_application_rail_link_answers_the_actor(clients, context, state):
+    """The level-1 test above never enters an application, so it cannot see the
+    rail that replaces it. Each section is listed whatever the state \u2014 they
+    explain their own gate rather than disappearing \u2014 so each must open."""
+    application = context["application"]
+    application.state = state
+    application.save(update_fields=["state"])
+    organisation = application.product.organisation
+    client = clients[ORG_MEMBER]
+
+    url = reverse(
+        "applications:overview",
+        kwargs={"external_id": application.external_id},
+    )
+    response = client.get(f"{url}?{organisation_query(organisation)}")
+    assert response.status_code == HTTP_OK
+
+    links = _sidebar_links(response.content, b"app-nav")
+    assert links, "the application rail rendered no links at all"
+
+    for href in links:
+        followed = client.get(href, follow=True)
+        assert followed.status_code not in DENIED_CODES, (
+            f"{state}: the rail offers {href} but following it gives "
+            f"{followed.status_code}"
+        )
+        # A 200 is not enough. `applications:credentials` used to be C7's htmx
+        # fragment, so following the nav item returned a bare card with no
+        # shell around it — reachable, and still broken.
+        assert b'id="app-nav"' in followed.content, (
+            f"{state}: {href} answers, but renders no shell — a nav item must "
+            "point at a page, not at a fragment"
+        )
+
+
+def test_the_application_rail_replaces_the_organisation_rail(clients, context):
+    """Replacing, not nesting: inside an application the rail must not still be
+    offering organisation-level items that talk about a different one.
+
+    The account group is part of that. Among items that are all about this
+    application, a Settings link reads as this application's settings, and
+    leaves the section without saying so.
+    """
+    application = context["application"]
+    organisation = application.product.organisation
+    url = reverse(
+        "applications:overview",
+        kwargs={"external_id": application.external_id},
+    )
+
+    body = (
+        clients[ORG_MEMBER]
+        .get(
+            f"{url}?{organisation_query(organisation)}",
+        )
+        .content
+    )
+    links = {href.split("?")[0] for href in _sidebar_links(body, b"app-nav")}
+
+    assert reverse("applications:index") in links, "no way back to the list"
+    assert (
+        reverse(
+            "declarations:milestones",
+            kwargs={"external_id": application.external_id},
+        )
+        in links
+    )
+    assert reverse("organisations:profile") not in links
+    assert reverse("organisations:choose") not in links

@@ -61,7 +61,7 @@
         {% if all_verified %}
           {% if is_organisation_member %}
             <a class="ui-btn ui-btn--primary"
-               href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Continue to your dashboard" %}</a>
+               href="{% url 'applications:index' %}{{ org_query }}">{% translate "Continue to your applications" %}</a>
           {% elif not request.user.is_staff %}
             <a class="ui-btn ui-btn--primary"
                href="{% url 'organisations:create' %}">{% translate "Create your organisation" %}</a>

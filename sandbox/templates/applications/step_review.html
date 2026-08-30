@@ -69,7 +69,7 @@
       </form>
     {% else %}
       <a class="ui-btn ui-btn--ghost"
-         href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Back to dashboard" %}</a>
+         href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}">{% translate "Back to overview" %}</a>
       <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>
     {% endif %}
   </div>

@@ -13,7 +13,7 @@
 {% block page_actions %}
   {% if declared_count %}
     <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
-       href="{% url 'declarations:exit' %}{{ org_query }}">{% translate "Request exit" %}</a>
+       href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Request exit" %}</a>
   {% endif %}
 {% endblock page_actions %}
 {% block content %}
@@ -24,16 +24,7 @@
       {{ declared_count }} of {{ counter }} milestones declared for {{ application }}.
     {% endblocktranslate %}
   </p>
-  {% if not application %}
-    <div class="ui-alert mb-6" role="status">
-      <div class="flex-1 space-y-1">
-        <p>
-          {% translate "You have not applied for sandbox access yet. Milestones open once your sandbox is provisioned." %}
-          <a class="underline" href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start your application" %}</a>
-        </p>
-      </div>
-    </div>
-  {% elif not can_declare %}
+  {% if not can_declare %}
     <div class="ui-alert mb-6" role="status">
       <div class="flex-1 space-y-1">
         <p>
@@ -71,7 +62,7 @@
               {% endif %}
               {% if can_declare %}
                 <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
-                   href="{% url 'declarations:declare_milestone' key=row.milestone.key %}{{ org_query }}">
+                   href="{% url 'declarations:declare_milestone' external_id=application.external_id key=row.milestone.key %}{{ org_query }}">
                   {% if row.claim %}
                     {% translate "Re-declare" %}
                   {% else %}

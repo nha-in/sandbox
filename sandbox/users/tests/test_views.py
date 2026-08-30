@@ -128,7 +128,7 @@ def test_verified_user_is_given_somewhere_to_go(client):
     response = client.get(reverse("users:verify_contacts"))
 
     assert response.context["all_verified"] is True
-    assert reverse("applications:dashboard") in response.content.decode()
+    assert reverse("applications:index") in response.content.decode()
 
 
 def test_unverified_user_is_not_offered_the_way_out(client):

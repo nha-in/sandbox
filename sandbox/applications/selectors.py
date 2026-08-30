@@ -150,17 +150,3 @@ def journey_for(state: str) -> list[JourneyStep]:
             status = "upcoming"
         steps.append(JourneyStep(key=key, label=str(label), status=status))
     return steps
-
-
-def dashboard_application(organisation: Organisation) -> Application | None:
-    """The application the dashboard narrates.
-
-    Newest first, because a rejected or withdrawn one leaves the slot free for a
-    fresh attempt and the fresh one is what the integrator cares about.
-    """
-    return (
-        applications_for_organisation(organisation)
-        .select_related("product")
-        .order_by("-created_date", "-id")
-        .first()
-    )

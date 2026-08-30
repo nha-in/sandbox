@@ -41,41 +41,68 @@
      hx-push-url="true"
      hx-indicator="#nav-progress">
   {% if is_organisation_member %}
-    <div class="ui-sidebar-group">
-      <span class="ui-sidebar-label">{% translate "Application" %}</span>
-      <a id="nav-dashboard"
-         class="ui-sidebar-link {% if nav_section == 'dashboard' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'applications:dashboard' %}{{ org_query }}"
-         {% if nav_section == 'dashboard' %}aria-current="page"{% endif %}>
-        {% translate "Overview" %}
-        {% if nav_counts.dashboard %}<span class="ui-sidebar-badge">{{ nav_counts.dashboard }}</span>{% endif %}
-      </a>
-      <a id="nav-enrolment"
-         class="ui-sidebar-link {% if nav_section == 'enrolment' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'applications:enrolment' %}{{ org_query }}"
-         {% if nav_section == 'enrolment' %}aria-current="page"{% endif %}>{% translate "Enrolment" %}</a>
-      <a id="nav-milestones"
-         class="ui-sidebar-link {% if nav_section == 'milestones' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'declarations:milestones' %}{{ org_query }}"
-         {% if nav_section == 'milestones' %}aria-current="page"{% endif %}>{% translate "Milestones" %}</a>
-      <a id="nav-exit"
-         class="ui-sidebar-link {% if nav_section == 'exit' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'declarations:exit' %}{{ org_query }}"
-         {% if nav_section == 'exit' %}aria-current="page"{% endif %}>{% translate "Exit to production" %}</a>
-    </div>
-    <div class="ui-sidebar-group">
-      <span class="ui-sidebar-label">{% translate "Account" %}</span>
-      <a id="nav-settings"
-         class="ui-sidebar-link {% if nav_section == 'settings' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'organisations:profile' %}{{ org_query }}"
-         {% if nav_section == 'settings' %}aria-current="page"{% endif %}>{% translate "Settings" %}</a>
-      {# Not gated on holding two: gating it left a one-org user unable to reach #}
-      {# the list, and so unable to ever add a second. #}
-      <a id="nav-organisations"
-         class="ui-sidebar-link {% if nav_section == 'organisations' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'organisations:choose' %}"
-         {% if nav_section == 'organisations' %}aria-current="page"{% endif %}>{% translate "Your organisations" %}</a>
-    </div>
+    {% if application %}
+      {% comment %}
+        Level 2. Sandbox access is granted per product, so an organisation can
+        hold several applications and every one of these sections belongs to
+        exactly one of them. The rail is replaced rather than extended: nested
+        under the organisation's items, every screen would carry links about a
+        different application than the one being read.
+
+        Replaced means replaced — the account group is not repeated here. Inside
+        an application every rail item is about that application, so a Settings
+        link sitting among them reads as this application's settings, and takes
+        you out of the section without saying so.
+      {% endcomment %}
+      <div class="ui-sidebar-group">
+        <a id="nav-applications-back"
+           class="ui-sidebar-link text-soft-foreground"
+           href="{% url 'applications:index' %}{{ org_query }}">{% translate "Back to applications" %}</a>
+        <span class="ui-sidebar-label">{{ application.reference }}</span>
+        <a id="nav-overview"
+           class="ui-sidebar-link {% if nav_section == 'overview' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}"
+           {% if nav_section == 'overview' %}aria-current="page"{% endif %}>{% translate "Overview" %}</a>
+        <a id="nav-details"
+           class="ui-sidebar-link {% if nav_section == 'details' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}"
+           {% if nav_section == 'details' %}aria-current="page"{% endif %}>{% translate "Details" %}</a>
+        <a id="nav-credentials"
+           class="ui-sidebar-link {% if nav_section == 'credentials' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'applications:credentials' external_id=application.external_id %}{{ org_query }}"
+           {% if nav_section == 'credentials' %}aria-current="page"{% endif %}>{% translate "Credentials" %}</a>
+        <a id="nav-milestones"
+           class="ui-sidebar-link {% if nav_section == 'milestones' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}"
+           {% if nav_section == 'milestones' %}aria-current="page"{% endif %}>{% translate "Milestones" %}</a>
+        <a id="nav-exit"
+           class="ui-sidebar-link {% if nav_section == 'exit' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}"
+           {% if nav_section == 'exit' %}aria-current="page"{% endif %}>{% translate "Exit to production" %}</a>
+      </div>
+    {% else %}
+      <div class="ui-sidebar-group">
+        <a id="nav-applications"
+           class="ui-sidebar-link {% if nav_section == 'applications' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'applications:index' %}{{ org_query }}"
+           {% if nav_section == 'applications' %}aria-current="page"{% endif %}>
+          {% translate "Applications" %}
+          {% if nav_counts.applications %}<span class="ui-sidebar-badge">{{ nav_counts.applications }}</span>{% endif %}
+        </a>
+      </div>
+      <div class="ui-sidebar-group">
+        <span class="ui-sidebar-label">{% translate "Account" %}</span>
+        <a id="nav-settings"
+           class="ui-sidebar-link {% if nav_section == 'settings' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'organisations:profile' %}{{ org_query }}"
+           {% if nav_section == 'settings' %}aria-current="page"{% endif %}>{% translate "Settings" %}</a>
+        {# Not gated on holding two: gating it left a one-org user unable to reach the list, and so unable to ever add a second. #}
+        <a id="nav-organisations"
+           class="ui-sidebar-link {% if nav_section == 'organisations' %}ui-sidebar-link--active{% endif %}"
+           href="{% url 'organisations:choose' %}"
+           {% if nav_section == 'organisations' %}aria-current="page"{% endif %}>{% translate "Your organisations" %}</a>
+      </div>
+    {% endif %}
   {% elif request.user.is_staff %}
     {# Staff reach this shell through their profile and the MFA screens. Without #}
     {# this the only way back to the console is typing the URL. #}

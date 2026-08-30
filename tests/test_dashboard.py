@@ -23,6 +23,7 @@ from sandbox.users.tests.factories import VerifiedUserFactory
 pytestmark = pytest.mark.django_db
 
 HTTP_OK = 200
+HTTP_NOT_FOUND = 404
 
 
 @pytest.fixture
@@ -31,8 +32,13 @@ def member_client(client, org_member):
     return client
 
 
-def _dashboard(client) -> object:
-    return client.get(reverse("applications:dashboard"))
+def _overview(client, application) -> object:
+    return client.get(
+        reverse(
+            "applications:overview",
+            kwargs={"external_id": application.external_id},
+        ),
+    )
 
 
 # --- the mapping ------------------------------------------------------------
@@ -63,9 +69,13 @@ def test_steps_before_the_current_one_are_done():
 
 @pytest.mark.parametrize("state", ApplicationState.values)
 def test_every_state_renders(member_client, product_a, org_member, state):
-    ApplicationFactory(product=product_a, applicant=org_member, state=state)
+    application = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=state,
+    )
 
-    response = _dashboard(member_client)
+    response = _overview(member_client, application)
 
     assert response.status_code == HTTP_OK
     body = response.content.decode()
@@ -75,10 +85,12 @@ def test_every_state_renders(member_client, product_a, org_member, state):
 
 
 def test_no_application_offers_the_wizard(member_client):
-    response = _dashboard(member_client)
+    """The empty state belongs to the list now: with applications scoped by URL
+    there is no per-application page to land on when there are none."""
+    response = member_client.get(reverse("applications:index"))
 
     assert response.status_code == HTTP_OK
-    assert response.context["application"] is None
+    assert response.context["rows"] == []
     assert reverse("applications:step_product") in response.content.decode()
 
 
@@ -88,13 +100,13 @@ def test_a_rejected_application_lets_you_start_again(
     org_member,
 ):
     """REJECTED and WITHDRAWN free the (product, kind) slot, so the CTA returns."""
-    ApplicationFactory(
+    application = ApplicationFactory(
         product=product_a,
         applicant=org_member,
         state=ApplicationState.REJECTED,
     )
 
-    response = _dashboard(member_client)
+    response = _overview(member_client, application)
 
     assert response.context["can_start_new"] is True
 
@@ -104,13 +116,13 @@ def test_a_live_application_does_not_offer_a_second(
     product_a,
     org_member,
 ):
-    ApplicationFactory(
+    application = ApplicationFactory(
         product=product_a,
         applicant=org_member,
         state=ApplicationState.SUBMITTED,
     )
 
-    response = _dashboard(member_client)
+    response = _overview(member_client, application)
 
     assert response.context["can_start_new"] is False
 
@@ -120,9 +132,13 @@ def test_a_live_application_does_not_offer_a_second(
 
 @pytest.mark.parametrize("state", sorted(PENDING_STATES))
 def test_pending_states_poll(member_client, product_a, org_member, state):
-    ApplicationFactory(product=product_a, applicant=org_member, state=state)
+    application = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=state,
+    )
 
-    response = _dashboard(member_client)
+    response = _overview(member_client, application)
 
     assert response.context["should_poll"] is True
     assert "hx-trigger" in response.content.decode()
@@ -134,9 +150,13 @@ def test_pending_states_poll(member_client, product_a, org_member, state):
 )
 def test_settled_states_stop_polling(member_client, product_a, org_member, state):
     """Left running, every finished application would hammer the server forever."""
-    ApplicationFactory(product=product_a, applicant=org_member, state=state)
+    application = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=state,
+    )
 
-    response = _dashboard(member_client)
+    response = _overview(member_client, application)
 
     assert response.context["should_poll"] is False
     assert "hx-trigger" not in response.content.decode()
@@ -165,7 +185,7 @@ def test_the_status_fragment_tells_the_same_truth_without_htmx(
     assert fragment.context["should_poll"] is True
     assert (
         fragment.context["hint_title"]
-        == _dashboard(member_client).context["hint_title"]
+        == _overview(member_client, application).context["hint_title"]
     )
 
 
@@ -178,15 +198,19 @@ def test_a_member_never_sees_another_organisations_application(
     org_member,
     org_b,
 ):
-    """Two orgs, one dashboard URL: the tenant comes from membership, never the
-    application."""
-    ApplicationFactory(product=product_a, applicant=org_member, state="SUBMITTED")
+    """The application is named in the URL now, so scoping is what stops an
+    outsider reading it — and it 404s rather than 403s, because a 403 would
+    confirm the application exists."""
+    application = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state="SUBMITTED",
+    )
     outsider = VerifiedUserFactory.create()
     MembershipFactory.create(organisation=org_b, user=outsider)
     ProductFactory.create(organisation=org_b)
     client.force_login(outsider)
 
-    response = _dashboard(client)
+    response = _overview(client, application)
 
-    assert response.status_code == HTTP_OK
-    assert response.context["application"] is None
+    assert response.status_code == HTTP_NOT_FOUND

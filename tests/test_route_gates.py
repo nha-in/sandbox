@@ -94,8 +94,11 @@ def _document_id(context: dict) -> dict:
     return {"external_id": context[DOCUMENT_A].external_id}
 
 
-def _milestone_key(context: dict) -> dict:
-    return {"key": context[MILESTONE_M1].key}
+def _application_and_milestone(context: dict) -> dict:
+    return {
+        "external_id": context["application"].external_id,
+        "key": context[MILESTONE_M1].key,
+    }
 
 
 # The matrix. One row per named URL; django-admin is asserted as a group below.
@@ -157,13 +160,17 @@ ROUTES: dict[str, Route] = {
     ),
     # Enrolment wizard (C4). Every screen names its tenant in `?org=`, so the
     # rule is the same whether or not the URL also names an application.
-    "applications:dashboard": Route(Access.ORG_SCOPED, query=_org_a),
+    "applications:index": Route(Access.ORG_SCOPED, query=_org_a),
+    "applications:overview": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
     "applications:application_status": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
     ),
-    "applications:enrolment": Route(Access.ORG_SCOPED, query=_org_a),
     "applications:step_product": Route(
         Access.ORG_SCOPED,
         query=_org_a,
@@ -191,6 +198,11 @@ ROUTES: dict[str, Route] = {
     # they are the only routes in the system that can put a secret on a screen,
     # so "wrong org 404s" is load-bearing rather than routine.
     "applications:credentials": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
+    "applications:credentials_panel": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
@@ -234,15 +246,20 @@ ROUTES: dict[str, Route] = {
     # Milestones and exit (C8). POST rows included because the writes are what
     # actually matter: a declaration accepted for the wrong tenant would attach
     # evidence to somebody else's application.
-    "declarations:milestones": Route(Access.ORG_SCOPED, query=_org_a),
+    "declarations:milestones": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
     "declarations:declare_milestone": Route(
         Access.ORG_SCOPED,
-        kwargs=_milestone_key,
+        kwargs=_application_and_milestone,
         query=_org_a,
         methods=("GET", "POST"),
     ),
     "declarations:exit": Route(
         Access.ORG_SCOPED,
+        kwargs=_application_id,
         query=_org_a,
         methods=("GET", "POST"),
     ),

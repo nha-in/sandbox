@@ -60,7 +60,7 @@
         {% translate "Declare at least one milestone complete before requesting production access." %}
       </span>
       <a class="ui-btn ui-btn--secondary ui-btn--size-sm mt-3 no-underline"
-           href="{% url 'declarations:milestones' %}{{ org_query }}">{% translate "Go to milestones" %}</a>
+           href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Go to milestones" %}</a>
     </div>
   {% else %}
     {% if application.state == "EXIT_REJECTED" %}
@@ -99,7 +99,7 @@
         </div>
         <div class="ui-card-footer flex items-center justify-between gap-3">
           <a class="text-sm underline"
-             href="{% url 'declarations:milestones' %}{{ org_query }}">{% translate "Back to milestones" %}</a>
+             href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
           <button class="ui-btn ui-btn--primary" type="submit">{% translate "Request exit" %}</button>
         </div>
       </div>

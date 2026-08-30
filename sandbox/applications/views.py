@@ -37,7 +37,6 @@ from sandbox.applications.schemas import payload_form
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
 from sandbox.applications.selectors import applications_for_organisation
-from sandbox.applications.selectors import dashboard_application
 from sandbox.applications.selectors import journey_for
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
@@ -77,6 +76,15 @@ STEPS = (
     ("product", "Product"),
     ("details", "Sandbox details"),
     ("review", "Review"),
+)
+
+#: States in which an application has milestones worth counting. Everything
+#: before PROVISIONED has no sandbox to build against yet.
+_HAS_MILESTONES = (
+    *DECLARABLE_STATES,
+    ApplicationState.EXIT_REQUESTED,
+    ApplicationState.EXIT_REVIEW,
+    ApplicationState.PRODUCTION_APPROVED,
 )
 
 
@@ -358,25 +366,34 @@ class ReviewStepView(ApplicationStepMixin, TemplateView):
         )
 
 
-class EnrolmentIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
-    """The Enrolment section's home: what has been applied for, and a way to
-    apply again.
+class ApplicationIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
+    """Every application this organisation holds, and the way to add one.
 
-    This replaced a redirect that resumed whatever draft was newest. That was
-    invisible — an organisation with two products had no screen anywhere that
-    listed both applications, and the nav item silently took you to one of them.
+    The integrator's home. Deliberately minimal — it exists so you can choose
+    which application you mean, not to summarise any of them; the detail is one
+    click away in that application's Overview.
+
+    It replaced a dashboard that narrated whichever application was newest.
+    Sandbox access is granted per product, so an organisation holding a live
+    sandbox and a fresh draft was shown the draft, on this screen and on every
+    nav item beside it.
     """
 
-    template_name = "applications/enrolment.html"
+    template_name = "applications/index.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["organisation"] = self.organisation
-        context["page_title"] = _("Enrolment")
+        context["page_title"] = _("Applications")
         context["rows"] = [
             {
                 "application": application,
                 "is_editable": application.state in EDITABLE_STATES,
+                "milestones": (
+                    milestone_progress(application)
+                    if application.state in _HAS_MILESTONES
+                    else None
+                ),
             }
             for application in applications_for_organisation(self.organisation)
         ]
@@ -462,28 +479,29 @@ _HINTS: dict[str, tuple[StrOrPromise, StrOrPromise]] = {
 }
 
 
-class DashboardView(LoginRequiredMixin, OrganisationMixin, TemplateView):
-    """The integrator's home. Read-only: no state changes from this screen."""
+class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
+    """One application's home: where it stands and what to do next.
 
-    template_name = "dashboard/index.html"
+    Read-only; no state changes from this screen. It is the dashboard's old
+    content, now scoped to the application named in the URL rather than to
+    whichever one the organisation happened to create last.
+    """
+
+    template_name = "applications/overview.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["organisation"] = self.organisation
-        application = dashboard_application(self.organisation)
-        context["application"] = application
-        context["can_start_new"] = (
-            application is not None and application.state in NON_BLOCKING_STATES
-        )
+        application = self.application
+        context["page_title"] = application.reference
+        context["can_start_new"] = application.state in NON_BLOCKING_STATES
         # Only once there is a sandbox to build against; before that the panel
         # would count zero of six at someone who cannot yet declare any of them.
         context["milestones"] = (
             milestone_progress(application)
-            if application is not None and application.state in DECLARABLE_STATES
+            if application.state in DECLARABLE_STATES
             else None
         )
         context.update(_status_context(application))
-        context.update(_credentials_context(application, self.request.user))
         return context
 
 
@@ -495,6 +513,23 @@ class ApplicationStatusView(ApplicationStepMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_status_context(self.application))
+        return context
+
+
+class CredentialsView(ApplicationStepMixin, TemplateView):
+    """The Credentials section: the panel, on a page of its own.
+
+    Separate from `CredentialsPanelView` because that one is a fragment for
+    htmx to poll — it renders a bare `<div>`, and a nav item pointing at it
+    hands the reader a card with no shell around it.
+    """
+
+    template_name = "applications/credentials.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = _("Credentials")
+        context.update(_credentials_context(self.application, self.request.user))
         return context
 
 
@@ -524,13 +559,21 @@ class RevealCredentialsView(ApplicationStepMixin, TemplateView):
 
     GET only ever redirects. It cannot consume anything (consumption lives in
     `post`), and a browser landing here from history or a restored tab should
-    meet the dashboard rather than a 405.
+    meet the credentials page rather than a 405.
     """
 
-    template_name = "dashboard/index.html"
+    # The credentials page, not the overview: this response *is* the panel
+    # carrying the secret, so it has to render the screen that shows one.
+    template_name = "applications/credentials.html"
 
     def get(self, request, *args, **kwargs):
-        return redirect(url_for("applications:dashboard", self.organisation))
+        return redirect(
+            url_for(
+                "applications:credentials",
+                self.organisation,
+                external_id=self.application.external_id,
+            ),
+        )
 
     def post(self, request, *args, **kwargs):
         secret = take_initial_secret(self.application)

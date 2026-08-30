@@ -43,7 +43,7 @@
       </div>
       <div class="ui-card-footer flex items-center justify-between gap-3">
         <a class="text-sm underline"
-           href="{% url 'declarations:milestones' %}{{ org_query }}">{% translate "Back to milestones" %}</a>
+           href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
         <button class="ui-btn ui-btn--primary" type="submit">{% translate "Declare complete" %}</button>
       </div>
     </div>

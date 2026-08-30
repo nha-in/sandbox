@@ -79,7 +79,8 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | **done**                 |
 | [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | **done** (2 carry-overs) |
 | [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | **done**                 |
-| [C9 — Playwright e2e: full journey + JS-disabled pass](C9-playwright-e2e.md)                   | V0.4  | blocked (C4–C8)          |
+| [C9 — Playwright e2e: full journey + JS-disabled pass](C9-playwright-e2e.md)                   | V0.4  | blocked (C4–C8, C11)     |
+| [C11 — Application-scoped shell: two-level navigation](C11-application-scoped-shell.md)        | V0.4  | **done**                 |
 
 ⚑ = junior-suitable starter.
 
@@ -136,6 +137,7 @@ flowchart LR
         A7 & A8 --> C8
         C10 --> C8
         C4 & C5 & C6 & C7 & C8 --> C9
+        C4 & C6 & C7 & C8 --> C11 --> C9
         A9 --> C9
         C9 --> P6
     end

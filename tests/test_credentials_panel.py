@@ -103,8 +103,18 @@ def _query(application) -> str:
     return f"?{organisation_query(application.product.organisation)}"
 
 
-def _dashboard(application) -> str:
-    return reverse("applications:dashboard") + _query(application)
+def _credentials_page(application) -> str:
+    return reverse(
+        "applications:credentials",
+        kwargs={"external_id": application.external_id},
+    ) + _query(application)
+
+
+def _overview(application) -> str:
+    return reverse(
+        "applications:overview",
+        kwargs={"external_id": application.external_id},
+    ) + _query(application)
 
 
 def _reveal(application) -> str:
@@ -149,14 +159,18 @@ def test_the_secret_is_shown_once_and_the_panel_is_masked_afterwards(
     assert "••••" in body
 
 
-def test_the_dashboard_never_carries_the_secret_on_a_get(client, owner, provisioned):
+def test_the_credentials_page_never_carries_the_secret_on_a_get(
+    client,
+    owner,
+    provisioned,
+):
     """The reveal is a POST precisely so that no GET can burn it: a prefetching
     browser or a crawler following a link would spend the single read on
     nobody's behalf, and the integrator would meet a masked panel they had
     never seen unmasked."""
     session = _client_for(owner, client)
 
-    assert session.get(_dashboard(provisioned)).status_code == HTTP_OK
+    assert session.get(_credentials_page(provisioned)).status_code == HTTP_OK
     # Still unread: the GET must not have consumed the hand-off.
     assert take_initial_secret(provisioned) is not None
 
@@ -172,14 +186,14 @@ def test_a_get_on_the_reveal_route_redirects_and_consumes_nothing(
 
     response = session.get(_reveal(provisioned))
     assert response.status_code == 302  # noqa: PLR2004
-    assert reverse("applications:dashboard") in response.headers["Location"]
+    assert str(provisioned.external_id) in response.headers["Location"]
     assert take_initial_secret(provisioned) is not None
 
 
 def test_polling_the_panel_cannot_consume_the_handoff(client, owner, provisioned):
     session = _client_for(owner, client)
     url = reverse(
-        "applications:credentials",
+        "applications:credentials_panel",
         kwargs={"external_id": provisioned.external_id},
     ) + _query(provisioned)
 
@@ -201,7 +215,7 @@ def test_the_panel_polls_while_provisioning_and_stops_at_a_terminal_state(
     keeps a request every few seconds running forever."""
     session = _client_for(owner, client)
     url = reverse(
-        "applications:credentials",
+        "applications:credentials_panel",
         kwargs={"external_id": provisioned.external_id},
     ) + _query(provisioned)
 

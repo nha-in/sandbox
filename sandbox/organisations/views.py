@@ -58,7 +58,7 @@ class OrganisationChooseView(LoginRequiredMixin, View):
         memberships = Membership.objects.filter(user=request.user).select_related(
             "organisation",
         )
-        destination = _safe_next(request) or reverse("applications:dashboard")
+        destination = _safe_next(request) or reverse("applications:index")
         # A `next` that already names an organisation would defeat the point.
         destination = destination.split(f"?{ORGANISATION_QUERY_PARAM}=")[0].split(
             f"&{ORGANISATION_QUERY_PARAM}=",

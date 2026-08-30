@@ -172,13 +172,14 @@ def test_details_step_reports_payload_errors_as_form_errors(
     )
 
 
-def test_enrolment_lists_every_application_and_offers_another(
+def test_the_index_lists_every_application_and_offers_another(
     member_client,
     product_a,
     org_member,
 ):
-    """This page replaced a redirect that resumed the newest draft, which left
-    an organisation's other applications with no screen naming them at all."""
+    """The integrator's home is a list, not a narration of one application.
+    An organisation holds one per product, and the screen this replaced showed
+    whichever was newest — a draft, the moment a second one is started."""
     application = create_draft(
         organisation=product_a.organisation,
         product=product_a,
@@ -187,14 +188,21 @@ def test_enrolment_lists_every_application_and_offers_another(
         data=DETAILS_POST,
     )
     response = member_client.get(
-        _org_url("applications:enrolment", product_a.organisation),
+        _org_url("applications:index", product_a.organisation),
     )
 
     assert response.status_code == HTTP_OK
     assert [row["application"] for row in response.context["rows"]] == [application]
     body = response.content.decode()
     assert application.reference in body
-    # a draft is resumable, and a second application is always startable
+    # the way in, the way to resume, and the way to start another
+    assert (
+        reverse(
+            "applications:overview",
+            kwargs={"external_id": application.external_id},
+        )
+        in body
+    )
     assert (
         reverse(
             "applications:step_details",
