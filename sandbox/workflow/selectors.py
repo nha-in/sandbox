@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationState
 from sandbox.workflow.machine import TRANSITIONS
 from sandbox.workflow.machine import Action
 from sandbox.workflow.machine import ActorKind
@@ -30,6 +31,26 @@ def queue_by_state(state: str) -> QuerySet[Application]:
     return Application.objects.filter(state=state).select_related(
         "product__organisation",
         "applicant",
+    )
+
+
+#: everything sitting in the exit half of the journey, for C5's queue filter
+EXIT_QUEUE_STATES = (
+    ApplicationState.EXIT_REQUESTED,
+    ApplicationState.EXIT_REVIEW,
+)
+
+
+def exit_queue() -> QuerySet[Application]:
+    """Applications awaiting an exit decision, oldest request first.
+
+    Oldest first because this is a work queue, unlike the review queue's
+    newest-first browse.
+    """
+    return (
+        Application.objects.filter(state__in=EXIT_QUEUE_STATES)
+        .select_related("product__organisation", "applicant")
+        .order_by("created_date")
     )
 
 

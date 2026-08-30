@@ -16,6 +16,9 @@ from django.db import transaction
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
 from sandbox.audit.services import emit
+from sandbox.declarations.selectors import current_exit_declaration
+from sandbox.declarations.selectors import undeclared_exit_milestones
+from sandbox.declarations.services import settle_declaration
 from sandbox.utils.errors import DomainError
 from sandbox.workflow.machine import PERM_REVIEW
 from sandbox.workflow.machine import TRANSITIONS
@@ -46,6 +49,36 @@ def register_hook(
 def clear_hooks() -> None:
     """For tests — never call this from application code."""
     _HOOKS.clear()
+
+
+def _exit_bundle_guard(application: Application) -> None:
+    """You may only exit milestones you have declared complete (A7/A8).
+
+    Deliberately narrower than "every active milestone": exiting M1 must not
+    oblige an integrator to declare M3, which is what legacy's per-milestone
+    exits imply.
+    """
+    declaration = current_exit_declaration(application)
+    if declaration is None:
+        message = "submit an exit declaration before requesting exit"
+        raise DomainError(message, code="no_exit_declaration")
+
+    if not declaration.documents.exists():
+        message = "the exit declaration needs at least one supporting document"
+        raise DomainError(message, code="no_exit_documents")
+
+    missing = undeclared_exit_milestones(declaration)
+    if missing:
+        keys = ", ".join(missing)
+        message = f"declare {keys} complete before exiting them to production"
+        raise DomainError(message, code="milestone_not_declared")
+
+
+#: name -> guard, resolved from `Spec.guards`. Guards run before the move and
+#: refuse it by raising; P3's flag-gated evidence gating registers here too.
+_GUARDS: dict[str, Callable[[Application], None]] = {
+    "exit_bundle": _exit_bundle_guard,
+}
 
 
 def _check_actor(spec_kind: ActorKind, actor: User | None, action: Action) -> None:
@@ -113,6 +146,22 @@ def transition(
         )
         raise DomainError(message, code="comment_not_allowed")
 
+    for guard_name in spec.guards:
+        _GUARDS[guard_name](locked)
+
+    # In-transaction, not an on_commit hook: an approved exit is what stops A7
+    # letting a later submission supersede it, so it must not lag the move.
+    if spec.settles_declaration:
+        declaration = current_exit_declaration(locked)
+        if declaration is None:
+            message = f"{action} found no exit declaration to settle"
+            raise DomainError(message, code="no_exit_declaration")
+        settle_declaration(
+            declaration=declaration,
+            state=spec.settles_declaration,
+            actor=actor,
+        )
+
     record = WorkflowTransition.objects.create(
         application=locked,
         from_state=from_state,
@@ -146,6 +195,19 @@ def transition(
             )
 
     return record
+
+
+def request_exit(*, application: Application, actor: User) -> WorkflowTransition:
+    """The integrator asks to take their declared milestones to production.
+
+    A thin alias for the transition: the bundle check is a guard on the table,
+    so the console reaches the same rule by calling `transition()` directly.
+    """
+    return transition(
+        application=application,
+        action=Action.REQUEST_EXIT,
+        actor=actor,
+    )
 
 
 @transaction.atomic

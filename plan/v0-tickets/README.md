@@ -43,17 +43,17 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 
 ## Lane A — Backend: domain & workflow
 
-| Ticket                                                                                                 | Phase     | Status                        |
-| ------------------------------------------------------------------------------------------------------ | --------- | ----------------------------- |
-| [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**                      |
-| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done** (2 carry-over)       |
-| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**                      |
-| [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | **done**                      |
-| [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**                      |
-| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | **done**                      |
-| [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | **done**                      |
-| [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | open (A7 done, see OQ3)       |
-| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | **V0.2 scope done**           |
+| Ticket                                                                                                 | Phase     | Status                  |
+| ------------------------------------------------------------------------------------------------------ | --------- | ----------------------- |
+| [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**                |
+| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done** (2 carry-over) |
+| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**                |
+| [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | **done**                |
+| [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**                |
+| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | **done**                |
+| [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | **done**                |
+| [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | **done**                |
+| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | **V0.2 scope done**     |
 
 ## Lane B — Backend: integrations
 
@@ -78,7 +78,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | **done**          |
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | open (A3/A5 done) |
 | [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | blocked (B7, C6)  |
-| [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | blocked (A8)      |
+| [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | open (A7/A8 done) |
 | [C9 — Playwright e2e: full journey + JS-disabled pass](C9-playwright-e2e.md)                   | V0.4  | blocked (C4–C8)   |
 
 ⚑ = junior-suitable starter.

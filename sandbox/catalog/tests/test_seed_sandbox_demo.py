@@ -20,6 +20,11 @@ pytestmark = pytest.mark.django_db
 SEED_PASSWORD = "seed-test-password"  # noqa: S105
 
 
+@pytest.fixture(autouse=True)
+def _bucket(mock_s3):
+    """The seed uploads a real exit document, so it needs the bucket."""
+
+
 def seed(**kwargs):
     call_command("seed_sandbox_demo", password=SEED_PASSWORD, verbosity=0, **kwargs)
 

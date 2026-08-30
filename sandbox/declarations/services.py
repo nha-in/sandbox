@@ -25,6 +25,7 @@ from sandbox.declarations.models import Declaration
 from sandbox.declarations.models import DeclarationDocument
 from sandbox.declarations.models import DeclarationKind
 from sandbox.declarations.models import DeclarationMilestone
+from sandbox.declarations.models import DeclarationState
 from sandbox.declarations.validators import validate_upload
 from sandbox.declarations.validators import validate_upload_set
 from sandbox.utils.errors import DomainError
@@ -68,8 +69,19 @@ def declaration_storage() -> Storage:
     return storages["declarations"]
 
 
-def _require_provisioned(application: Application) -> None:
-    if application.state != ApplicationState.PROVISIONED:
+#: you hold credentials and are not currently under exit review. EXIT_REJECTED
+#: is included or A8's re-request loop cannot produce a new declaration.
+_DECLARABLE_STATES = (
+    ApplicationState.PROVISIONED,
+    ApplicationState.EXIT_REJECTED,
+)
+
+#: outcomes `settle_declaration` will accept
+_SETTLEABLE_STATES = (DeclarationState.APPROVED, DeclarationState.REJECTED)
+
+
+def _require_declarable(application: Application) -> None:
+    if application.state not in _DECLARABLE_STATES:
         message = f"cannot declare while the application is {application.state}"
         raise DomainError(message, code="illegal_state")
 
@@ -168,7 +180,7 @@ def submit_milestone_declaration(  # noqa: PLR0913 - a declaration form's worth 
     completed_on: datetime.date | None = None,
 ) -> Declaration:
     """Declare one milestone complete, with optional evidence."""
-    _require_provisioned(application)
+    _require_declarable(application)
     _check_dates(started_on, completed_on)
 
     declaration = Declaration.objects.create(
@@ -219,7 +231,7 @@ def submit_exit_declaration(
     "complete at the time of exit" — recomputing it later would answer a
     different question.
     """
-    _require_provisioned(application)
+    _require_declarable(application)
     if not milestones:
         message = "an exit declaration must name at least one milestone"
         raise DomainError(message, code="no_milestones")
@@ -268,6 +280,41 @@ def _check_dates(
     if started_on and completed_on and completed_on < started_on:
         message = "the completion date is before the start date"
         raise DomainError(message, code="invalid_date")
+
+
+@transaction.atomic
+def settle_declaration(
+    *,
+    declaration: Declaration,
+    state: str,
+    actor: User | None = None,
+) -> Declaration:
+    """Record a declaration's outcome. A8's exit transitions are the callers.
+
+    Settling is one-way: an approved exit is evidence that a milestone reached
+    production, and A7 refuses to supersede it afterwards.
+    """
+    if state not in _SETTLEABLE_STATES:
+        message = f"{state} is not an outcome a declaration can be settled to"
+        raise DomainError(message, code="invalid")
+
+    if declaration.state != DeclarationState.SUBMITTED:
+        message = f"declaration is already {declaration.state}"
+        raise DomainError(message, code="already_settled")
+
+    declaration.state = state
+    declaration.save(update_fields=["state", "modified_date"])
+
+    emit(
+        f"declaration.{state.lower()}",
+        obj=declaration,
+        actor=actor,
+        data={
+            "reference": declaration.application.reference,
+            "kind": declaration.kind,
+        },
+    )
+    return declaration
 
 
 def download_url(document: DeclarationDocument) -> str:

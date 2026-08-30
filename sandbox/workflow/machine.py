@@ -67,6 +67,13 @@ class Spec:
     permission: str = ""
     #: names resolved against the hook registry at commit time (B7/B8 register)
     hooks: tuple[str, ...] = field(default_factory=tuple)
+    #: names resolved against the guard registry, run *before* the move and
+    #: able to refuse it. Kept on the table so a console calling `transition()`
+    #: generically cannot route around them.
+    guards: tuple[str, ...] = field(default_factory=tuple)
+    #: `DeclarationState` value to settle the pending exit declaration to.
+    #: A plain string because this module must not import another app.
+    settles_declaration: str = ""
     #: A6 records this decision's text on the review row, so the transition
     #: must not carry a comment too (03-database.md: "single home for the text").
     review_driven: bool = False
@@ -133,8 +140,16 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
     # Exit. Provisional until open question 3 is answered — if exits turn out to
     # be per-milestone-track and repeatable, A8 replaces these edges with a
     # scoped record rather than terminal application states.
-    (S.PROVISIONED, Action.REQUEST_EXIT): Spec(S.EXIT_REQUESTED, ActorKind.OWNER),
-    (S.EXIT_REJECTED, Action.REQUEST_EXIT): Spec(S.EXIT_REQUESTED, ActorKind.OWNER),
+    (S.PROVISIONED, Action.REQUEST_EXIT): Spec(
+        S.EXIT_REQUESTED,
+        ActorKind.OWNER,
+        guards=("exit_bundle",),
+    ),
+    (S.EXIT_REJECTED, Action.REQUEST_EXIT): Spec(
+        S.EXIT_REQUESTED,
+        ActorKind.OWNER,
+        guards=("exit_bundle",),
+    ),
     (S.EXIT_REQUESTED, Action.START_EXIT_REVIEW): Spec(
         S.EXIT_REVIEW,
         ActorKind.STAFF,
@@ -145,6 +160,7 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
         ActorKind.STAFF,
         PERM_APPROVE,
         hooks=("notify_production_approved",),
+        settles_declaration="APPROVED",
         review_driven=True,
     ),
     (S.EXIT_REVIEW, Action.REJECT_EXIT): Spec(
@@ -152,13 +168,17 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
         ActorKind.STAFF,
         PERM_REJECT,
         hooks=("notify_exit_rejected",),
+        settles_declaration="REJECTED",
         review_driven=True,
     ),
+    # Send-back settles the bundle too: leaving it SUBMITTED would make the
+    # column ambiguous between "awaiting review" and "bounced back".
     (S.EXIT_REVIEW, Action.SEND_BACK_EXIT): Spec(
         S.PROVISIONED,
         ActorKind.STAFF,
         PERM_SEND_BACK,
         hooks=("notify_exit_sent_back",),
+        settles_declaration="REJECTED",
         review_driven=True,
     ),
 }
