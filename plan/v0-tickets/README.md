@@ -63,7 +63,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | **done**                |
 | [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | **done** (1 carry-over) |
 | [B4 — WSO2 adapter (`ApiGateway`)](B4-wso2-adapter.md)                                       | V0.3  | **done** (1 carry-over) |
-| [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | blocked (NHA access)    |
+| [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | **done** (1 carry-over) |
 | [B6 — Notification adapter + Celery send task + delivery log](B6-notification-adapter.md)    | V0.3  | blocked (NHA access)    |
 | [B7 — Provisioning chain + ledger + `PROVISIONING_FAILED` + retry](B7-provisioning-chain.md) | V0.3  | blocked (B3–B6, A5)     |
 | [B8 — Deprovisioning chain (rejection path)](B8-deprovisioning-chain.md)                     | V0.3  | blocked (B7)            |

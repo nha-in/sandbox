@@ -20,7 +20,6 @@ from typing import cast
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.utils.functional import cached_property
@@ -49,6 +48,7 @@ from sandbox.workflow.services import transition
 
 if TYPE_CHECKING:
     from django.forms import Form
+    from django.http import HttpRequest
 
     from sandbox.users.models import User
 
