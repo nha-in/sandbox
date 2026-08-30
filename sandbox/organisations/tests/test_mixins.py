@@ -11,7 +11,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.views import View
 
-from sandbox.organisations.mixins import ACTIVE_ORGANISATION_SESSION_KEY
 from sandbox.organisations.mixins import OrganisationMixin
 from sandbox.organisations.models import Product
 from sandbox.organisations.tests.factories import MembershipFactory
@@ -43,7 +42,9 @@ class _ProductProbeView(OrganisationMixin, View):
         return HttpResponse(str(product.external_id))
 
 
-def _build_request(rf: RequestFactory, user, path="/probe/"):
+def _build_request(rf: RequestFactory, user, path="/probe/", organisation=None):
+    if organisation is not None:
+        path = f"{path}?org={organisation.external_id}"
     request = rf.get(path)
     SessionMiddleware(lambda r: HttpResponse()).process_request(request)
     request.session.save()
@@ -73,12 +74,9 @@ def test_single_membership_auto_selects_organisation(rf: RequestFactory):
     assert isinstance(response, HttpResponse)  # type guard
     assert response.status_code == 200  # noqa: PLR2004
     assert response.content.decode() == str(membership.organisation.external_id)
-    assert (
-        request.session[ACTIVE_ORGANISATION_SESSION_KEY] == membership.organisation_id
-    )
 
 
-def test_multiple_memberships_without_selection_redirects_to_switcher(
+def test_multiple_memberships_without_selection_redirects_to_picker(
     rf: RequestFactory,
 ):
     user = UserFactory.create()
@@ -90,15 +88,14 @@ def test_multiple_memberships_without_selection_redirects_to_switcher(
 
     assert isinstance(response, HttpResponseRedirect)  # type guard
     assert response.status_code == 302  # noqa: PLR2004
-    assert response.url.startswith("/organisations/switch/")
+    assert response.url.startswith("/organisations/choose/")
 
 
-def test_multiple_memberships_with_session_selection_resolves_it(rf: RequestFactory):
+def test_multiple_memberships_with_query_parameter_resolves_it(rf: RequestFactory):
     user = UserFactory.create()
     MembershipFactory.create(user=user)
     selected = MembershipFactory.create(user=user)
-    request = _build_request(rf, user)
-    request.session[ACTIVE_ORGANISATION_SESSION_KEY] = selected.organisation_id
+    request = _build_request(rf, user, organisation=selected.organisation)
 
     response = _ProbeView.as_view()(request)
 
@@ -107,13 +104,23 @@ def test_multiple_memberships_with_session_selection_resolves_it(rf: RequestFact
     assert response.content.decode() == str(selected.organisation.external_id)
 
 
+def test_asking_for_an_organisation_you_are_not_in_is_404(rf: RequestFactory):
+    """Indistinguishable from one that does not exist — a 403 would confirm it."""
+    membership = MembershipFactory.create()
+    stranger = OrganisationFactory.create()
+    request = _build_request(rf, membership.user, organisation=stranger)
+
+    with pytest.raises(Http404):
+        _ProbeView.as_view()(request)
+
+
 def test_wrong_organisation_record_is_404_not_403(rf: RequestFactory):
     org_a = OrganisationFactory.create()
     org_b = OrganisationFactory.create()
     product = ProductFactory.create(organisation=org_a)
     member_of_b = MembershipFactory.create(organisation=org_b).user
 
-    request = _build_request(rf, member_of_b)
+    request = _build_request(rf, member_of_b, organisation=org_b)
 
     with pytest.raises(Http404):
         _ProductProbeView.as_view()(request, external_id=product.external_id)

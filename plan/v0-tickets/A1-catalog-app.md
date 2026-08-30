@@ -52,8 +52,10 @@ A checked-in dataset file (states + districts with their LGD codes, provenance a
 ```python
 # catalog/selectors.py — signatures stay stable when P4's LgdLookup adapter
 # replaces the bundled dataset as the source
-def state_choices() -> list[tuple[str, str]]: ...                    # wizard state dropdown
-def districts_for_state(state_code: str) -> list[tuple[str, str]]: ...  # htmx dependent select (C4)
+def state_choices() -> list[tuple[str, str]]: ...  # wizard state dropdown
+def districts_for_state(
+    state_code: str,
+) -> list[tuple[str, str]]: ...  # htmx dependent select (C4)
 ```
 
 - Both selectors validate against the dataset, so a hand-posted code that isn't real is rejected server-side.

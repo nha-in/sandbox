@@ -1,0 +1,22 @@
+{# Dependent select. htmx replaces only the <option> list; without JS the #}
+{# "Load districts" button re-renders the bound form, which rebuilds the same #}
+{# list server-side. Either way the choices come from one selector. #}
+<div id="district-select">
+  <label class="ui-label" for="{{ form.lgd_district_code.id_for_label }}">{{ form.lgd_district_code.label }}</label>
+  <select class="ui-select"
+          id="{{ form.lgd_district_code.id_for_label }}"
+          name="{{ form.lgd_district_code.html_name }}"
+          hx-get="{% url 'organisations:district_options' %}"
+          hx-trigger="change from:#{{ form.lgd_state_code.id_for_label }}"
+          hx-include="#{{ form.lgd_state_code.id_for_label }}"
+          hx-target="this"
+          hx-swap="innerHTML">
+    {% for value, label in form.lgd_district_code.field.choices %}
+      <option value="{{ value }}"
+              {% if value|stringformat:"s" == form.lgd_district_code.value|stringformat:"s" %}selected{% endif %}>
+        {{ label }}
+      </option>
+    {% endfor %}
+  </select>
+  {% for error in form.lgd_district_code.errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+</div>

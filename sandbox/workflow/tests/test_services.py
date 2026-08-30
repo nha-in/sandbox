@@ -50,6 +50,39 @@ def approver():
     return grant(UserFactory.create(is_staff=True), "approve_application")
 
 
+# Guards
+
+
+def test_submit_refuses_an_incomplete_payload(application, owner):
+    """Drafts may be half-finished, so SUBMIT is where completeness is enforced."""
+    application.payload = {"schema_version": 1, "data": {}}
+    application.save(update_fields=["payload"])
+
+    with pytest.raises(DomainError) as excinfo:
+        transition(application=application, action=Action.SUBMIT, actor=owner)
+
+    assert "required" in str(excinfo.value).lower()
+    application.refresh_from_db()
+    assert application.state == ApplicationState.DRAFT
+    assert not WorkflowTransition.objects.filter(application=application).exists()
+
+
+def test_a_guard_that_is_not_registered_blocks_the_move(
+    application,
+    owner,
+    monkeypatch,
+):
+    """Fail closed: a missing registration must not silently skip the check."""
+    monkeypatch.setattr(services, "_GUARDS", {})
+
+    with pytest.raises(DomainError) as excinfo:
+        transition(application=application, action=Action.SUBMIT, actor=owner)
+
+    assert excinfo.value.code == "guard_unavailable"
+    application.refresh_from_db()
+    assert application.state == ApplicationState.DRAFT
+
+
 # Legality
 
 

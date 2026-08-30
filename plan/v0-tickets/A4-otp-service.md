@@ -53,11 +53,13 @@ The flow is transaction-based, matching legacy: issue returns a
 def send_otp(identity: str, channel: NotificationChannel) -> OtpChallenge: ...
 def verify_otp(challenge: str, identity: str, code: str) -> OtpVerification: ...
 
+
 # users/services.py
 def request_otp(*, user: User, identity: str) -> str:
     """Rate-limited; returns the transaction id the wizard holds onto.
     Refuses an identity the user does not own, so it cannot be used to mail
     codes to arbitrary addresses."""
+
 
 def verify_otp(*, user: User, identity: str, challenge: str, code: str) -> None:
     """On success stamps email_verified_at / phone_verified_at.

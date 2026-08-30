@@ -58,9 +58,12 @@ Map keys to gateway template IDs in **typed settings**, re-mapped from the legac
 
 ```python
 # notifications/services.py
-def enqueue(*, template_key, recipient, params, application=None) -> NotificationMessage:
+def enqueue(
+    *, template_key, recipient, params, application=None
+) -> NotificationMessage:
     """Writes a PENDING row + schedules the send via transaction.on_commit —
     a rolled-back workflow transition must never send email."""
+
 
 # notifications/tasks.py
 @shared_task

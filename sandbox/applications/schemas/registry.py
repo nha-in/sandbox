@@ -46,15 +46,20 @@ def payload_form(kind: str, schema_version: int) -> type[Form]:
 
 
 def _format_errors(form: Form) -> str:
+    """Labels, not field names — this string is shown to the applicant."""
     return "; ".join(
-        f"{'payload' if field == '__all__' else field}: "
+        f"{'payload' if field == '__all__' else form.fields[field].label or field}: "
         f"{' '.join(str(error) for error in errors)}"
         for field, errors in form.errors.items()
     )
 
 
-def validate_payload(kind: str, payload: dict[str, Any]) -> None:
-    """Raises `DomainError` on any structural or content problem."""
+def validate_envelope(kind: str, payload: dict[str, Any]) -> None:
+    """Structure only — what a *draft* must satisfy.
+
+    A draft holds work in progress, so its answers may be missing or wrong; the
+    envelope around them may not be, because every reader indexes it.
+    """
     if (
         not isinstance(payload, dict)
         or "schema_version" not in payload
@@ -63,11 +68,19 @@ def validate_payload(kind: str, payload: dict[str, Any]) -> None:
         message = 'payload must be {"schema_version": int, "data": {...}}'
         raise DomainError(message)
 
-    data = payload["data"]
-    if not isinstance(data, dict):
+    if not isinstance(payload["data"], dict):
         message = "payload.data must be an object"
         raise DomainError(message)
 
-    form = payload_form(kind, payload["schema_version"])(data=data)
+    # Raises for a version nobody can render, which is unusable however
+    # incomplete the answers inside it are.
+    payload_form(kind, payload["schema_version"])
+
+
+def validate_payload(kind: str, payload: dict[str, Any]) -> None:
+    """Structure *and* content — what a submission must satisfy."""
+    validate_envelope(kind, payload)
+
+    form = payload_form(kind, payload["schema_version"])(data=payload["data"])
     if not form.is_valid():
         raise DomainError(_format_errors(form))

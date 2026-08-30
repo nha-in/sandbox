@@ -1,5 +1,5 @@
 {
-  "_provenance": "PLACEHOLDER — not the authoritative LGD extract. Codes below are fabricated stand-ins (prefixed PENDING-) so they can never be mistaken for real government codes. Replace this file wholesale with a real export from https://lgdirectory.gov.in before any non-local environment reads it, then update retrieved_at/source below.",
+  "_provenance": "PLACEHOLDER — not the authoritative LGD extract. Codes below are fabricated stand-ins (prefixed PEND) so they can never be mistaken for real government codes, and are kept within the width of organisations.lgd_*_code. Replace this file wholesale with a real export from https://lgdirectory.gov.in before any non-local environment reads it, then update retrieved_at/source below.",
   "source": null,
   "retrieved_at": null,
   "states": [
@@ -7,15 +7,15 @@
       "code": "PENDING-01",
       "name": "Placeholder State One",
       "districts": [
-        { "code": "PENDING-01-01", "name": "Placeholder District A" },
-        { "code": "PENDING-01-02", "name": "Placeholder District B" }
+        { "code": "PEND-01-01", "name": "Placeholder District A" },
+        { "code": "PEND-01-02", "name": "Placeholder District B" }
       ]
     },
     {
       "code": "PENDING-02",
       "name": "Placeholder State Two",
       "districts": [
-        { "code": "PENDING-02-01", "name": "Placeholder District C" }
+        { "code": "PEND-02-01", "name": "Placeholder District C" }
       ]
     }
   ]

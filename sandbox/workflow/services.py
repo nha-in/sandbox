@@ -48,6 +48,28 @@ def clear_hooks() -> None:
     _HOOKS.clear()
 
 
+#: Preconditions a move must satisfy, run inside the transaction. Separate from
+#: hooks because a hook reacts to a move that already happened; a guard can stop
+#: one. Kept as a registry so the state machine need not know what a payload is.
+_GUARDS: dict[str, Callable[[Application], None]] = {}
+
+
+def register_guard(
+    name: str,
+    handler: Callable[[Application], None],
+) -> None:
+    _GUARDS[name] = handler
+
+
+def _check_guard(guard_name: str, application: Application, action: Action) -> None:
+    handler = _GUARDS.get(guard_name)
+    if handler is None:
+        # Fail closed: an unregistered guard must not silently permit the move.
+        message = f"{action} requires guard {guard_name}, which is not registered"
+        raise DomainError(message, code="guard_unavailable")
+    handler(application)
+
+
 def _check_actor(spec_kind: ActorKind, actor: User | None, action: Action) -> None:
     if spec_kind is ActorKind.SYSTEM:
         if actor is not None:
@@ -112,6 +134,9 @@ def transition(
             "not on the transition"
         )
         raise DomainError(message, code="comment_not_allowed")
+
+    if spec.guard:
+        _check_guard(spec.guard, locked, action)
 
     record = WorkflowTransition.objects.create(
         application=locked,

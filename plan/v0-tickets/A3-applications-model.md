@@ -83,10 +83,11 @@ Each kind's spec is a Django `Form` in its own module (`schemas/sandbox.py`, lat
 def create_draft(*, organisation, product, applicant, kind, data) -> Application: ...
 def update_draft(*, application, data) -> Application: ...
 
+
 # applications/selectors.py — reads only
 def applications_for_organisation(organisation) -> QuerySet[Application]: ...
-def application_detail(organisation, external_id) -> Application: ...   # wrong org ⇒ 404
-def console_queue(filters) -> QuerySet[Application]: ...               # C5
+def application_detail(organisation, external_id) -> Application: ...  # wrong org ⇒ 404
+def console_queue(filters) -> QuerySet[Application]: ...  # C5
 ```
 
 - Reference generator: `SBX-<year>-<zero-padded sequence>`, race-safe (DB sequence or `select_for_update` counter).
@@ -99,6 +100,10 @@ def console_queue(filters) -> QuerySet[Application]: ...               # C5
 - [x] References unique and display-only (no URL resolves by reference).
 - [ ] Wrong-org detail → 404 (matrix rows added, [C3](C3-route-gate-harness.md)) — selector-level 404 is tested; matrix rows blocked on C3's harness existing, same gap flagged in A2.
 - [x] mypy/ruff clean; no ORM writes outside services/model methods.
+
+> **Revisit:** `create_draft` and `update_draft` both validate, so a `DRAFT` is
+> always a complete application and cannot hold half-finished work. [C4](C4-enrollment-wizard.md)
+> had to work around this. Tracked as [open question 5](../00-master-plan.md#10-open-questions).
 
 ## Out of scope (deferred)
 

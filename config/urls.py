@@ -21,6 +21,10 @@ urlpatterns = [
         "organisations/",
         include("sandbox.organisations.urls", namespace="organisations"),
     ),
+    path(
+        "applications/",
+        include("sandbox.applications.urls", namespace="applications"),
+    ),
     path("console/", include("sandbox.console.urls", namespace="console")),
     path(
         "declarations/",

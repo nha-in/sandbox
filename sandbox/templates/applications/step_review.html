@@ -1,0 +1,64 @@
+{% extends "applications/wizard_base.html" %}
+
+{% load i18n %}
+
+{% block step_title %}
+  {% translate "Review and submit" %}
+{% endblock step_title %}
+{% block step_description %}
+  {% blocktranslate with reference=application.reference %}Check {{ reference }} before it goes to the review team.{% endblocktranslate %}
+{% endblock step_description %}
+{% block step_content %}
+  {% if reviews %}
+    <div class="mb-6">
+      <h2 class="ui-card-title mb-2">{% translate "Reviewer comments" %}</h2>
+      {% for review in reviews %}
+        {% if review.comment %}
+          <div class="ui-alert ui-alert--warning mb-2">
+            <p>{{ review.comment }}</p>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+  <dl class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div>
+      <dt class="ui-label">{% translate "Organisation" %}</dt>
+      <dd>
+        {{ organisation.name }}
+      </dd>
+    </div>
+    <div>
+      <dt class="ui-label">{% translate "Product" %}</dt>
+      <dd>
+        {{ application.product.name }}
+      </dd>
+    </div>
+    <div>
+      <dt class="ui-label">{% translate "Status" %}</dt>
+      <dd>
+        {{ application.get_state_display }}
+      </dd>
+    </div>
+    {% for label, value in summary %}
+      <div>
+        <dt class="ui-label">{{ label }}</dt>
+        <dd>
+          {{ value|default:"—" }}
+        </dd>
+      </div>
+    {% endfor %}
+  </dl>
+  <div class="flex items-center justify-between gap-3">
+    <a class="ui-btn ui-btn--ghost"
+       href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+    {% if editable %}
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="ui-btn ui-btn--primary">{% translate "Submit for review" %}</button>
+      </form>
+    {% else %}
+      <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>
+    {% endif %}
+  </div>
+{% endblock step_content %}

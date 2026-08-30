@@ -1,0 +1,24 @@
+{% extends "applications/wizard_base.html" %}
+
+{% load i18n careui %}
+
+{% block step_title %}
+  {% translate "Which product?" %}
+{% endblock step_title %}
+{% block step_description %}
+  {% translate "Sandbox access is granted per product. Products that already have an application in flight are not listed." %}
+{% endblock step_description %}
+{% block step_content %}
+  <form method="post" class="flex flex-col gap-4">
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+    {% if "product" in form.fields %}
+      {% translate "Choose one of your products, or leave this as “new product” and name it below." as product_help %}
+      {% ui_field form.product help_text=product_help %}
+    {% endif %}
+    {% ui_field form.new_product_name %}
+    <div class="flex justify-end">
+      <button type="submit" class="ui-btn ui-btn--primary">{% translate "Continue" %}</button>
+    </div>
+  </form>
+{% endblock step_content %}

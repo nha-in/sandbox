@@ -19,14 +19,14 @@ Flow being built: signed-in org member → wizard (product, intended roles, use 
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Step forms (org → contact → roles/use-case → review-and-submit) | `sandbox/applications/forms.py` |
-| 2 | Wizard views under `OrganisationMixin` calling A3 services | `sandbox/applications/views.py` + `urls.py` |
-| 3 | Templates: step pages + `partials/otp_verify.html` + dependent-select partial | `sandbox/templates/applications/` |
-| 4 | Validators replacing the legacy `NoSpecialCharacters`-style rules | `sandbox/applications/validators.py` |
-| 5 | SENT_BACK re-edit flow + one-live-app redirect | views |
-| 6 | Route-gate rows + view tests incl. the htmx-headerless full walk | `tests/` |
+| #   | Deliverable                                                                   | Where                                       |
+| --- | ----------------------------------------------------------------------------- | ------------------------------------------- |
+| 1   | Step forms (org → contact → roles/use-case → review-and-submit)               | `sandbox/applications/forms.py`             |
+| 2   | Wizard views under `OrganisationMixin` calling A3 services                    | `sandbox/applications/views.py` + `urls.py` |
+| 3   | Templates: step pages + `partials/otp_verify.html` + dependent-select partial | `sandbox/templates/applications/`           |
+| 4   | Validators replacing the legacy `NoSpecialCharacters`-style rules             | `sandbox/applications/validators.py`        |
+| 5   | SENT_BACK re-edit flow + one-live-app redirect                                | views                                       |
+| 6   | Route-gate rows + view tests incl. the htmx-headerless full walk              | `tests/`                                    |
 
 ### Details
 
@@ -42,11 +42,87 @@ Flow being built: signed-in org member → wizard (product, intended roles, use 
 
 ## Acceptance criteria
 
-- [ ] Full enroll → OTP → submitted journey works with JS disabled (test-client walk + manual pass).
-- [ ] Draft resumable mid-wizard (close browser, return, data intact); SENT_BACK re-edit works.
-- [ ] Dependent state/district selects work with and without htmx.
-- [ ] OTP wrong-code caps, expiry and resend cooldown surface as friendly form errors.
-- [ ] Matrix rows added (anonymous → login; wrong org → 404); djLint clean; i18n-tagged; mypy/ruff clean.
+- [x] Full enroll → OTP → submitted journey works with JS disabled (test-client walk + manual pass).
+- [x] Draft resumable mid-wizard (close browser, return, data intact); SENT_BACK re-edit works.
+- [x] Dependent state/district selects work with and without htmx.
+- [x] OTP wrong-code caps, expiry and resend cooldown surface as friendly form errors — discharged by [A4](A4-otp-service.md), see below.
+- [x] Matrix rows added (anonymous → login; wrong org → 404); djLint clean; i18n-tagged; mypy/ruff clean.
+
+## How it was built
+
+### What the browser pass found that the tests did not
+
+The full journey was walked in a real browser (sign in → 4 steps → submitted),
+and it surfaced four defects the test suite was blind to:
+
+1. **The placeholder LGD district codes did not fit the column that stores them**
+   — `PENDING-01-01` is 13 characters against `organisation.lgd_district_code`'s
+   10, so _no_ enrolment could complete on the checked-in dataset. Nothing had
+   ever written an LGD code before, so nothing caught it. The codes are now
+   `PEND-01-01`, and `test_every_code_fits_the_column_that_stores_it` asserts the
+   property, so a real LGD export that overflows fails a test rather than a form.
+2. **Every organisation field was optional**, because the columns are nullable —
+   an applicant could submit a profile with no address or entity type. Nullable
+   columns are right (an organisation exists before it enrols); the _form_ now
+   requires everything except GSTIN (government bodies have none) and address
+   line 2.
+3. **Auto-generated labels** read "Gst number", "Address line1", "Registered in
+   india". Set explicitly.
+4. **The review step printed raw Python** — `['EUA']`, `['HIP_M2']` — instead of
+   the labels the applicant chose, and titled the application's workflow state
+   "State" directly under the address's "State" field.
+
+### There is no OTP step, because A4 already put the gate in front of the wizard
+
+The ticket was written before [A4](A4-otp-service.md) landed with
+`VerificationRequiredMiddleware`. That middleware bounces any non-staff user
+whose email or phone is unverified to `users:verify_contacts` on _every_
+request, so a wizard-local `partials/otp_verify.html` would be unreachable code:
+you cannot open step 1 unverified, let alone submit. The AC "submit is blocked
+until both are set" is therefore satisfied structurally rather than by a step,
+and `test_unverified_contact_cannot_reach_the_wizard` asserts that gate really
+covers these URLs instead of assuming it does. Confirmed in the browser too: an
+unverified member signing in lands on the verification page and `/applications/new/`
+redirects straight back to it.
+
+### The draft is created at the details step, not the product step
+
+[A3](A3-applications-model.md)'s `create_draft` and `update_draft` both call
+`validate_payload`, so an `Application` row is always a complete, valid
+application — an empty draft cannot be written. The wizard therefore holds the
+product choice in the session for one step and creates the row once the payload
+form is valid; from that point on the draft is server-side and resumable.
+
+**Open question for A3:** if drafts are meant to hold half-finished work, the
+validation belongs on the `SUBMIT` transition rather than on every draft write.
+That would let step 3 be resumable mid-form too. Left alone here because it
+changes a landed ticket's contract and its tests — tracked as
+[open question 5](../00-master-plan.md#10-open-questions).
+
+### Validators say what they mean
+
+Legacy's `REGEX_FOR_NO_SPECIAL_CHARACTERS` was unanchored, so any string
+containing one acceptable run passed — `"ok<script>"` included. The replacements
+in `validators.py` are anchored. Two rules were deliberately not ported: the
+website regex (it rejected ports, paths and query strings, which is a bug, so
+Django's `URLValidator` does the job) and character-restricting free prose (it
+is why the legacy form rejected ordinary sentences; autoescaping is what makes
+output safe, not input filtering).
+
+### One live application per product, not per organisation
+
+The ticket says per (org, kind); A3's constraint is per (product, kind), so a
+second product legitimately gets its own application. The rule is enforced by
+the choices offered — `products_available_for()` excludes products with a live
+application — so the partial-unique constraint can never reach the user as a 500.
+
+### A new access rule in the route-gate matrix
+
+The pre-draft steps carry no object in the URL, so "wrong org → 404" is not the
+right assertion: every organisation member is entitled to their own copy of the
+screen. `Access.ORG_ENTRY` states that rule — any member gets in, an actor with
+no membership (all staff) gets 404, anonymous is sent to login. The steps that
+do name an application stay `ORG_SCOPED`.
 
 ## Out of scope (deferred)
 

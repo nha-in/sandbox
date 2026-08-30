@@ -85,16 +85,25 @@ Integrators progress through sandbox milestones by **self-declaration** (v0 has 
 
 ```python
 # declarations/services.py — atomic; audited
-def submit_milestone_declaration(*, application, milestone, payload, files, actor,
-                                 started_on=None, completed_on=None) -> Declaration:
+def submit_milestone_declaration(
+    *, application, milestone, payload, files, actor, started_on=None, completed_on=None
+) -> Declaration:
     """Guard: application must be PROVISIONED. Supersedes the previous claim,
     validates + stores files, computes sha256."""
 
-def submit_exit_declaration(*, application, milestones, payload, files, actor) -> Declaration: ...  # consumed by A8
+
+def submit_exit_declaration(
+    *, application, milestones, payload, files, actor
+) -> Declaration: ...  # consumed by A8
+
 
 # declarations/selectors.py
-def milestone_coverage(application) -> QuerySet[DeclarationMilestone]: ...  # current claims only
-def declaration_timeline(application) -> QuerySet[Declaration]: ...        # everything, newest first
+def milestone_coverage(
+    application,
+) -> QuerySet[DeclarationMilestone]: ...  # current claims only
+def declaration_timeline(
+    application,
+) -> QuerySet[Declaration]: ...  # everything, newest first
 ```
 
 - Route-gate row for the presigned-download GET — wrong org 404s. The upload POST arrives with [C8](C8-milestone-exit-forms.md), which owns the forms.

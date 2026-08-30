@@ -12,7 +12,7 @@ from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationReferenceCounter
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas import validate_payload
+from sandbox.applications.schemas import validate_envelope
 from sandbox.organisations.services import create_product
 from sandbox.utils.errors import DomainError
 
@@ -58,7 +58,7 @@ def create_draft(
         raise DomainError(message)
 
     payload = {"schema_version": _SCHEMA_VERSION, "data": data}
-    validate_payload(kind, payload)
+    validate_envelope(kind, payload)
     return Application.objects.create(
         reference=_next_reference(),
         kind=kind,
@@ -99,7 +99,7 @@ def update_draft(*, application: Application, data: dict[str, Any]) -> Applicati
         "schema_version": application.payload.get("schema_version"),
         "data": data,
     }
-    validate_payload(application.kind, payload)
+    validate_envelope(application.kind, payload)
     application.payload = payload
     application.save(update_fields=["payload", "modified_date"])
     return application

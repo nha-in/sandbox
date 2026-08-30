@@ -66,8 +66,16 @@ class Access(enum.StrEnum):
 class Route:
     access: Access
     kwargs: dict[str, Any] | Callable[[dict], dict] = field(default_factory=dict)
+    #: `reverse()` cannot build a query string, but the active organisation now
+    #: lives in one, so org-scoped rows have to supply it.
+    query: Callable[[dict], str] | str = ""
     methods: tuple[str, ...] = ("GET",)
     known_gap: str = ""
+
+
+def _org_a(context: dict) -> str:
+    """Every actor is sent at org A. Only its member may get in."""
+    return f"org={context[ORG_MEMBER].memberships.get().organisation.external_id}"
 
 
 def _member_pk(context: dict) -> dict:
@@ -138,7 +146,34 @@ ROUTES: dict[str, Route] = {
             "external_id (A2 acceptance criterion: integer PKs never in URLs)."
         ),
     ),
-    "organisations:switch": Route(Access.AUTHENTICATED, methods=("GET", "POST")),
+    # The front door: any signed-in user with no tenant needs to be able to make
+    # one, or their account is a dead end.
+    "organisations:create": Route(Access.AUTHENTICATED, methods=("GET",)),
+    "organisations:choose": Route(Access.AUTHENTICATED),
+    "organisations:district_options": Route(Access.AUTHENTICATED),
+    "organisations:profile": Route(
+        Access.ORG_SCOPED,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    # Enrolment wizard (C4). Every screen names its tenant in `?org=`, so the
+    # rule is the same whether or not the URL also names an application.
+    "applications:new": Route(Access.ORG_SCOPED, query=_org_a),
+    "applications:step_product": Route(
+        Access.ORG_SCOPED,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "applications:step_details": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
+    "applications:step_review": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
     # Console (C5). Staff-only; an org member must be refused even for their own
     # application, because the console is a different surface, not a nicer view.
     "console:queue": Route(Access.CONSOLE),
@@ -158,6 +193,7 @@ ROUTES: dict[str, Route] = {
     "declarations:document_download": Route(
         Access.ORG_SCOPED,
         kwargs=_document_id,
+        query=_org_a,
     ),
 }
 
@@ -189,7 +225,9 @@ def _redirects_to_login(response) -> bool:
 
 def _resolve(name: str, route: Route, context: dict) -> str:
     kwargs = route.kwargs(context) if callable(route.kwargs) else route.kwargs
-    return reverse(name, kwargs=kwargs)
+    url = reverse(name, kwargs=kwargs)
+    query = route.query(context) if callable(route.query) else route.query
+    return f"{url}?{query}" if query else url
 
 
 # Drift: the matrix cannot silently fall behind the URLconf

@@ -53,12 +53,30 @@ def test_create_draft_rejects_non_sandbox_kind():
         _create_sandbox_draft(product, applicant, kind=ApplicationKind.HCX)
 
 
-def test_create_draft_rejects_invalid_payload():
+def test_create_draft_accepts_incomplete_answers():
+    """A draft holds work in progress; completeness is SUBMIT's problem."""
+    product = ProductFactory.create()
+    applicant = UserFactory.create()
+
+    application = _create_sandbox_draft(product, applicant, data={})
+
+    assert application.state == ApplicationState.DRAFT
+    assert application.payload == {"schema_version": 1, "data": {}}
+
+
+def test_create_draft_rejects_an_unrenderable_schema_version():
+    """The answers may be missing; the envelope around them may not be broken."""
     product = ProductFactory.create()
     applicant = UserFactory.create()
 
     with pytest.raises(DomainError):
-        _create_sandbox_draft(product, applicant, data={})
+        create_draft(
+            organisation=product.organisation,
+            product=product,
+            applicant=applicant,
+            kind="NOT_A_KIND",
+            data={},
+        )
 
 
 def test_create_draft_rejects_a_product_from_another_organisation():
@@ -100,7 +118,7 @@ def test_create_draft_creates_the_product_when_given_a_name():
     assert application.product.organisation == organisation
 
 
-def test_create_draft_does_not_leave_an_orphan_product_when_the_payload_is_invalid():
+def test_create_draft_does_not_leave_an_orphan_product_when_the_kind_is_invalid():
     organisation = OrganisationFactory.create()
     applicant = UserFactory.create()
 
@@ -109,8 +127,8 @@ def test_create_draft_does_not_leave_an_orphan_product_when_the_payload_is_inval
             organisation=organisation,
             product_name="Never Persisted",
             applicant=applicant,
-            kind=ApplicationKind.SANDBOX,
-            data={},
+            kind=ApplicationKind.HCX,
+            data=dict(VALID_SANDBOX_DATA),
         )
 
     assert not Product.objects.filter(name="Never Persisted").exists()
@@ -153,8 +171,9 @@ def test_update_draft_rejected_once_submitted():
         update_draft(application=application, data=dict(VALID_SANDBOX_DATA))
 
 
-def test_update_draft_rejects_invalid_payload():
+def test_update_draft_accepts_incomplete_answers():
     application = ApplicationFactory.create(state=ApplicationState.DRAFT)
 
-    with pytest.raises(DomainError):
-        update_draft(application=application, data={})
+    updated = update_draft(application=application, data={})
+
+    assert updated.payload["data"] == {}

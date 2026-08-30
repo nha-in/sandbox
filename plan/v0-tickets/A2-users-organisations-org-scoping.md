@@ -84,6 +84,7 @@ This mixin is the authz backbone of the whole portal — everything integrator-f
 class OrganisationScopedQuerySet(models.QuerySet):
     def for_organisation(self, organisation: Organisation) -> Self: ...
 
+
 # organisations/mixins.py — base for every integrator-facing view
 class OrganisationMixin:
     """Resolves the active org from session membership; exposes self.organisation.

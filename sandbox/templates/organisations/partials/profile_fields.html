@@ -1,0 +1,24 @@
+{% load i18n careui %}
+
+{% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+{% if form.name %}
+  {% ui_field form.name %}
+  {% ui_field form.kind %}
+{% endif %}
+{% ui_field form.nature_of_entity %}
+{% ui_field form.ownership %}
+{% ui_field form.category %}
+{% ui_field form.gst_number %}
+{% ui_field form.registered_in_india %}
+{% ui_field form.website %}
+{% ui_field form.address_line1 %}
+{% ui_field form.address_line2 %}
+{% ui_field form.address_city %}
+{% ui_field form.address_pincode %}
+<div>
+  <label class="ui-label" for="{{ form.lgd_state_code.id_for_label }}">{{ form.lgd_state_code.label }}</label>
+  {# htmx swaps the district options in place; "Load districts" does the same without JS. #}
+  {% ui_widget form.lgd_state_code %}
+  {% for error in form.lgd_state_code.errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+</div>
+{% include "organisations/partials/district_select.html" %}

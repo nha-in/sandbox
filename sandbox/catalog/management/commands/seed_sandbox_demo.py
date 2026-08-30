@@ -27,10 +27,15 @@ from sandbox.applications.schemas.sandbox import IntegrationIntent
 from sandbox.applications.schemas.sandbox import PayerCategory
 from sandbox.applications.schemas.sandbox import SolutionType
 from sandbox.applications.services import create_draft
+from sandbox.catalog.selectors import districts_for_state
+from sandbox.catalog.selectors import state_choices
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import MembershipRole
+from sandbox.organisations.models import NatureOfEntity
 from sandbox.organisations.models import Organisation
+from sandbox.organisations.models import OrganisationCategory
 from sandbox.organisations.models import OrganisationKind
+from sandbox.organisations.models import OrganisationOwnership
 from sandbox.organisations.models import Product
 from sandbox.workflow.machine import Action
 from sandbox.workflow.models import ReviewDecision
@@ -115,6 +120,24 @@ ROUND_TWO_PATH: list[Step] = [
     (Action.SEND_BACK, "admin"),
     (Action.SUBMIT, "owner"),
 ]
+
+
+def _demo_profile(address_line1: str, city: str, pincode: str) -> dict:
+    """A complete profile — organisations can no longer be created without one."""
+    state_code, _state_name = state_choices()[0]
+    district_code, _district_name = districts_for_state(state_code)[0]
+    return {
+        "nature_of_entity": NatureOfEntity.COMPANY,
+        "ownership": OrganisationOwnership.PRIVATE,
+        "category": OrganisationCategory.HEALTHCARE_SOLUTION_PROVIDER,
+        "registered_in_india": True,
+        "website": "https://example.test",
+        "address_line1": address_line1,
+        "address_city": city,
+        "address_pincode": pincode,
+        "lgd_state_code": state_code,
+        "lgd_district_code": district_code,
+    }
 
 
 class Command(BaseCommand):
@@ -242,6 +265,7 @@ class Command(BaseCommand):
             defaults={
                 "name": "Demo Integrator Network",
                 "kind": OrganisationKind.ORGANIZATION,
+                **_demo_profile("12/A, MG Road", "Kochi", "682001"),
             },
         )
         other_org, _ = Organisation.objects.get_or_create(
@@ -249,8 +273,18 @@ class Command(BaseCommand):
             defaults={
                 "name": "Rival Health Systems",
                 "kind": OrganisationKind.ORGANIZATION,
+                **_demo_profile("44, Residency Road", "Bengaluru", "560025"),
             },
         )
+        # Orgs seeded before profiles were mandatory would otherwise stay blank.
+        for organisation, line1, city, pincode in (
+            (demo_org, "12/A, MG Road", "Kochi", "682001"),
+            (other_org, "44, Residency Road", "Bengaluru", "560025"),
+        ):
+            if not organisation.address_line1:
+                for field, value in _demo_profile(line1, city, pincode).items():
+                    setattr(organisation, field, value)
+                organisation.save()
 
         memberships = (
             (demo_org, users["owner"], MembershipRole.OWNER),

@@ -59,6 +59,10 @@ PERM_REVIEW = "workflow.review_application"
 PERM_SEND_BACK = "workflow.send_back_application"
 PERM_RETRY_PROVISIONING = "workflow.retry_provisioning"
 
+#: Resolved against the guard registry in services.py. A draft is allowed to be
+#: incomplete; submitting it is the point at which it must not be.
+GUARD_PAYLOAD_COMPLETE = "payload_complete"
+
 
 @dataclass(frozen=True, slots=True)
 class Spec:
@@ -67,6 +71,8 @@ class Spec:
     permission: str = ""
     #: names resolved against the hook registry at commit time (B7/B8 register)
     hooks: tuple[str, ...] = field(default_factory=tuple)
+    #: name resolved against the guard registry, run inside the transaction
+    guard: str = ""
     #: A6 records this decision's text on the review row, so the transition
     #: must not carry a comment too (03-database.md: "single home for the text").
     review_driven: bool = False
@@ -76,8 +82,16 @@ S = ApplicationState
 
 TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
     # Apply
-    (S.DRAFT, Action.SUBMIT): Spec(S.SUBMITTED, ActorKind.OWNER),
-    (S.SENT_BACK, Action.SUBMIT): Spec(S.SUBMITTED, ActorKind.OWNER),
+    (S.DRAFT, Action.SUBMIT): Spec(
+        S.SUBMITTED,
+        ActorKind.OWNER,
+        guard=GUARD_PAYLOAD_COMPLETE,
+    ),
+    (S.SENT_BACK, Action.SUBMIT): Spec(
+        S.SUBMITTED,
+        ActorKind.OWNER,
+        guard=GUARD_PAYLOAD_COMPLETE,
+    ),
     (S.DRAFT, Action.WITHDRAW): Spec(S.WITHDRAWN, ActorKind.OWNER),
     (S.SUBMITTED, Action.WITHDRAW): Spec(S.WITHDRAWN, ActorKind.OWNER),
     (S.SENT_BACK, Action.WITHDRAW): Spec(S.WITHDRAWN, ActorKind.OWNER),

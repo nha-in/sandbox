@@ -65,11 +65,11 @@ To rehearse a failure — the `PROVISIONING_FAILED` screen, a retry button, a sl
 from sandbox.integrations import fakes
 from sandbox.integrations.ports import ExternalSystem
 
-fakes.fail_next(ExternalSystem.WSO2, "create_application")   # fails once, then clears
-fakes.always_fail(ExternalSystem.HIECM, retryable=False)     # until clear_failures()
-fakes.set_latency(ExternalSystem.KEYCLOAK, 3.0)              # seconds, every call
+fakes.fail_next(ExternalSystem.WSO2, "create_application")  # fails once, then clears
+fakes.always_fail(ExternalSystem.HIECM, retryable=False)  # until clear_failures()
+fakes.set_latency(ExternalSystem.KEYCLOAK, 3.0)  # seconds, every call
 fakes.clear_failures(ExternalSystem.HIECM)
-fakes.reset_fakes()                                          # drop all fake state
+fakes.reset_fakes()  # drop all fake state
 ```
 
 Tests reset the fakes automatically (autouse fixture in `sandbox/conftest.py`). To point an environment at a real system instead, set the matching env var to a dotted path — `INTEGRATION_IDP=sandbox.integrations.keycloak.adapter.KeycloakIdpAdmin`.

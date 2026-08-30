@@ -35,14 +35,27 @@ v2 replaces all of that with an explicit, audited state machine with **exactly o
 # applications/models.py (A3) — workflow FKs to applications, never the
 # reverse, so the enum lives here; workflow imports it rather than redefining it
 class ApplicationState(models.TextChoices):
-    DRAFT, SUBMITTED,
-    SANDBOX_APPROVED, PROVISIONING, PROVISIONED, PROVISIONING_FAILED,
-    REJECTED, SENT_BACK,
+    (
+        DRAFT,
+        SUBMITTED,
+    )
+    (
+        SANDBOX_APPROVED,
+        PROVISIONING,
+        PROVISIONED,
+        PROVISIONING_FAILED,
+    )
+    (
+        REJECTED,
+        SENT_BACK,
+    )
     EXIT_REQUESTED, EXIT_REVIEW, PRODUCTION_APPROVED, EXIT_REJECTED, WITHDRAWN
+
 
 # workflow/machine.py — the table is DATA: console and tests introspect it
 # Spec = target state + guard callable + required Django permission + side-effect hooks
 TRANSITIONS: dict[tuple[ApplicationState, Action], Spec]
+
 
 # workflow/services.py — the ONLY state writer in the system
 def transition(application, action, actor, comment="") -> WorkflowTransition: ...
