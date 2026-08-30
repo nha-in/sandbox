@@ -47,6 +47,7 @@ The panel lives in the [C6](C6-integrator-dashboard.md) dashboard slot and mirro
 - [ ] Polling stops at terminal states; JS-disabled pass green for reveal + rotate + status.
 - [ ] Wrong org 404; staff have no reveal route (matrix rows).
 - [ ] Staging: credentials from the panel obtain a Keycloak token and call a sandbox API through WSO2 (V0.3 exit evidence with [B7](B7-provisioning-chain.md)).
+- [ ] Staging: **the same call still works after a rotation.** Rotate touches Keycloak only; [B4](B4-wso2-adapter.md)'s `map_keys` left WSO2 holding a copy of the old secret, and WSO2-side rotation is deferred to P4. Expected to be harmless because the gateway validates the JWT rather than the secret — but unverified, and if wrong, rotation bricks a live integrator.
 
 ## Out of scope (deferred)
 
