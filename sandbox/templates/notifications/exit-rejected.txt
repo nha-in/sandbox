@@ -1,0 +1,9 @@
+Hello {{ applicant }},
+
+Your request to take {{ reference }} ({{ product }}) to production was rejected.
+
+Reviewer's note:
+
+    {{ comment|default:"No note was recorded." }}
+
+Your sandbox access is unaffected.

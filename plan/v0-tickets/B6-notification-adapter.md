@@ -81,11 +81,39 @@ def send_notification(message_id: int) -> None:
 
 ## Acceptance criteria
 
-- [ ] All v0 template keys mapped + a rendered-params test per template.
-- [ ] Enqueue-on-commit proven (rollback ⇒ no row, no task); Celery retry/backoff and terminal FAILED path tested.
-- [ ] Contract test against WireMock fixture; timeout (5s) + breaker verified via fault injection.
-- [ ] No secret ever appears in params/log (assertion + review); credentials email contains a portal link, not credentials.
-- [ ] Offline: fake gateway ([B2](B2-fake-adapters.md)) routes to Mailpit; delivery log rows written identically.
+- [x] All v0 template keys mapped + a rendered-params test per template (parametrised over all six; asserts every param reaches the body and no `{{` survives).
+- [x] Enqueue-on-commit proven (rollback ⇒ no row, no task); Celery retry/backoff and terminal FAILED path tested.
+- [ ] Contract test against WireMock fixture; timeout (5s) + breaker verified via fault injection — **partly done**. Timeout, breaker, and the 4xx-off-the-breaker rule are asserted against a recording stub transport; the WireMock suite itself is [B9](B9-wiremock-fault-injection-suite.md).
+- [x] No secret ever appears in params/log (deny-list, asserted, applied recursively); the approval email carries a portal link, not credentials.
+- [x] Offline: fake gateway ([B2](B2-fake-adapters.md)) routes to Mailpit; delivery log rows written identically.
+- [ ] Verified end-to-end against the real notification service — **blocked on NHA**: we have no template ids for our tenant, and no SMS provider endpoint.
+
+### Decisions worth knowing
+
+- **The model is `Message`, not `NotificationMessage`.** The table is specified as
+  `notifications_message` ([03-database.md §3.4](../03-database.md)), which is the
+  default for `Message` in the `notifications` app; and
+  `ports.NotificationMessage` already means the DTO crossing the port.
+- **`send-otp` is logged but not queued.** The log records that a code went to an
+  address and whether it landed; `params` stays empty, because the only param is
+  the live code. Legacy stored the *rendered* body, so `notification_audit` still
+  holds every OTP it ever sent. The code cannot simply be moved off the row
+  either: `CELERY_RESULT_EXTENDED` puts task kwargs in the Redis result backend
+  and `CELERY_TASK_SEND_SENT_EVENT` broadcasts them to any monitor, and parking
+  the plaintext in the OTP cache would defeat the HMAC digest that is there so a
+  stolen cache is not brute-forceable. So `otp.service` calls
+  `notifications.send_now()` — inline, logged, no retry. Retry buys little here:
+  the code expires in `OTP_TTL_SECONDS`, a delayed attempt would deliver a dead
+  one, and resend already mints a fresh code.
+- **The notification-DB service is gone.** Legacy fetched every template *body*
+  at send time from a second service and substituted `var1` locally. Bodies are
+  Django templates here; only the gateway template id still travels.
+- **HTTP-level retry is off for the send.** A retried POST is a second email, so
+  `IntegrationClient` gets one attempt and `send_notification` owns retry — it
+  can see, from the row, whether the previous attempt settled.
+- **`credentials_url` was renamed `panel_url`.** The params deny-list matches
+  `credential` as a substring; a params name that has to be argued about is worth
+  changing instead.
 
 ## Out of scope (deferred)
 

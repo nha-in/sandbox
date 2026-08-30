@@ -11,8 +11,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from sandbox.integrations.ports import NotificationChannel
-from sandbox.integrations.ports import NotificationMessage
-from sandbox.integrations.registry import get_notification_gateway
+from sandbox.notifications.services import send_now
 
 _CHALLENGE_KEY = "otp:challenge:{transaction_id}"
 _IDENTITY_KEY = "otp:identity:{identity}"
@@ -75,13 +74,14 @@ def send_otp(
         ttl + _CACHE_SLACK_SECONDS,
     )
 
-    get_notification_gateway().send(
-        NotificationMessage(
-            template="send-otp",
-            to=identity,
-            context={"code": code},
-            channel=channel,
-        ),
+    # `send_now`, not `enqueue`: the delivery log records that a code went to
+    # this address and whether it landed, but never the code. Legacy logged the
+    # rendered body, so `notification_audit` still holds every OTP it ever sent.
+    send_now(
+        template_key="send-otp",
+        recipient=identity,
+        context={"code": code},
+        channel=channel,
     )
     return OtpChallenge(transaction_id=transaction_id)
 

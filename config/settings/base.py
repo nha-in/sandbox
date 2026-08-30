@@ -108,6 +108,7 @@ LOCAL_APPS = [
     "sandbox.workflow",
     "sandbox.audit",
     "sandbox.integrations",
+    "sandbox.notifications",
     "sandbox.console",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -462,6 +463,73 @@ HIECM_SESSION_PATH = env.str("HIECM_SESSION_PATH", default="/sessions")
 HIECM_CLIENT_ID = env.str("HIECM_CLIENT_ID", default="")
 HIECM_CLIENT_SECRET = env.str("HIECM_CLIENT_SECRET", default="")
 HIECM_CM_ID = env.str("HIECM_CM_ID", default="sbx")
+
+# NOTIFICATIONS (B6)
+# ------------------------------------------------------------------------------
+# ABDM's notification service. Internal, unauthenticated on the cluster, which is
+# how legacy's Feign client reached it (`NotificationFClient`).
+NOTIFICATION_BASE_URL = env.str(
+    "NOTIFICATION_BASE_URL",
+    default="https://notify.invalid",
+)
+NOTIFICATION_MESSAGE_PATH = env.str(
+    "NOTIFICATION_MESSAGE_PATH",
+    default="/internal/v3/notification/message",
+)
+NOTIFICATION_ORIGIN = env.str("NOTIFICATION_ORIGIN", default="sandbox")
+NOTIFICATION_SENDER = env.str("NOTIFICATION_SENDER", default="ABDM Sandbox")
+NOTIFICATION_READ_TIMEOUT_SECONDS = env.float(
+    "NOTIFICATION_READ_TIMEOUT_SECONDS",
+    default=5.0,
+)
+# Template key -> the provider's template id. Legacy carried the same six as
+# `template-id.*` properties; NHA has not yet given us the ids for our tenant, so
+# a key with no id fails loudly at send time rather than mailing a blank body.
+NOTIFICATION_TEMPLATE_IDS = {
+    "send-otp": env.str("NOTIFICATION_TEMPLATE_SEND_OTP", default=""),
+    "sandbox-approved": env.str("NOTIFICATION_TEMPLATE_SANDBOX_APPROVED", default=""),
+    "sandbox-rejected": env.str("NOTIFICATION_TEMPLATE_SANDBOX_REJECTED", default=""),
+    "exit-sent-back": env.str("NOTIFICATION_TEMPLATE_EXIT_SENT_BACK", default=""),
+    "exit-rejected": env.str("NOTIFICATION_TEMPLATE_EXIT_REJECTED", default=""),
+    "production-approved": env.str(
+        "NOTIFICATION_TEMPLATE_PRODUCTION_APPROVED",
+        default="",
+    ),
+}
+# Carried verbatim from SandboxConstant's *_MAIL_SUBJECT constants, minus the
+# trailing colons legacy left dangling on the production ones.
+NOTIFICATION_SUBJECTS = {
+    "send-otp": "Sandbox: Email Verification OTP",
+    "sandbox-approved": "Application Approved: ABDM Sandbox Integration",
+    "sandbox-rejected": "ABDM Sandbox Application: Rejected",
+    "exit-sent-back": "ABDM Sandbox Application: Sent Back",
+    "exit-rejected": "ABDM Sandbox Application: Exit Rejected",
+    "production-approved": (
+        "ABDM Application Approved: Eligible to move to Production Environment"
+    ),
+}
+# Delivery retries. `attempts` on the row is the bound, not Celery's max_retries.
+NOTIFICATION_MAX_ATTEMPTS = env.int("NOTIFICATION_MAX_ATTEMPTS", default=5)
+NOTIFICATION_RETRY_BACKOFF_SECONDS = env.int(
+    "NOTIFICATION_RETRY_BACKOFF_SECONDS",
+    default=10,
+)
+NOTIFICATION_RETRY_BACKOFF_MAX_SECONDS = env.int(
+    "NOTIFICATION_RETRY_BACKOFF_MAX_SECONDS",
+    default=600,
+)
+# Bounded so a verbose upstream error cannot bloat the log table.
+NOTIFICATION_ERROR_MAX_CHARS = 2000
+# Where an approval email points. C7's show-once panel takes this over; the
+# approval mail must never carry the credentials themselves.
+NOTIFICATION_PORTAL_BASE_URL = env.str(
+    "NOTIFICATION_PORTAL_BASE_URL",
+    default="http://localhost:8000",
+)
+NOTIFICATION_CREDENTIALS_ROUTE = env.str(
+    "NOTIFICATION_CREDENTIALS_ROUTE",
+    default="applications:step_review",
+)
 
 # OTP
 # ------------------------------------------------------------------------------
