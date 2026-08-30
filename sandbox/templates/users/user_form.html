@@ -1,30 +1,28 @@
-{% extends "layouts/app.html" %}
+{% extends "layouts/settings.html" %}
 
 {% load careui i18n %}
 
 {% block title %}
   {% translate "Edit profile" %}
 {% endblock title %}
-{% block content %}
-  <div class="mx-auto w-full max-w-xl">
-    <div class="ui-card">
-      <div class="ui-card-header">
-        <h1 class="ui-card-title">{% translate "Edit profile" %}</h1>
-      </div>
-      <form method="post" action="{% url 'users:update' %}">
-        {% csrf_token %}
-        <div class="ui-card-content flex flex-col gap-4">
-          {% include "components/form_errors.html" %}
-          {% for field in form %}
-            {% ui_field field %}
-          {% endfor %}
-        </div>
-        <div class="ui-card-footer">
-          <a class="ui-btn ui-btn--secondary"
-             href="{% url 'users:detail' request.user.external_id %}">{% translate "Cancel" %}</a>
-          <button type="submit" class="ui-btn ui-btn--default">{% translate "Save" %}</button>
-        </div>
-      </form>
+{% block settings_content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h1 class="ui-card-title">{% translate "Edit profile" %}</h1>
     </div>
+    <form method="post" action="{% url 'users:update' %}">
+      {% csrf_token %}
+      <div class="ui-card-content flex flex-col gap-4">
+        {% include "components/form_errors.html" %}
+        {% for field in form %}
+          {% ui_field field %}
+        {% endfor %}
+      </div>
+      <div class="ui-card-footer">
+        <a class="ui-btn ui-btn--secondary"
+           href="{% url 'users:detail' request.user.external_id %}">{% translate "Cancel" %}</a>
+        <button type="submit" class="ui-btn ui-btn--default">{% translate "Save" %}</button>
+      </div>
+    </form>
   </div>
-{% endblock content %}
+{% endblock settings_content %}

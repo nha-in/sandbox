@@ -2,10 +2,6 @@
 
 {% load i18n %}
 
-{% block nav_items %}
-  <a class="ui-nav-link ui-nav-link--active"
-     href="{% url 'console:queue' %}">{% translate "Queue" %}</a>
-{% endblock nav_items %}
 {% block content %}
   <div class="mb-6 flex flex-wrap gap-2">
     <a class="ui-badge {% if not selected_state %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"

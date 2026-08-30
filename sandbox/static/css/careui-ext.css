@@ -1,0 +1,230 @@
+/**
+ * careui extensions — primitives the ABDM sandbox needs that careui does not ship.
+ *
+ * Separate from careui.css on purpose: that file is kept byte-identical to its
+ * copy in ohcnetwork/experience so fixes travel between the two repos. Nothing
+ * here may be moved into it.
+ *
+ * Declared with `@utility` rather than inside `@layer components`, per
+ * 02-ui.md §3.1 — Tailwind v4 will not let another rule `@apply` a class that
+ * was composed inside a components layer.
+ *
+ * Everything below is a div with a width. The prototype's charts are too
+ * (plan/design/README.md), so no chart library is implied and none is added.
+ */
+
+/* ── Sidebar rail ────────────────────────────────────────────────────────── */
+
+/* The rail itself. Off-canvas below md, static from md up.
+
+   The transform deliberately stays in the template, not here: it is three
+   competing `translate-x` utilities (base, `peer-checked:`, `md:`) and Tailwind
+   only orders them correctly when it can see all three as siblings. Folding one
+   of them into this rule made the rail sit off-screen at desktop, because a
+   plain `-translate-x-full` on the element outranked an `md:translate-x-0`
+   buried inside an @apply. */
+@utility ui-sidebar {
+  @apply fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r px-3 py-4;
+  @apply transition-transform duration-200 md:static md:w-[228px] md:shrink-0;
+}
+
+@utility ui-sidebar-group {
+  @apply flex flex-col gap-0.5;
+}
+
+@utility ui-sidebar-label {
+  @apply px-2.5 pt-4 pb-1 text-[10.5px] font-bold tracking-[0.09em] text-soft-foreground uppercase;
+}
+
+@utility ui-sidebar-link {
+  @apply flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors;
+  @apply hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground;
+  @apply focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none;
+}
+
+@utility ui-sidebar-link--active {
+  @apply bg-sidebar-accent font-semibold text-sidebar-accent-foreground;
+}
+
+@utility ui-sidebar-badge {
+  @apply shrink-0 rounded-full bg-muted-background px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums text-muted-foreground;
+}
+
+/* ── Breadcrumb ──────────────────────────────────────────────────────────── */
+
+@utility ui-breadcrumb {
+  @apply flex flex-wrap items-center gap-1.5 text-[12.5px] text-soft-foreground;
+}
+
+@utility ui-breadcrumb-sep {
+  @apply text-border select-none;
+}
+
+/* ── Journey stepper (horizontal) ────────────────────────────────────────── */
+
+@utility ui-stepper {
+  @apply flex flex-wrap items-start gap-x-2 gap-y-3;
+}
+
+@utility ui-stepper-step {
+  @apply flex min-w-0 flex-1 basis-28 flex-col items-start gap-1.5 text-[11.5px];
+}
+
+@utility ui-stepper-step--done {
+  @apply text-muted-foreground;
+}
+
+@utility ui-stepper-step--current {
+  @apply font-semibold text-foreground;
+}
+
+@utility ui-stepper-step--todo {
+  @apply text-soft-foreground;
+}
+
+/* The connector: a 2px rule that carries the state colour. */
+@utility ui-stepper-track {
+  @apply h-0.5 w-full rounded-full bg-border;
+}
+
+@utility ui-stepper-track--done {
+  @apply bg-primary;
+}
+
+@utility ui-stepper-track--current {
+  @apply bg-primary/40;
+}
+
+/* ── Journey rail (vertical variant) ─────────────────────────────────────── */
+
+@utility ui-rail {
+  @apply flex flex-col;
+}
+
+@utility ui-rail-step {
+  @apply flex items-start gap-3 border-l-2 border-border py-2 pl-3 text-[13px];
+}
+
+@utility ui-rail-step--done {
+  @apply border-primary text-muted-foreground;
+}
+
+@utility ui-rail-step--current {
+  @apply border-primary font-semibold text-foreground;
+}
+
+@utility ui-rail-step--todo {
+  @apply text-soft-foreground;
+}
+
+/* ── Stat tile ───────────────────────────────────────────────────────────── */
+
+@utility ui-stat {
+  @apply flex flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3;
+}
+
+@utility ui-stat-value {
+  @apply text-2xl leading-none font-semibold tabular-nums text-foreground;
+}
+
+@utility ui-stat-label {
+  @apply text-[11.5px] font-medium tracking-wide text-soft-foreground uppercase;
+}
+
+@utility ui-stat-delta {
+  @apply text-[11.5px] font-medium text-muted-foreground;
+}
+
+@utility ui-stat-delta--up {
+  @apply text-green-700 dark:text-green-400;
+}
+
+@utility ui-stat-delta--down {
+  @apply text-red-700 dark:text-red-400;
+}
+
+/* ── Meter ───────────────────────────────────────────────────────────────── */
+
+@utility ui-meter {
+  @apply h-1.5 w-full overflow-hidden rounded-full bg-muted-background;
+}
+
+@utility ui-meter-bar {
+  @apply h-full rounded-full bg-primary transition-[width];
+}
+
+@utility ui-meter-bar--ok {
+  @apply bg-primary;
+}
+
+@utility ui-meter-bar--warn {
+  @apply bg-amber-500;
+}
+
+@utility ui-meter-bar--idle {
+  @apply bg-strong-border;
+}
+
+/* ── Key / value row ─────────────────────────────────────────────────────── */
+
+@utility ui-kv {
+  @apply flex items-center justify-between gap-3 border-b border-border py-2 last:border-b-0;
+}
+
+@utility ui-kv-key {
+  @apply shrink-0 text-[11px] font-semibold tracking-[0.07em] text-soft-foreground uppercase;
+}
+
+@utility ui-kv-value {
+  @apply min-w-0 truncate text-[13px] text-foreground;
+}
+
+/* ── Status dot ──────────────────────────────────────────────────────────── */
+
+@utility ui-dot {
+  @apply inline-block size-[7px] shrink-0 rounded-full bg-strong-border;
+}
+
+@utility ui-dot--ok {
+  @apply bg-green-600;
+}
+
+@utility ui-dot--warn {
+  @apply bg-amber-500;
+}
+
+@utility ui-dot--fail {
+  @apply bg-red-600;
+}
+
+@utility ui-dot--idle {
+  @apply bg-strong-border;
+}
+
+/* ── Log block ───────────────────────────────────────────────────────────── */
+
+@utility ui-log {
+  @apply overflow-x-auto rounded-md border border-border bg-muted-background p-3 font-mono text-[12px] leading-relaxed whitespace-pre-wrap text-muted-foreground;
+}
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+
+@utility ui-timeline {
+  @apply flex flex-col gap-3;
+}
+
+@utility ui-timeline-item {
+  @apply flex items-start gap-2.5 text-[13px];
+}
+
+/* ── Empty / locked state ────────────────────────────────────────────────── */
+
+@utility ui-empty {
+  @apply flex flex-col items-center gap-1 rounded-lg border border-dashed border-strong-border px-4 py-8 text-center text-[13px] text-soft-foreground;
+}
+
+/* ── Code chip ───────────────────────────────────────────────────────────── */
+
+@utility ui-code-chip {
+  @apply inline-flex items-center rounded border border-border bg-muted-background px-1.5 py-0.5 font-mono text-[11.5px] text-muted-foreground;
+}

@@ -353,6 +353,9 @@
 }
 
 @import "./careui.css";
+/* Sandbox-only primitives. Never fold these into careui.css — it is kept
+   byte-identical to ohcnetwork/experience so fixes can travel both ways. */
+@import "./careui-ext.css";
 
 @layer components {
   /* Skip link — visible only when focused via keyboard. */

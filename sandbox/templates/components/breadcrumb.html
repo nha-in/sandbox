@@ -1,0 +1,23 @@
+{% comment %}
+  Breadcrumb bar above the page title.
+
+  Context: breadcrumbs — a list of {"label": str, "url": str|None}. The last
+  entry is the current page and renders as plain text; anything with no url
+  does too. Renders nothing at all when the list is empty, so a screen that has
+  not been given crumbs shows no empty bar.
+{% endcomment %}
+{% load i18n %}
+
+{% if breadcrumbs %}
+  <nav class="ui-breadcrumb mb-2" aria-label="{% translate 'Breadcrumb' %}">
+    {% for crumb in breadcrumbs %}
+      {% if not forloop.first %}<span class="ui-breadcrumb-sep" aria-hidden="true">/</span>{% endif %}
+      {% if crumb.url and not forloop.last %}
+        <a class="hover:text-foreground hover:underline" href="{{ crumb.url }}">{{ crumb.label }}</a>
+      {% else %}
+        <span {% if forloop.last %}aria-current="page"{% endif %}
+              class="font-medium text-muted-foreground">{{ crumb.label }}</span>
+      {% endif %}
+    {% endfor %}
+  </nav>
+{% endif %}

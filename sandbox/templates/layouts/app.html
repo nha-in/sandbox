@@ -3,54 +3,79 @@
 {% load i18n %}
 
 {% comment %}
-  Integrator shell: everything an organisation's own users see. Screens set
-  `page_title`/`page_subtitle` in context and fill `page_actions`/`content`;
-  nav entries arrive with their apps.
+  Integrator shell: everything an organisation's own users see. A 228px sidebar
+  rail beside a soft-canvas content column, as
+  plan/design/mockups/01-integrator-overview.png draws it.
+
+  Below md the rail becomes a slide-in drawer. The drawer is a checkbox and two
+  <label>s, so it opens and closes with JavaScript disabled; the script only
+  adds Escape-to-close and closes it after a tap on a link.
+
+  Screens set `page_title`/`page_subtitle`/`breadcrumbs` in context and fill
+  `page_actions`/`content`. Nav entries arrive with their apps
+  (components/app_nav.html).
+
+  <main id="main-content"> is the boost target: the nav asks htmx to keep just
+  that element from an ordinary whole-page response and swap it in. The id has
+  to stay, and everything that changes from page to page has to live inside it —
+  which is why messages sit here rather than beside the column.
 {% endcomment %}
 {% block body %}
-  <div class="flex min-h-screen flex-col">
-    <header class="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-4 sm:px-8">
-      <div class="flex items-center gap-8">
-        <a href="{% url 'home' %}"
-           class="text-sm font-semibold tracking-tight text-foreground">ABDM Sandbox</a>
-        <nav class="hidden items-center gap-1 md:flex"
-             aria-label="{% translate 'Primary' %}">
-          {% block nav_items %}
-            {% if is_organisation_member %}
-              <a class="ui-nav-link"
-                 href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Dashboard" %}</a>
-              <a class="ui-nav-link"
-                 href="{% url 'organisations:profile' %}{{ org_query }}">{% translate "Organisation" %}</a>
-            {% elif request.user.is_authenticated and not request.user.is_staff %}
-              <a class="ui-nav-link" href="{% url 'organisations:create' %}">{% translate "Create your organisation" %}</a>
-            {% endif %}
-          {% endblock nav_items %}
-        </nav>
-      </div>
-      <div class="flex items-center gap-2">
-        {# The org name is the affordance: gating it on >1 membership left a #}
-        {# one-org user unable to reach the list, and so unable to add a second. #}
-        {% if is_organisation_member and request.resolver_match.view_name != "organisations:choose" %}
-          <a class="ui-nav-link text-muted-foreground"
-             href="{% url 'organisations:choose' %}?next={{ request.get_full_path|urlencode }}">
-            {% firstof active_organisation.name _("Organisations") %}
-          </a>
-        {% elif active_organisation %}
-          <span class="ui-nav-link text-muted-foreground">{{ active_organisation.name }}</span>
-        {% endif %}
-        {% if request.user.is_authenticated %}
-          <a class="ui-nav-link"
-             href="{% url 'users:detail' request.user.external_id %}">{{ request.user.email }}</a>
-          <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-             href="{% url 'account_logout' %}">{% translate "Sign out" %}</a>
-        {% else %}
-          <a class="ui-btn ui-btn--default ui-btn--size-sm"
-             href="{% url 'account_login' %}">{% translate "Sign in" %}</a>
-        {% endif %}
-      </div>
+  <div class="flex min-h-screen flex-col md:flex-row">
+    <input type="checkbox"
+           id="app-drawer"
+           class="peer sr-only"
+           tabindex="-1"
+           aria-hidden="true" />
+    <header class="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4 md:hidden">
+      <a href="{% url 'home' %}"
+         class="rounded-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none">
+        {% include "components/brand.html" with size="sm" %}
+      </a>
+      <label for="app-drawer"
+             class="ui-btn ui-btn--ghost ui-btn--size-icon-sm no-underline"
+             aria-controls="app-sidebar"
+             aria-label="{% translate 'Open navigation' %}">
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.75"
+             stroke-linecap="round"
+             aria-hidden="true">
+          <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+      </label>
     </header>
-    <main id="main-content" class="flex-1 px-4 py-8 sm:px-8">
-      <div class="mx-auto w-full max-w-6xl">
+    {# Scrim. Hidden, not merely transparent, so it cannot swallow taps while closed. #}
+    <label for="app-drawer"
+           class="invisible fixed inset-0 z-30 bg-foreground/40 opacity-0 transition-opacity duration-200 peer-checked:visible peer-checked:opacity-100 md:hidden"
+           aria-hidden="true"></label>
+    <aside id="app-sidebar"
+           class="ui-sidebar -translate-x-full border-sidebar-border bg-sidebar peer-checked:translate-x-0 md:translate-x-0">
+      <div class="mb-3 flex items-center justify-between px-2.5">
+        <a href="{% url 'home' %}"
+           class="rounded-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none">
+          {% include "components/brand.html" %}
+        </a>
+        <label for="app-drawer"
+               class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline md:hidden"
+               aria-label="{% translate 'Close navigation' %}">
+          <svg viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="1.75"
+               stroke-linecap="round"
+               aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </label>
+      </div>
+      {% include "components/app_nav.html" %}
+    </aside>
+    <main id="main-content"
+          class="min-w-0 flex-1 bg-soft-background px-4 py-8 sm:px-8">
+      <div class="mx-auto w-full max-w-[1120px]">
+        {% include "components/breadcrumb.html" %}
         {% include "components/messages.html" %}
         {% block page_header %}
           {% if page_title %}
@@ -72,3 +97,34 @@
     </main>
   </div>
 {% endblock body %}
+{% block inline_javascript %}
+  <script>
+    (() => {
+      const drawer = document.getElementById("app-drawer");
+      if (drawer) {
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && drawer.checked) drawer.checked = false;
+        });
+        document.getElementById("app-sidebar").addEventListener("click", (event) => {
+          if (event.target.closest("a")) drawer.checked = false;
+        });
+      }
+      // A boosted nav click is answered by whatever the server decides to send,
+      // and that is not always this shell: an unverified contact sends every
+      // request to /users/verify-contacts/, an expired session to sign-in.
+      // Neither carries #app-nav, so the out-of-band swap would quietly do
+      // nothing and the new #main-content would land inside a sidebar that no
+      // longer applies. Hand those back to the browser as an ordinary
+      // navigation — which is exactly what the same click does with scripting
+      // off.
+      document.body.addEventListener("htmx:beforeSwap", (event) => {
+        const detail = event.detail;
+        if (!detail.boosted || typeof detail.serverResponse !== "string") return;
+        const page = new DOMParser().parseFromString(detail.serverResponse, "text/html");
+        if (page.getElementById("app-nav")) return;
+        detail.shouldSwap = false;
+        window.location.href = detail.xhr.responseURL || detail.pathInfo.finalRequestPath;
+      });
+    })();
+  </script>
+{% endblock inline_javascript %}

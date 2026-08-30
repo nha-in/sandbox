@@ -60,6 +60,9 @@ class Access(enum.StrEnum):
     SELF_ONLY = "self_only"
     ORG_SCOPED = "org_scoped"
     CONSOLE = "console"
+    #: Exists only on a development machine. 404 for everyone under any settings
+    #: where DEBUG is off, which is every deployed environment and this suite.
+    DEVELOPMENT_ONLY = "development_only"
 
 
 @dataclass(frozen=True)
@@ -192,6 +195,10 @@ ROUTES: dict[str, Route] = {
         kwargs=_document_id,
         query=_org_a,
     ),
+    # The component gallery (C10). Not a product screen: routed always so
+    # `{% url %}` resolves, but gone unless DEBUG and staff. The DEBUG-on half
+    # of the rule is asserted by test_styleguide_is_staff_only_in_development.
+    "theme:styleguide": Route(Access.DEVELOPMENT_ONLY),
 }
 
 # Named URLs deliberately not given individual rows.
@@ -340,6 +347,14 @@ _ASSERTERS = {
 def _assert_actor(access, actor, response, where):
     if access is Access.PUBLIC:
         _assert_public(actor, response, where)
+        return
+
+    # Checked before the anonymous branch: with DEBUG off the URL does not exist
+    # for anyone, so there is nothing to send a stranger to the login page for.
+    if access is Access.DEVELOPMENT_ONLY:
+        assert response.status_code == HTTP_NOT_FOUND, (
+            f"{where}: a development-only URL answered off a development machine"
+        )
         return
 
     # Deny by default: everything non-public sends a stranger to the login page.

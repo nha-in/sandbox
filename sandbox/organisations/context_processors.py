@@ -1,10 +1,43 @@
-"""Active-organisation context for the integrator shell."""
+"""Shell context: which tenant is being acted on, and where in the nav we are."""
 
 from __future__ import annotations
 
 from sandbox.organisations.mixins import ORGANISATION_QUERY_PARAM
 from sandbox.organisations.mixins import organisation_query
 from sandbox.organisations.models import Membership
+
+#: view name -> the sidebar item that should read as current.
+#:
+#: Derived here rather than set in each view on purpose: a view that forgets to
+#: set it renders a sidebar with nothing highlighted, and that is a silent
+#: defect nobody notices in review. A missing row here is loud instead —
+#: tests/test_navigation.py walks every live URL and fails on any that is
+#: neither mapped nor deliberately listed as chrome-less.
+#:
+#: A view may still override by putting `nav_section` in its own context; the
+#: view's dict is pushed after the processors', so it wins.
+NAV_SECTIONS: dict[str, str] = {
+    "applications:dashboard": "dashboard",
+    "applications:application_status": "dashboard",
+    "applications:new": "enrolment",
+    "applications:step_product": "enrolment",
+    "applications:step_details": "enrolment",
+    "applications:step_review": "enrolment",
+    "organisations:profile": "settings",
+    "organisations:choose": "organisations",
+    "organisations:create": "organisation_create",
+    "users:detail": "settings",
+    "users:update": "settings",
+    "console:queue": "queue",
+    "console:application_detail": "queue",
+}
+
+#: view name -> the settings tab that should read as current.
+SETTINGS_SECTIONS: dict[str, str] = {
+    "organisations:profile": "organisation",
+    "users:detail": "profile",
+    "users:update": "profile",
+}
 
 
 def active_organisation(request):
@@ -37,4 +70,21 @@ def active_organisation(request):
         "active_organisation": active,
         "org_query": f"?{organisation_query(active)}" if active else "",
         "has_multiple_organisations": len(memberships) > 1,
+    }
+
+
+def navigation(request):
+    """Which sidebar item and settings tab are current, plus a breadcrumb slot.
+
+    `breadcrumbs` defaults to empty and is filled by the views that have
+    something to name — a crumb trail is built from objects the processor
+    cannot see (an application's reference), so it cannot be tabulated here.
+    An empty list renders no bar at all rather than an orphaned one.
+    """
+    match = getattr(request, "resolver_match", None)
+    view_name = match.view_name if match else ""
+    return {
+        "nav_section": NAV_SECTIONS.get(view_name, ""),
+        "settings_section": SETTINGS_SECTIONS.get(view_name, ""),
+        "breadcrumbs": [],
     }

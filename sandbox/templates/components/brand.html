@@ -1,0 +1,13 @@
+{% comment %}
+  Wordmark plus the environment it is pointing at. The badge is not decoration:
+  the same shell will one day face a real gateway, and "which environment am I
+  about to change something in" has to be answerable at a glance.
+
+  Context: size ("default" | "sm").
+{% endcomment %}
+{% load i18n %}
+
+<span class="flex items-baseline gap-2">
+  <span class="font-extrabold tracking-[-0.03em] text-primary {% if size == 'sm' %}text-[17px]{% else %}text-[19px]{% endif %}">ABDM</span>
+  <span class="font-semibold text-soft-foreground {% if size == 'sm' %}text-[11px]{% else %}text-xs{% endif %}">{% translate "Sandbox" %}</span>
+</span>

@@ -1,0 +1,195 @@
+{% extends "layouts/console.html" %}
+
+{% comment %}
+  Component gallery. Every primitive careui-ext.css adds, in every state it
+  supports, on one page.
+
+  Two rules for anything added here:
+  1. No product data, ever. Not an application, not an organisation, not a real
+     reference. The strings below are invented; nothing on this page reads the
+     database, so it cannot leak and cannot break when the schema moves.
+  2. No state that the CSS does not actually have. A swatch for a class that was
+     never declared is worse than no gallery — it teaches a class name that
+     silently does nothing when someone uses it.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  Styleguide
+{% endblock title %}
+{% block content %}
+  <div class="mb-8">
+    <h1 class="ui-page-title">Styleguide</h1>
+    <p class="ui-page-subtitle">
+      Primitives from <code class="ui-code-chip">careui-ext.css</code>. Development only, staff only, no product data.
+    </p>
+  </div>
+  <div class="flex flex-col gap-10">
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Sidebar</h2>
+      <div class="w-[228px] rounded-lg border border-sidebar-border bg-sidebar p-3">
+        <div class="ui-sidebar-group">
+          <span class="ui-sidebar-label">Group label</span>
+          <span class="ui-sidebar-link ui-sidebar-link--active">Active <span class="ui-sidebar-badge">4</span></span>
+          <span class="ui-sidebar-link">Resting</span>
+          <span class="ui-sidebar-link">With a badge <span class="ui-sidebar-badge">12</span></span>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Breadcrumb</h2>
+      <nav class="ui-breadcrumb">
+        <span>Root</span>
+        <span class="ui-breadcrumb-sep">/</span>
+        <span>Branch</span>
+        <span class="ui-breadcrumb-sep">/</span>
+        <span class="font-medium text-muted-foreground">Current page</span>
+      </nav>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Stepper</h2>
+      <div class="ui-stepper max-w-xl">
+        <div class="ui-stepper-step ui-stepper-step--done">
+          <span class="ui-stepper-track ui-stepper-track--done"></span>Done
+        </div>
+        <div class="ui-stepper-step ui-stepper-step--current">
+          <span class="ui-stepper-track ui-stepper-track--current"></span>Current
+        </div>
+        <div class="ui-stepper-step ui-stepper-step--todo">
+          <span class="ui-stepper-track"></span>To do
+        </div>
+        <div class="ui-stepper-step ui-stepper-step--todo">
+          <span class="ui-stepper-track"></span>Also to do
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Rail</h2>
+      <div class="ui-rail max-w-xs">
+        <div class="ui-rail-step ui-rail-step--done">
+          <span class="ui-dot ui-dot--ok mt-1.5"></span>Completed step
+        </div>
+        <div class="ui-rail-step ui-rail-step--current">
+          <span class="ui-dot ui-dot--warn mt-1.5"></span>Current step
+        </div>
+        <div class="ui-rail-step ui-rail-step--todo">
+          <span class="ui-dot ui-dot--idle mt-1.5"></span>Upcoming step
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Stat tiles</h2>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="ui-stat">
+          <span class="ui-stat-label">Neutral</span>
+          <span class="ui-stat-value">128</span>
+          <span class="ui-stat-delta">no change</span>
+        </div>
+        <div class="ui-stat">
+          <span class="ui-stat-label">Rising</span>
+          <span class="ui-stat-value">42</span>
+          <span class="ui-stat-delta ui-stat-delta--up">+6 this week</span>
+        </div>
+        <div class="ui-stat">
+          <span class="ui-stat-label">Falling</span>
+          <span class="ui-stat-value">7</span>
+          <span class="ui-stat-delta ui-stat-delta--down">−3 this week</span>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Meters</h2>
+      <p class="mb-3 text-[12.5px] text-soft-foreground">
+        Every chart in this system is a div with a width. There is no chart library and no ADR asking for one.
+      </p>
+      <div class="flex max-w-md flex-col gap-3">
+        <div class="ui-meter">
+          <div class="ui-meter-bar ui-meter-bar--ok" style="width: 82%"></div>
+        </div>
+        <div class="ui-meter">
+          <div class="ui-meter-bar ui-meter-bar--warn" style="width: 45%"></div>
+        </div>
+        <div class="ui-meter">
+          <div class="ui-meter-bar ui-meter-bar--idle" style="width: 12%"></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Key / value rows</h2>
+      <dl class="max-w-md">
+        <div class="ui-kv">
+          <dt class="ui-kv-key">Environment</dt>
+          <dd class="ui-kv-value">
+            Sandbox
+          </dd>
+        </div>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">Identifier</dt>
+          <dd class="ui-kv-value">
+            <code class="ui-code-chip">EXAMPLE-0000</code>
+          </dd>
+        </div>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">A very long value</dt>
+          <dd class="ui-kv-value">
+            it truncates rather than pushing the key off the row
+          </dd>
+        </div>
+        {# Invented values. This page never renders a real credential — that is #}
+        {# the discipline the gallery has to model, not just describe. #}
+        <div class="ui-kv">
+          <dt class="ui-kv-key">Client id</dt>
+          <dd class="ui-kv-value flex items-center gap-1">
+            <span class="truncate font-mono text-[13px]">not-a-real-client-id</span>
+            {% include "components/copy_button.html" with value="not-a-real-client-id" label="client id" %}
+          </dd>
+        </div>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">Client secret</dt>
+          <dd class="ui-kv-value">
+            {% include "components/secret_value.html" with value="not-a-real-secret" label="client secret" %}
+          </dd>
+        </div>
+      </dl>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Status dots</h2>
+      <div class="flex items-center gap-5 text-[13px]">
+        <span class="flex items-center gap-1.5"><span class="ui-dot ui-dot--ok"></span>ok</span>
+        <span class="flex items-center gap-1.5"><span class="ui-dot ui-dot--warn"></span>warn</span>
+        <span class="flex items-center gap-1.5"><span class="ui-dot ui-dot--fail"></span>fail</span>
+        <span class="flex items-center gap-1.5"><span class="ui-dot ui-dot--idle"></span>idle</span>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Timeline</h2>
+      <ol class="ui-timeline max-w-md">
+        <li class="ui-timeline-item">
+          <span class="ui-dot ui-dot--ok mt-1.5"></span>
+          <span>Something happened. <span class="text-soft-foreground">2 days ago</span></span>
+        </li>
+        <li class="ui-timeline-item">
+          <span class="ui-dot ui-dot--warn mt-1.5"></span>
+          <span>Something needed attention. <span class="text-soft-foreground">yesterday</span></span>
+        </li>
+        <li class="ui-timeline-item">
+          <span class="ui-dot ui-dot--fail mt-1.5"></span>
+          <span>Something failed. <span class="text-soft-foreground">an hour ago</span></span>
+        </li>
+      </ol>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Log block</h2>
+      <pre class="ui-log max-w-2xl">POST /example/callback 202
+  correlation-id: 00000000-0000-0000-0000-000000000000
+  outcome: accepted</pre>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Empty state</h2>
+      <div class="ui-empty max-w-md">
+        <span class="font-medium text-muted-foreground">Nothing here yet</span>
+        <span>This is what a locked or not-yet-reached panel looks like.</span>
+      </div>
+    </section>
+  </div>
+{% endblock content %}

@@ -41,6 +41,15 @@
           left: 0;
           width: 35%;
           background: var(--primary);
+        }
+
+        /*
+          Scoped to .htmx-request, which htmx adds only while a request is in
+          flight. .htmx-indicator hides the bar with opacity alone, so without
+          this the sweep ran forever on every page — invisible, but keeping a
+          compositor animation alive for the life of the session.
+        */
+        #nav-progress.htmx-request::after {
           animation: nav-progress-sweep 1s linear infinite;
         }
 
@@ -55,7 +64,7 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-          #nav-progress::after {
+          #nav-progress.htmx-request::after {
             width: 100%;
             animation: none;
           }
