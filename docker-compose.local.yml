@@ -113,6 +113,19 @@ services:
     ports:
       - '8080:8080'
 
+  # B9's programmable network. Profiled, so an ordinary `just up` does not pay
+  # for it; the suite that needs it skips when it is not there (and CI sets
+  # WIREMOCK_REQUIRED so "skipped" cannot pass for "green").
+  wiremock:
+    image: wiremock/wiremock:3.13.1
+    container_name: sandbox_local_wiremock
+    profiles: ['wiremock']
+    command: ['--disable-banner', '--local-response-templating']
+    ports:
+      # 8080 on the host belongs to Keycloak; inside the compose network the
+      # django container still reaches this on 8080.
+      - '8081:8080'
+
   celeryworker:
     <<: *django
     image: sandbox_local_celeryworker

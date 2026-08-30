@@ -23,7 +23,7 @@ v2 talks to the WSO2 DevPortal/Admin REST APIs directly through the shared http 
 | --- | ---------------------------------------------------------------------------------------- | ------------------------------------------ |
 | 1   | `Wso2ApiGateway` implementing `ApiGateway` (create / subscribe / map-keys / unsubscribe) | `sandbox/integrations/wso2/adapter.py`     |
 | 2   | SANDBOX API-name set + throttle/key config as typed settings                             | `config/settings/base.py` + `wso2/apis.py` |
-| 3   | Contract + fault-injection coverage (with [B9](B9-wiremock-fault-injection-suite.md))    | `sandbox/integrations/tests/test_wso2.py`  |
+| 3   | Contract + fault-injection coverage (with [B9](B9-adapter-resilience-suite.md))    | `sandbox/integrations/tests/test_wso2.py`  |
 | 4   | Staging verification note: real app subscribed, token accepted by the gateway            | ticket PR                                  |
 
 Implements the `ApiGateway` protocol as [B1](B1-integration-ports-http-policy.md)
@@ -77,7 +77,7 @@ which knows it is dismantling the whole thing.
 
 ## Acceptance criteria
 
-- [x] Contract tests against a recording stub transport: create, subscribe, map-keys, unsubscribe — happy + error shapes (409 duplicate, 404 missing, 5xx, non-JSON body). Wire-level WireMock fixtures remain [B9](B9-wiremock-fault-injection-suite.md)'s.
+- [x] Contract tests against a recording stub transport: create, subscribe, map-keys, unsubscribe — happy + error shapes (409 duplicate, 404 missing, 5xx, non-JSON body). Coverage against a real `wso2/wso2am` container is deferred past v0 with [B9](B9-adapter-resilience-suite.md)'s contract half — note it needs no NHA access, only appetite.
 - [x] Create/subscribe re-run safe: a second `create_application` makes no second app (asserted on the stub's create counter), an app created by a concurrent run is adopted, and re-subscribing adds nothing.
 - [x] Unsubscribe idempotent — never-subscribed, and a subscription deleted underneath us, both succeed. TLS verification on: a test greps the whole `integrations` tree for a disabled-verification flag.
 - [x] Retry/breaker inherited from [B1](B1-integration-ports-http-policy.md) and asserted (`5xx` retryable); admin read timeout 15s via `WSO2_READ_TIMEOUT_SECONDS`; no credential is logged (log-capture assertion) and none is persisted.

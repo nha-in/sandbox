@@ -23,7 +23,7 @@ v2: the adapter uses **internal base URLs only** (the URL rewrite is IaC-owned, 
 |---|---|---|
 | 1 | `HiecmBridgeRegistry` implementing `BridgeRegistry` (create / status / deactivate) | `sandbox/integrations/hiecm/adapter.py` |
 | 2 | Gateway session auth (cached, early refresh) via the B1 factory | same |
-| 3 | Contract + fault-injection coverage (with [B9](B9-wiremock-fault-injection-suite.md)) | `sandbox/integrations/tests/test_hiecm.py` |
+| 3 | Contract + fault-injection coverage (with [B9](B9-adapter-resilience-suite.md)) | `sandbox/integrations/tests/test_hiecm.py` |
 | 4 | Staging verification note: bridge active after provisioning, inactive after rejection | ticket PR |
 
 Implements the `BridgeRegistry` protocol as [B1](B1-integration-ports-http-policy.md)

@@ -2,7 +2,7 @@
 
 > **Lane** B — Backend: integrations · **Phase** V0.3 Credentials (can start the moment V0.1 lands)
 > **Depends on** V0.1 only
-> **Unblocks** everything in Lane B ([B2](B2-fake-adapters.md)–[B9](B9-wiremock-fault-injection-suite.md))
+> **Unblocks** everything in Lane B ([B2](B2-fake-adapters.md)–[B9](B9-adapter-resilience-suite.md))
 > **Refs** [06-integrations.md §2–3](../06-integrations.md) · [01-backend.md §3.1](../01-backend.md)
 
 ## In plain words

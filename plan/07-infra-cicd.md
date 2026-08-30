@@ -46,7 +46,7 @@ docker-compose.production.yml
 
 Most of this doc **is already built** (V0.1). Remaining v0 platform work:
 
-- WireMock profile in compose for the contract/fault suite ([B9](v0-tickets/B9-wiremock-fault-injection-suite.md)); MinIO (or fake storage) for uploads ([A7](v0-tickets/A7-declarations-uploads.md)).
+- WireMock profile in compose for the resilience suite ([B9](v0-tickets/B9-adapter-resilience-suite.md)); MinIO (or fake storage) for uploads ([A7](v0-tickets/A7-declarations-uploads.md)).
 - e2e stage wiring: compose + seed + Playwright, JS-disabled pass included ([C9](v0-tickets/C9-playwright-e2e.md)).
 - Secret-store wiring for the real adapter credentials on staging (service accounts requested at V0.1).
 - **Backup/restore drill + pilot runbook** — [P6](v0-tickets/P6-backup-restore-drill-and-pilot-runbook.md).

@@ -142,8 +142,27 @@ jobs:
       - name: Run DB Migrations
         run: docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
 
+      # B9's suite points the real adapters at this. WIREMOCK_REQUIRED below
+      # turns "the container is missing" from a skip into a failure.
+      - name: Start WireMock
+        run: |
+          docker compose -f docker-compose.local.yml --profile wiremock up -d wiremock
+          for _ in $(seq 1 30); do
+            if docker compose -f docker-compose.local.yml exec -T wiremock \
+              curl -sf http://localhost:8080/__admin/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "WireMock did not become healthy" >&2
+          exit 1
+
       - name: Run Django Tests
-        run: docker compose -f docker-compose.local.yml run django pytest --cov --cov-report=term-missing --cov-fail-under=85
+        run: >
+          docker compose -f docker-compose.local.yml run
+          -e WIREMOCK_REQUIRED=1
+          -e WIREMOCK_URL=http://wiremock:8080
+          django pytest --cov --cov-report=term-missing --cov-fail-under=85
 
       - name: Tear down the Stack
-        run: docker compose -f docker-compose.local.yml down
+        run: docker compose -f docker-compose.local.yml --profile wiremock down

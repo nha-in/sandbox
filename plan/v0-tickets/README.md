@@ -67,7 +67,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [B6 — Notification adapter + Celery send task + delivery log](B6-notification-adapter.md)    | V0.3  | **done** (2 carry-overs) |
 | [B7 — Provisioning chain + ledger + `PROVISIONING_FAILED` + retry](B7-provisioning-chain.md) | V0.3  | **done** (2 carry-overs) |
 | [B8 — Deprovisioning chain (rejection path)](B8-deprovisioning-chain.md)                     | V0.3  | **done** (1 carry-over)  |
-| [B9 — WireMock contract + fault-injection suite](B9-wiremock-fault-injection-suite.md)       | V0.3  | open                     |
+| [B9 — Adapter resilience + chain idempotency suite](B9-adapter-resilience-suite.md)          | V0.3  | **done** (2 carry-overs) |
 
 ## Lane C — Full-stack UI
 
@@ -102,6 +102,8 @@ unblocking ticket lands.
 | [B7](B7-provisioning-chain.md)   | The integrator's real bridge callback URL                      | P4 `applications_callback`    | Bridges register against a per-application path on `HIECM_BRIDGE_CALLBACK_BASE_URL`, which is a placeholder. Legacy pointed every bridge at one hardcoded webhook.site bin; ours at least defaults to `.invalid` rather than somebody's host.         |
 | [B7](B7-provisioning-chain.md)   | Staging end-to-end: issued credentials call a sandbox API      | NHA access + `WSO2_API_NAMES` | The chain is proven against the fakes. It has never met a real Keycloak/WSO2/HIE-CM in sequence, and the WSO2 subscription list still has no published names to use.                                                                                  |
 | [B8](B8-deprovisioning-chain.md) | Sandbox token lifetime ≤15m + revocation-latency runbook note  | NHA Keycloak config           | Access is JWT-signature based, so disabling a client only bites at token expiry. The lifetime has not been read or set on a real realm, and [P6](P6-backup-restore-drill-and-pilot-runbook.md) still owes the note explaining the lag.                |
+| [B9](B9-adapter-resilience-suite.md) | Contract tests for Keycloak and WSO2 against real containers | — (appetite only)             | Neither needs NHA. `compose/local/keycloak` already runs a real Keycloak and B3 was verified against it by hand; `wso2/wso2am` is published. Deferred past v0 with the rest of the contract half, but nothing external blocks it.                     |
+| [B9](B9-adapter-resilience-suite.md) | Recorded cassettes for HIE-CM and the notification gateway | NHA access (B5, B6)           | The only two systems with no public implementation to run, so recordings are the only route. `vcrpy`/`pytest-recording` rather than WireMock, because redaction is code there and manual here.                                                        |
 
 ## Dependency sketch
 

@@ -83,7 +83,7 @@ def send_notification(message_id: int) -> None:
 
 - [x] All v0 template keys mapped + a rendered-params test per template (parametrised over all six; asserts every param reaches the body and no `{{` survives).
 - [x] Enqueue-on-commit proven (rollback ⇒ no row, no task); Celery retry/backoff and terminal FAILED path tested.
-- [ ] Contract test against WireMock fixture; timeout (5s) + breaker verified via fault injection — **partly done**. Timeout, breaker, and the 4xx-off-the-breaker rule are asserted against a recording stub transport; the WireMock suite itself is [B9](B9-wiremock-fault-injection-suite.md).
+- [x] Timeout (5s) + breaker verified via fault injection — both asserted against a recording stub transport here, and again over a real socket in [B9](B9-adapter-resilience-suite.md). Recorded contract fixtures are deferred past v0 with the rest of B9's contract half.
 - [x] No secret ever appears in params/log (deny-list, asserted, applied recursively); the approval email carries a portal link, not credentials.
 - [x] Offline: fake gateway ([B2](B2-fake-adapters.md)) routes to Mailpit; delivery log rows written identically.
 - [ ] Verified end-to-end against the real notification service — **blocked on NHA**: we have no template ids for our tenant, and no SMS provider endpoint.
