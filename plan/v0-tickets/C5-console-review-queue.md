@@ -36,7 +36,7 @@ v0 scope: the SANDBOX queue and the actions needed for the pilot loop — record
   - minimal queue counts by state (v0's "console counts" — a full dashboard is deferred).
 - **Application detail**:
   - payload rendered read-only (schema-aware field groups, not raw JSON), org + product summary, transition timeline (from [A5](A5-workflow-state-machine.md) history selectors), review rows for the current round with their comments and a **tally** ("2 approve, 1 send back") beside the approve button — advisory, since approval is the admin's call;
-  - **actions as forms**: Approve / Reject / Send back (comment mandatory for reject/send-back), Record review (APPROVE|REJECT|SEND_BACK + comment) — each a plain POST to a thin view calling the Lane A service; guard/permission failures (`DomainError`) render as messages, never 500s; buttons render only when the transition table allows the action _and_ the actor holds the permission (server-side check remains authoritative);
+  - **actions as forms**: Approve / Reject / Send back (comment mandatory for reject/send-back), Record review (APPROVE|REJECT|SEND*BACK + comment) — each a plain POST to a thin view calling the Lane A service; guard/permission failures (`DomainError`) render as messages, never 500s; buttons render only when the transition table allows the action \_and* the actor holds the permission (server-side check remains authoritative);
   - **V0.3 add-on**: provisioning panel — ledger rows with per-system state, `PROVISIONING_FAILED` detail, and a **Retry** button posting to [B7](B7-provisioning-chain.md)'s retry service; polling partial shared with [C7](C7-credentials-panel.md).
 - Exit-review actions ([A8](A8-exit-workflow.md)) reuse this detail page in V0.4 — keep the action-panel template composable.
 - Route-gate rows: every console URL 403/redirects for anonymous, org members and wrong-org members; reviewer vs staff/admin differences asserted (a reviewer can record reviews but cannot approve).
@@ -69,7 +69,7 @@ was gated on `review_application`, so reviewers could ask for changes; [A5](A5-w
 later split `send_back_application` out as its own permission and nothing granted
 it to reviewers. The behaviour changed silently — the test was updated to match
 the code rather than the intent, which is how a regression becomes a spec.
-Whether reviewers *should* be able to send back is [open question 10](../00-master-plan.md#10-open-questions).
+Whether reviewers _should_ be able to send back is [open question 10](../00-master-plan.md#10-open-questions).
 
 ### Buttons come from the transition table
 
