@@ -1,65 +1,76 @@
-{% extends "applications/wizard_base.html" %} {% load i18n %} {% block
-step_title %} {% if editable %} {% translate "Review and submit" %} {% else %}
-{% translate "Your application" %} {% endif %} {% endblock step_title %} {%
-block step_description %} {% if editable %} {% blocktranslate with
-reference=application.reference %}Check {{ reference }} before it goes to the
-review team.{% endblocktranslate %} {% else %} {% blocktranslate with
-reference=application.reference %}What was submitted as {{ reference }}.{%
-endblocktranslate %} {% endif %} {% endblock step_description %} {% block
-step_content %} {% if reviews %}
-<div class="mb-6">
-  <h2 class="ui-card-title mb-2">{% translate "Reviewer comments" %}</h2>
-  {% for review in reviews %} {% if review.comment %}
-  <div class="ui-alert ui-alert--warning mb-2">
-    <p>{{ review.comment }}</p>
-  </div>
-  {% endif %} {% endfor %}
-</div>
-{% endif %}
-<dl class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-  <div>
-    <dt class="ui-label">{% translate "Organisation" %}</dt>
-    <dd>{{ organisation.name }}</dd>
-  </div>
-  <div>
-    <dt class="ui-label">{% translate "Product" %}</dt>
-    <dd>{{ application.product.name }}</dd>
-  </div>
-  <div>
-    <dt class="ui-label">{% translate "Status" %}</dt>
-    <dd>{{ application.get_state_display }}</dd>
-  </div>
-  {% for label, value in summary %}
-  <div>
-    <dt class="ui-label">{{ label }}</dt>
-    <dd>{{ value|default:"—" }}</dd>
-  </div>
-  {% endfor %}
-</dl>
-<div class="flex items-center justify-between gap-3">
-  {# Back to the editor only while there is one: the details step redirects #}
-  {# here once the application is locked, which would be a loop. #} {% if
-  editable %}
-  <a
-    class="ui-btn ui-btn--ghost"
-    href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}"
-    >{% translate "Back" %}</a
-  >
-  <form method="post">
-    {% csrf_token %}
-    <button type="submit" class="ui-btn ui-btn--primary">
-      {% translate "Submit for review" %}
-    </button>
-  </form>
+{% extends "applications/wizard_base.html" %}
+
+{% load i18n %}
+
+{% block step_title %}
+  {% if editable %}
+    {% translate "Review and submit" %}
   {% else %}
-  <a
-    class="ui-btn ui-btn--ghost"
-    href="{% url 'applications:dashboard' %}{{ org_query }}"
-    >{% translate "Back to dashboard" %}</a
-  >
-  <span class="ui-badge ui-badge--primary"
-    >{{ application.get_state_display }}</span
-  >
+    {% translate "Your application" %}
   {% endif %}
-</div>
+{% endblock step_title %}
+{% block step_description %}
+  {% if editable %}
+    {% blocktranslate with reference=application.reference %}Check {{ reference }} before it goes to the review team.{% endblocktranslate %}
+  {% else %}
+    {% blocktranslate with reference=application.reference %}What was submitted as {{ reference }}.{% endblocktranslate %}
+  {% endif %}
+{% endblock step_description %}
+{% block step_content %}
+  {% if reviews %}
+    <div class="mb-6">
+      <h2 class="ui-card-title mb-2">{% translate "Reviewer comments" %}</h2>
+      {% for review in reviews %}
+        {% if review.comment %}
+          <div class="ui-alert ui-alert--warning mb-2">
+            <p>{{ review.comment }}</p>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+  <dl class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div>
+      <dt class="ui-label">{% translate "Organisation" %}</dt>
+      <dd>
+        {{ organisation.name }}
+      </dd>
+    </div>
+    <div>
+      <dt class="ui-label">{% translate "Product" %}</dt>
+      <dd>
+        {{ application.product.name }}
+      </dd>
+    </div>
+    <div>
+      <dt class="ui-label">{% translate "Status" %}</dt>
+      <dd>
+        {{ application.get_state_display }}
+      </dd>
+    </div>
+    {% for label, value in summary %}
+      <div>
+        <dt class="ui-label">{{ label }}</dt>
+        <dd>
+          {{ value|default:"—" }}
+        </dd>
+      </div>
+    {% endfor %}
+  </dl>
+  <div class="flex items-center justify-between gap-3">
+    {# Back to the editor only while there is one: the details step redirects #}
+    {# here once the application is locked, which would be a loop. #}
+    {% if editable %}
+      <a class="ui-btn ui-btn--ghost"
+         href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="ui-btn ui-btn--primary">{% translate "Submit for review" %}</button>
+      </form>
+    {% else %}
+      <a class="ui-btn ui-btn--ghost"
+         href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Back to dashboard" %}</a>
+      <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>
+    {% endif %}
+  </div>
 {% endblock step_content %}

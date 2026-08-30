@@ -1,180 +1,117 @@
-{% comment %} Sidebar navigation, shared by the desktop rail and the mobile
-drawer so the two cannot drift apart. Context: nav_section — slug of the active
-section, set by each view. nav_counts — optional {section_slug: int}. Resolved
-in the view, never here: a query per badge would put one per sidebar per
-request. Only screens that exist are listed. The mockups show Milestones,
-Conformance, Reference environment, Agent Skills, Support and a public
-directory; none of them has a backend in v0, and a nav link to a screen that
-does not exist is a defect this repo has already shipped twice (the wizard and
-the org switcher were both unreachable while fully tested). They arrive when
-their pages do. The membership branch matters as much as the list. Every link in
-it goes through OrganisationMixin, which answers a non-member with a 404 — so
-for someone who has just signed up the whole rail would be dead ends. Staff are
-non-members by design and are not invited to create one. Boosted per 02-ui.md
-§3.2: htmx fetches the very URL each href already points at, keeps #main-content
-out of the whole-page response, and picks this nav out of the same response
-out-of-band so the active item follows the page. With JavaScript off every link
-below is a plain
-<a href>
-  and the browser navigates normally — the path that has to keep working. Each
-  link carries an id because the out-of-band swap destroys the anchor that was
-  activated; htmx restores focus to the element with the same id, and without
-  one a keyboard user is dropped at the top of the document. {% endcomment %} {%
-  load i18n %}
+{% comment %}
+  Sidebar navigation, shared by the desktop rail and the mobile drawer so the
+  two cannot drift apart.
 
-  <nav
-    id="app-nav"
-    class="flex flex-1 flex-col"
-    aria-label="{% translate 'Main' %}"
-    hx-boost="true"
-    hx-target="#main-content"
-    hx-select="#main-content"
-    hx-select-oob="#app-nav"
-    hx-swap="outerHTML"
-    hx-push-url="true"
-    hx-indicator="#nav-progress"
-  >
-    {% if is_organisation_member %}
+  Context:
+    nav_section  — slug of the active section, set by each view.
+    nav_counts   — optional {section_slug: int}. Resolved in the view, never
+                   here: a query per badge would put one per sidebar per request.
+
+  Only screens that exist are listed. The mockups show Milestones, Conformance,
+  Reference environment, Agent Skills, Support and a public directory; none of
+  them has a backend in v0, and a nav link to a screen that does not exist is a
+  defect this repo has already shipped twice (the wizard and the org switcher
+  were both unreachable while fully tested). They arrive when their pages do.
+
+  The membership branch matters as much as the list. Every link in it goes
+  through OrganisationMixin, which answers a non-member with a 404 — so for
+  someone who has just signed up the whole rail would be dead ends. Staff are
+  non-members by design and are not invited to create one.
+
+  Boosted per 02-ui.md §3.2: htmx fetches the very URL each href already points
+  at, keeps #main-content out of the whole-page response, and picks this nav out
+  of the same response out-of-band so the active item follows the page. With
+  JavaScript off every link below is a plain <a href> and the browser navigates
+  normally — the path that has to keep working.
+
+  Each link carries an id because the out-of-band swap destroys the anchor that
+  was activated; htmx restores focus to the element with the same id, and
+  without one a keyboard user is dropped at the top of the document.
+{% endcomment %}
+{% load i18n %}
+
+<nav id="app-nav"
+     class="flex flex-1 flex-col"
+     aria-label="{% translate 'Main' %}"
+     hx-boost="true"
+     hx-target="#main-content"
+     hx-select="#main-content"
+     hx-select-oob="#app-nav"
+     hx-swap="outerHTML"
+     hx-push-url="true"
+     hx-indicator="#nav-progress">
+  {% if is_organisation_member %}
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Application" %}</span>
-      <a
-        id="nav-dashboard"
-        class="ui-sidebar-link {% if nav_section == 'dashboard' %}ui-sidebar-link--active{% endif %}"
-        href="{% url 'applications:dashboard' %}{{ org_query }}"
-        {%
-        if
-        nav_section=""
-        ="dashboard"
-        %}aria-current="page"
-        {%
-        endif
-        %}
-      >
-        {% translate "Overview" %} {% if nav_counts.dashboard %}<span
-          class="ui-sidebar-badge"
-          >{{ nav_counts.dashboard }}</span
-        >{% endif %}
+      <a id="nav-dashboard"
+         class="ui-sidebar-link {% if nav_section == 'dashboard' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'applications:dashboard' %}{{ org_query }}"
+         {% if nav_section == 'dashboard' %}aria-current="page"{% endif %}>
+        {% translate "Overview" %}
+        {% if nav_counts.dashboard %}<span class="ui-sidebar-badge">{{ nav_counts.dashboard }}</span>{% endif %}
       </a>
-      <a
-        id="nav-enrolment"
-        class="ui-sidebar-link {% if nav_section == 'enrolment' %}ui-sidebar-link--active{% endif %}"
-        href="{% url 'applications:new' %}{{ org_query }}"
-        {%
-        if
-        nav_section=""
-        ="enrolment"
-        %}aria-current="page"
-        {%
-        endif
-        %}
-        >{% translate "Enrolment" %}</a
-      >
+      <a id="nav-enrolment"
+         class="ui-sidebar-link {% if nav_section == 'enrolment' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'applications:new' %}{{ org_query }}"
+         {% if nav_section == 'enrolment' %}aria-current="page"{% endif %}>{% translate "Enrolment" %}</a>
     </div>
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Account" %}</span>
-      <a
-        id="nav-settings"
-        class="ui-sidebar-link {% if nav_section == 'settings' %}ui-sidebar-link--active{% endif %}"
-        href="{% url 'organisations:profile' %}{{ org_query }}"
-        {%
-        if
-        nav_section=""
-        ="settings"
-        %}aria-current="page"
-        {%
-        endif
-        %}
-        >{% translate "Settings" %}</a
-      >
-      {# Not gated on holding two: gating it left a one-org user unable to reach
-      #} {# the list, and so unable to ever add a second. #}
-      <a
-        id="nav-organisations"
-        class="ui-sidebar-link {% if nav_section == 'organisations' %}ui-sidebar-link--active{% endif %}"
-        href="{% url 'organisations:choose' %}"
-        {%
-        if
-        nav_section=""
-        ="organisations"
-        %}aria-current="page"
-        {%
-        endif
-        %}
-        >{% translate "Your organisations" %}</a
-      >
+      <a id="nav-settings"
+         class="ui-sidebar-link {% if nav_section == 'settings' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'organisations:profile' %}{{ org_query }}"
+         {% if nav_section == 'settings' %}aria-current="page"{% endif %}>{% translate "Settings" %}</a>
+      {# Not gated on holding two: gating it left a one-org user unable to reach #}
+      {# the list, and so unable to ever add a second. #}
+      <a id="nav-organisations"
+         class="ui-sidebar-link {% if nav_section == 'organisations' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'organisations:choose' %}"
+         {% if nav_section == 'organisations' %}aria-current="page"{% endif %}>{% translate "Your organisations" %}</a>
     </div>
-    {% elif request.user.is_staff %} {# Staff reach this shell through their
-    profile and the MFA screens. Without #} {# this the only way back to the
-    console is typing the URL. #}
+  {% elif request.user.is_staff %}
+    {# Staff reach this shell through their profile and the MFA screens. Without #}
+    {# this the only way back to the console is typing the URL. #}
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Review" %}</span>
-      <a
-        id="nav-console"
-        class="ui-sidebar-link"
-        href="{% url 'console:queue' %}"
-        hx-boost="false"
-        >{% translate "Console" %}</a
-      >
+      <a id="nav-console"
+         class="ui-sidebar-link"
+         href="{% url 'console:queue' %}"
+         hx-boost="false">{% translate "Console" %}</a>
     </div>
-    {% elif request.user.is_authenticated %}
+  {% elif request.user.is_authenticated %}
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Get started" %}</span>
-      <a
-        id="nav-organisation-create"
-        class="ui-sidebar-link {% if nav_section == 'organisation_create' %}ui-sidebar-link--active{% endif %}"
-        href="{% url 'organisations:create' %}"
-        {%
-        if
-        nav_section=""
-        ="organisation_create"
-        %}aria-current="page"
-        {%
-        endif
-        %}
-        >{% translate "Create your organisation" %}</a
-      >
+      <a id="nav-organisation-create"
+         class="ui-sidebar-link {% if nav_section == 'organisation_create' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'organisations:create' %}"
+         {% if nav_section == 'organisation_create' %}aria-current="page"{% endif %}>{% translate "Create your organisation" %}</a>
     </div>
-    {% endif %} {% if request.user.is_authenticated %}
-    <div
-      class="mt-auto flex items-center gap-2 border-t border-sidebar-border px-2.5 pt-3"
-    >
-      <a
-        class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-        href="{% url 'users:detail' request.user.external_id %}"
-      >
+  {% endif %}
+  {% if request.user.is_authenticated %}
+    <div class="mt-auto flex items-center gap-2 border-t border-sidebar-border px-2.5 pt-3">
+      <a class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+         href="{% url 'users:detail' request.user.external_id %}">
         {% if active_organisation %}
-        <span
-          class="block truncate text-[12.5px] font-semibold text-sidebar-foreground"
-          >{{ active_organisation.name }}</span
-        >
+          <span class="block truncate text-[12.5px] font-semibold text-sidebar-foreground">{{ active_organisation.name }}</span>
         {% endif %}
-        <span class="block truncate text-[11px] text-soft-foreground"
-          >{{ request.user.email }}</span
-        >
+        <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
       </a>
       {# Leaving the shell: the signed-out page has no #app-nav to swap into. #}
-      <a
-        class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline"
-        href="{% url 'account_logout' %}"
-        hx-boost="false"
-        title="{% translate 'Sign out' %}"
-        aria-label="{% translate 'Sign out' %}"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.75"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path
-            d="M15 17l5-5-5-5M20 12H9M12 3H6a1 1 0 00-1 1v16a1 1 0 001 1h6"
-          />
+      <a class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline"
+         href="{% url 'account_logout' %}"
+         hx-boost="false"
+         title="{% translate 'Sign out' %}"
+         aria-label="{% translate 'Sign out' %}">
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.75"
+             stroke-linecap="round"
+             stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M15 17l5-5-5-5M20 12H9M12 3H6a1 1 0 00-1 1v16a1 1 0 001 1h6" />
         </svg>
       </a>
     </div>
-    {% endif %}
-  </nav>
-</a>
+  {% endif %}
+</nav>

@@ -1,22 +1,23 @@
-{% comment %} Per-system provisioning progress, shared by the integrator panel
-and the console mirror so the two can never tell different stories about the
-same ledger. Context: provisioning (list of SystemProgress from
-integrations.selectors). Read-only and secret-free by construction —
-`SystemProgress` has no field that could carry one. {% endcomment %} {% load
-i18n %}
+{% comment %}
+  Per-system provisioning progress, shared by the integrator panel and the
+  console mirror so the two can never tell different stories about the same
+  ledger.
 
-<ul
-  class="flex flex-col gap-2"
-  aria-label="{% translate 'Provisioning progress' %}"
->
+  Context: provisioning (list of SystemProgress from integrations.selectors).
+
+  Read-only and secret-free by construction — `SystemProgress` has no field
+  that could carry one.
+{% endcomment %}
+{% load i18n %}
+
+<ul class="flex flex-col gap-2"
+    aria-label="{% translate 'Provisioning progress' %}">
   {% for step in provisioning %}
-  <li class="ui-kv">
-    <span class="ui-kv-key">{{ step.label }}</span>
-    <span class="ui-kv-value">
-      <span class="ui-badge {{ step.badge }} ui-badge--size-xs"
-        >{{ step.display }}</span
-      >
-    </span>
-  </li>
+    <li class="ui-kv">
+      <span class="ui-kv-key">{{ step.label }}</span>
+      <span class="ui-kv-value">
+        <span class="ui-badge {{ step.badge }} ui-badge--size-xs">{{ step.display }}</span>
+      </span>
+    </li>
   {% endfor %}
 </ul>
