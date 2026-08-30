@@ -14,6 +14,7 @@ Keycloak is the identity server that mints the **client id + secret** an integra
 Keycloak's scope in v2 is **integrator machine credentials only** — portal login is allauth-local, so a Keycloak outage degrades credential management, never portal access. The integrator's client id/secret issued here is what WSO2 and HIE-CM validate at runtime; it is the product the whole sandbox exists to hand out.
 
 Legacy pitfalls this adapter must design against (all verified in source):
+
 - `getSecret` was Feign-bound to **POST — every "read" rotated the secret**;
 - realm-role **UUIDs and containerIds hardcoded in YAML** (instance-coupled config);
 - all 14 realm roles granted to every integrator regardless of kind;
@@ -24,13 +25,13 @@ Legacy pitfalls this adapter must design against (all verified in source):
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | `KeycloakIdpAdmin` implementing `IdpAdmin` (create / roles-by-name / rotate / disable) | `sandbox/integrations/keycloak/adapter.py` |
-| 2 | Service-account token handling (cache + early refresh) via the B1 factory | same |
-| 3 | Per-kind role-name sets in typed settings (SANDBOX only in v0) | `config/settings/base.py` + `keycloak/roles.py` |
-| 4 | Contract + fault-injection coverage (with [B9](B9-wiremock-fault-injection-suite.md)) | `sandbox/integrations/tests/test_keycloak.py` |
-| 5 | Staging verification note: real client created/rotated/disabled | ticket PR |
+| #   | Deliverable                                                                            | Where                                           |
+| --- | -------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1   | `KeycloakIdpAdmin` implementing `IdpAdmin` (create / roles-by-name / rotate / disable) | `sandbox/integrations/keycloak/adapter.py`      |
+| 2   | Service-account token handling (cache + early refresh) via the B1 factory              | same                                            |
+| 3   | Per-kind role-name sets in typed settings (SANDBOX only in v0)                         | `config/settings/base.py` + `keycloak/roles.py` |
+| 4   | Contract + fault-injection coverage (with [B9](B9-wiremock-fault-injection-suite.md))  | `sandbox/integrations/tests/test_keycloak.py`   |
+| 5   | Staging verification note: real client created/rotated/disabled                        | ticket PR                                       |
 
 Implements `IdpAdmin` over the Keycloak Admin REST API using the [B1](B1-integration-ports-http-policy.md) http factory:
 
@@ -51,20 +52,20 @@ class KeycloakIdpAdmin:
         """Idempotent: disabling a disabled/missing client is success (B8)."""
 ```
 
-- **Role scope mappings resolved by *name* at runtime** — look up role IDs via the Admin API at call time; role-name sets configured **per application kind** (v0: the SANDBOX set only — least privilege). Zero instance UUIDs anywhere in config.
+- **Role scope mappings resolved by _name_ at runtime** — look up role IDs via the Admin API at call time; role-name sets configured **per application kind** (v0: the SANDBOX set only — least privilege). Zero instance UUIDs anywhere in config.
 
 ### Verified against a real Keycloak (26.0, local realm — 2026-08-29)
 
 Exercised end-to-end against `compose/local/keycloak/realm-abdm-sandbox.json`; these are measured, not assumed:
 
-| Behaviour | Result |
-|---|---|
-| `GET /clients/{uuid}/client-secret`, twice | same value — safe to read |
-| `POST /clients/{uuid}/client-secret` | rotates — the only call allowed in `rotate_client_secret` |
-| `POST /clients/{uuid}/scope-mappings/realm` | 204 |
-| `PUT /clients/{uuid}` with `enabled:false` | 204 |
+| Behaviour                                   | Result                                                    |
+| ------------------------------------------- | --------------------------------------------------------- |
+| `GET /clients/{uuid}/client-secret`, twice  | same value — safe to read                                 |
+| `POST /clients/{uuid}/client-secret`        | rotates — the only call allowed in `rotate_client_secret` |
+| `POST /clients/{uuid}/scope-mappings/realm` | 204                                                       |
+| `PUT /clients/{uuid}` with `enabled:false`  | 204                                                       |
 
-**Granting a role takes two calls, not one.** Scope-mapping alone puts *nothing* in a `client_credentials` token — it only filters what may appear. The role must also be granted to the client's service-account user:
+**Granting a role takes two calls, not one.** Scope-mapping alone puts _nothing_ in a `client_credentials` token — it only filters what may appear. The role must also be granted to the client's service-account user:
 
 ```
 GET  /clients/{uuid}/service-account-user      -> {id}
@@ -76,6 +77,7 @@ With both, the integrator token carries exactly `["hip", "hiu"]`. With scope-map
 **Service account permissions** the provisioner needs (`realm-management` client roles): `manage-clients`, `view-clients`, `query-clients`, `view-realm` (role lookup by name), `manage-users` (grant to service accounts). `view-realm` and `manage-users` are not implied by the client permissions — both were 403s before being added.
 
 **`fullScopeAllowed`** must be `false` on integrator clients (least privilege) but `true` on the provisioner itself, otherwise its own realm-management roles are stripped from its token and every Admin API call 403s.
+
 - **GET vs POST distinction explicit and separately tested**: read ops must never call the rotating endpoint (the legacy system's exact bug).
 - Errors → `AdapterError("KEYCLOAK", code, retryable)`; create is retry-safe only with a pre-check-by-client-id or idempotency guarantee (coordinated with the [B7](B7-provisioning-chain.md) ledger).
 - `secret_ref` only where a system genuinely requires a copy (WSO2 `map_keys`, [B4](B4-wso2-adapter.md)).
@@ -84,9 +86,9 @@ With both, the integrator token carries exactly `["hip", "hiu"]`. With scope-map
 
 - [x] Contract tests against a recording stub transport: create / roles-by-name / rotate / disable, happy + error shapes. Wire-level WireMock fixtures remain [B9](B9-wiremock-fault-injection-suite.md)'s job; the stub records requests, which is what the read-vs-rotate proof needs.
 - [x] A test proves read paths never hit the rotate endpoint (`test_reading_the_secret_never_posts_to_the_rotate_endpoint`), and a live run confirms two reads return the same secret.
-- [x] Role resolution: names → IDs at runtime; config contains role *names* only; only the configured SANDBOX set is assigned — a live token carried exactly `["healthId", "hip", "hiu"]` and nothing else.
+- [x] Role resolution: names → IDs at runtime; config contains role _names_ only; only the configured SANDBOX set is assigned — a live token carried exactly `["healthId", "hip", "hiu"]` and nothing else.
 - [x] client_id non-derivability tested (random 16 hex chars, no sequence component).
-- [x] Secrets never logged or persisted (log-capture assertion over every record's message *and* attributes); `initial_secret`/`secret` are `repr=False`.
+- [x] Secrets never logged or persisted (log-capture assertion over every record's message _and_ attributes); `initial_secret`/`secret` are `repr=False`.
 - [ ] Verified end-to-end against the real sandbox-tier Keycloak from staging — **blocked on NHA** (open question 4). Everything above was verified against the local realm.
 
 ### Still owed by NHA (open question 4)
