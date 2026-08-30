@@ -75,7 +75,7 @@ def request_exit(*, application, actor) -> None:
 - [x] Approval settles the exit declaration (`APPROVED`), and a later resubmission over it is refused.
 - [x] Exit approval requires the admin permission; integrator/reviewer roles cannot approve.
 - [x] Every exit transition audited with actor + comment; approval freezes state history like any other transition.
-- [ ] Approval/rejection notifications enqueued on commit (asserted) — hook names are on the table; [B6](B6-notification-adapter.md) registers the handlers.
+- [x] Approval/rejection notifications enqueued on commit (asserted) — hook names are on the table; [B6](B6-notification-adapter.md) registers the handlers.
 - [x] [A9](A9-seed-sandbox-demo.md)'s seed still reaches every exit state under the new guard.
 - [x] mypy/ruff clean; no view writes.
 

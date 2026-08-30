@@ -10,6 +10,8 @@ from django.test import override_settings
 from sandbox.integrations.fakes import recorded_sends
 from sandbox.integrations.fakes import reset_fakes
 from sandbox.integrations.ports import NotificationChannel
+from sandbox.notifications.models import Message
+from sandbox.notifications.models import MessageState
 from sandbox.users.services import request_otp
 from sandbox.users.services import seconds_until_resend
 from sandbox.users.services import verify_otp
@@ -66,6 +68,20 @@ def test_phone_verification_goes_out_over_sms_and_never_by_email():
     assert send["channel"] == "SMS"
     assert send["to"] == PHONE
     assert mail.outbox == []  # a phone number must never be emailed
+
+
+def test_an_otp_is_logged_as_delivered_without_recording_the_code():
+    """Legacy's `notification_audit` kept the rendered body, code and all."""
+    user = UserFactory.create(email="applicant@example.com")
+
+    request_otp(identity=user.email, channel=NotificationChannel.EMAIL)
+
+    message = Message.objects.get()
+    assert message.template_key == "send-otp"
+    assert message.recipient == user.email
+    assert message.state == MessageState.SENT
+    assert message.params == {}
+    assert _sent_code() not in str(message.__dict__)
 
 
 def test_verify_otp_stamps_email_verified_at():

@@ -1,0 +1,10 @@
+Hello {{ applicant }},
+
+Your request to take {{ reference }} ({{ product }}) to production has been sent
+back for changes.
+
+Reviewer's note:
+
+    {{ comment|default:"No note was recorded." }}
+
+Update your exit declaration in the portal and request exit again.

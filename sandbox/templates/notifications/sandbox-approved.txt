@@ -1,0 +1,11 @@
+Hello {{ applicant }},
+
+Your sandbox application {{ reference }} for {{ product }} has been approved and
+your sandbox environment is ready.
+
+Collect your credentials here:
+
+    {{ panel_url }}
+
+They are shown once. We do not send credentials by email, and nobody from ABDM
+will ever ask you for them.

@@ -30,6 +30,45 @@ Sentry + structured logs + health endpoints only — enough to run the pilot res
 
 **Exit criteria:** one correlation id demonstrably traverses request → chain → external call in staging logs; `PROVISIONING_FAILED` produces a Sentry event.
 
+### Not built yet — correlation is declared, not wired
+
+`utils/correlation.py` and B1's `traceparent`/`X-Correlation-Id` headers exist, and
+`audit_event.correlation_id` is stamped by `emit()`. Nothing else is done, and until
+it is, the id joins nothing:
+
+- **No request binding.** `set_correlation_id()` is called nowhere outside tests.
+  There is no middleware.
+- **Nothing is structured.** django-structlog is not a dependency, and both
+  `base.py` and `production.py` format with
+  `"%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s"`.
+  A `%`-formatter renders only `%(message)s`, so the `extra={...}` dict that
+  [B1](v0-tickets/B1-integration-ports-http-policy.md)'s `IntegrationClient._log`
+  attaches to every outbound call — system, op, status, duration, outcome,
+  correlation id — is **dropped on the floor**. Every adapter call currently logs
+  the bare string `integration call`. Installing a JSON formatter is what turns
+  that line from decoration into data, and it is a settings change, not a code one.
+- **The id can bleed between requests.** `get_correlation_id()` generates on first
+  use into a `ContextVar`, which under sync Django is per-*thread* and outlives the
+  request. A second request on the same worker thread inherits the first one's id
+  rather than getting its own. Worse than a missing id, because it looks valid.
+- **It dies at the Celery boundary.** Nothing puts the id on the task message and
+  nothing rebinds it in the worker, so a task mints a fresh one. Every log line an
+  adapter writes from a worker — the whole of [B7](v0-tickets/B7-provisioning-chain.md)'s
+  chain and [B6](v0-tickets/B6-notification-adapter.md)'s sends — would be
+  unjoinable to the request that caused it even once the fields survive.
+
+What this costs concretely: a `notifications_message` row settles `FAILED` after
+five attempts and `last_error` holds the last one. What attempts 1–4 did is
+currently unrecoverable — not merely hard to find — because the fields were never
+emitted and recipients are deliberately not logged.
+
+The fix is one ticket, not per-lane work: JSON formatter, bind on the request,
+propagate on the task message, rebind in the worker, then persist the id on the
+rows that need joining back to it (`notifications_message`,
+[B1](v0-tickets/B1-integration-ports-http-policy.md)'s ledger). Those columns are
+deliberately **not** added ahead of the wiring — a column nobody writes
+meaningfully invites people to trust it.
+
 ## 5. v1 — everything else
 
 | Item | Phase |
