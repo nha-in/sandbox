@@ -16,7 +16,7 @@
     <div class="mt-8 flex items-center justify-center gap-3">
       {% if request.user.is_authenticated %}
         <a class="ui-btn ui-btn--default ui-btn--size-lg"
-           href="{% url 'users:detail' request.user.pk %}">{% translate "Go to my account" %}</a>
+           href="{% url 'users:detail' request.user.external_id %}">{% translate "Go to my account" %}</a>
       {% else %}
         {% if ACCOUNT_ALLOW_REGISTRATION %}
           <a class="ui-btn ui-btn--default ui-btn--size-lg"

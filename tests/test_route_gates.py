@@ -70,8 +70,8 @@ class Route:
     known_gap: str = ""
 
 
-def _member_pk(context: dict) -> dict:
-    return {"pk": context[ORG_MEMBER].pk}
+def _member_external_id(context: dict) -> dict:
+    return {"external_id": context[ORG_MEMBER].external_id}
 
 
 def _application_id(context: dict) -> dict:
@@ -128,16 +128,7 @@ ROUTES: dict[str, Route] = {
     "users:verify_contacts": Route(Access.AUTHENTICATED),
     "users:redirect": Route(Access.AUTHENTICATED),
     "users:update": Route(Access.AUTHENTICATED),
-    "users:detail": Route(
-        Access.SELF_ONLY,
-        kwargs=_member_pk,
-        known_gap=(
-            "UserDetailView has no queryset restriction, so any signed-in user "
-            "can read any other user's name and email by integer pk. Fix in the "
-            "users app: scope get_queryset to request.user and key the URL on "
-            "external_id (A2 acceptance criterion: integer PKs never in URLs)."
-        ),
-    ),
+    "users:detail": Route(Access.SELF_ONLY, kwargs=_member_external_id),
     "organisations:switch": Route(Access.AUTHENTICATED, methods=("GET", "POST")),
     # Console (C5). Staff-only; an org member must be refused even for their own
     # application, because the console is a different surface, not a nicer view.

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 def test_user_get_absolute_url(user: User):
-    assert user.get_absolute_url() == f"/users/{user.pk}/"
+    assert user.get_absolute_url() == f"/users/{user.external_id}/"
 
 
 def test_user_has_a_unique_external_id(user: User):

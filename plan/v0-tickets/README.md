@@ -46,7 +46,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | Ticket                                                                                                 | Phase     | Status                  |
 | ------------------------------------------------------------------------------------------------------ | --------- | ----------------------- |
 | [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**                |
-| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done** (2 carry-over) |
+| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done**                |
 | [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**                |
 | [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | **done**                |
 | [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**                |
@@ -95,8 +95,6 @@ unblocking ticket lands.
 | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [B1](B1-integration-ports-http-policy.md)   | `ProvisionedResource` ledger model + migration                      | [A3](A3-applications-model.md) | FK and `UNIQUE (application, system)` both need `applications.Application`. Only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) consume it, and both are behind A3 anyway.                                         |
 | [A4](A4-otp-service.md)                     | Stamping `email_verified_at` / `phone_verified_at` on verify        | —                              | Unblocked: A2 shipped both columns. Row closes when A4 lands.                                                                                                                                                                       |
-| [A2](A2-users-organisations-org-scoping.md) | `users:detail` scoped to the signed-in user, keyed on `external_id` | —                              | Found by [C3](C3-route-gate-harness.md): any signed-in user can read any account's name and email by integer pk. Held as a `strict=True` xfail in `tests/test_route_gates.py`, so it flips to a failure the moment the rule is met. |
-| [A2](A2-users-organisations-org-scoping.md) | `users` migration `0002` cannot apply to a database with ≥2 users   | —                              | `AddField(default=uuid.uuid4, unique=True)` writes one UUID to every existing row. Passes on an empty DB (CI stays green) and fails mid-deploy on staging. Needs AddField-null → RunPython → AlterField-unique.                     |
 
 ## Dependency sketch
 

@@ -21,7 +21,7 @@
         </div>
         <div class="ui-card-footer">
           <a class="ui-btn ui-btn--secondary"
-             href="{% url 'users:detail' request.user.pk %}">{% translate "Cancel" %}</a>
+             href="{% url 'users:detail' request.user.external_id %}">{% translate "Cancel" %}</a>
           <button type="submit" class="ui-btn ui-btn--default">{% translate "Save" %}</button>
         </div>
       </form>

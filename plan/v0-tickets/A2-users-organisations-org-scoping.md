@@ -97,7 +97,7 @@ class OrganisationMixin:
 
 - [ ] Membership uniqueness and kind/verification CHECKs enforced + tested.
 - [ ] A view under `OrganisationMixin` proves wrong-org → **404** with a two-org test fixture.
-- [ ] UUID `external_id` used for all external lookups; integer PKs never appear in URLs.
+- [x] UUID `external_id` used for all external lookups; integer PKs never appear in URLs — `users:detail` was the last holdout; every captured URL argument is now `<uuid:external_id>`.
 - [ ] Route-gate matrix rows added for every URL this ticket ships ([C3](C3-route-gate-harness.md)).
 - [ ] mypy/ruff clean; writes only in `services.py`/model methods, never views.
 
