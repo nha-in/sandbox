@@ -12,10 +12,16 @@ services:
     image: sandbox_local_django
     container_name: sandbox_local_django
     depends_on:
-      - postgres
-      - redis
-      - mailpit
-      - minio
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      mailpit:
+        condition: service_started
+      # not just `minio`: the bucket is made by a one-shot service, and without
+      # waiting for it every upload fails with NoSuchBucket.
+      minio-createbucket:
+        condition: service_completed_successfully
     volumes:
       - /app/.venv
       - .:/app:z

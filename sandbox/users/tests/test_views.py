@@ -15,8 +15,10 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
+from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.forms import UserAdminChangeForm
 from sandbox.users.tests.factories import UserFactory
+from sandbox.users.tests.factories import VerifiedUserFactory
 from sandbox.users.views import UserRedirectView
 from sandbox.users.views import UserUpdateView
 from sandbox.users.views import user_detail_view
@@ -114,3 +116,25 @@ class TestUserDetailView:
         assert isinstance(response, HttpResponseRedirect)
         assert response.status_code == HTTPStatus.FOUND
         assert response.url == f"{login_url}?next=/fake-url/"
+
+
+def test_verified_user_is_given_somewhere_to_go(client):
+    """Both contacts verified used to leave the page saying "must be verified"
+    with no onward link — a dead end you escape only via the nav."""
+    user = VerifiedUserFactory.create()
+    MembershipFactory.create(user=user)
+    client.force_login(user)
+
+    response = client.get(reverse("users:verify_contacts"))
+
+    assert response.context["all_verified"] is True
+    assert reverse("applications:dashboard") in response.content.decode()
+
+
+def test_unverified_user_is_not_offered_the_way_out(client):
+    user = UserFactory.create()
+    client.force_login(user)
+
+    response = client.get(reverse("users:verify_contacts"))
+
+    assert response.context["all_verified"] is False

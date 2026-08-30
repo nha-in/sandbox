@@ -260,3 +260,18 @@ def test_empty_states_get_no_badge_but_stay_in_the_dropdown(reviewer_client, sub
 
     assert "?state=WITHDRAWN" not in body  # no badge for a state with nothing in it
     assert 'value="WITHDRAWN"' in body  # but still filterable from the dropdown
+
+
+def test_state_badges_count_only_what_the_search_shows(reviewer_client, submitted):
+    """A badge reading "Draft 1" beside a filtered table with no drafts sends a
+    reviewer hunting for a row that is not there."""
+    ApplicationFactory.create(state=ApplicationState.DRAFT)
+
+    response = reviewer_client.get(
+        reverse("console:queue"),
+        {"q": submitted.reference},
+    )
+
+    counts = {row["value"]: row["count"] for row in response.context["state_filters"]}
+    assert counts[ApplicationState.SUBMITTED] == 1
+    assert counts[ApplicationState.DRAFT] == 0

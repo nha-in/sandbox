@@ -120,6 +120,7 @@ class ContactVerificationView(LoginRequiredMixin, View):
     @staticmethod
     def _context(user):
         return {
+            "all_verified": bool(user.email_verified_at and user.phone_verified_at),
             "items": [
                 {
                     "label": _("Email"),
