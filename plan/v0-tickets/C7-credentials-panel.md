@@ -19,14 +19,14 @@ The panel lives in the [C6](C6-integrator-dashboard.md) dashboard slot and mirro
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Shared per-system status partial (polling, terminal-stop) | `sandbox/templates/partials/provisioning_status.html` |
-| 2 | Credentials panel in the [C6](C6-integrator-dashboard.md) slot: reveal (POST) + masked state | `sandbox/templates/dashboard/credentials_panel.html` + view |
-| 3 | `rotate_credentials()` service + confirm-dialog form → [B3](B3-keycloak-adapter.md) | `sandbox/applications/services.py` + view |
-| 4 | Console mirror: status + retry, **no reveal path** | [C5](C5-console-review-queue.md) detail partial |
-| 5 | Access-rule decision (OWNER-only vs member) recorded + matrix rows | ticket PR + `tests/` |
-| 6 | Tests: one-time reveal, rotate, secret-absence greps, JS-off pass | `tests/` |
+| #   | Deliverable                                                                                  | Where                                                       |
+| --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1   | Shared per-system status partial (polling, terminal-stop)                                    | `sandbox/templates/partials/provisioning_status.html`       |
+| 2   | Credentials panel in the [C6](C6-integrator-dashboard.md) slot: reveal (POST) + masked state | `sandbox/templates/dashboard/credentials_panel.html` + view |
+| 3   | `rotate_credentials()` service + confirm-dialog form → [B3](B3-keycloak-adapter.md)          | `sandbox/applications/services.py` + view                   |
+| 4   | Console mirror: status + retry, **no reveal path**                                           | [C5](C5-console-review-queue.md) detail partial             |
+| 5   | Access-rule decision (OWNER-only vs member) recorded + matrix rows                           | ticket PR + `tests/`                                        |
+| 6   | Tests: one-time reveal, rotate, secret-absence greps, JS-off pass                            | `tests/`                                                    |
 
 ### Details
 

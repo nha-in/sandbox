@@ -1,32 +1,35 @@
-{% extends "applications/wizard_base.html" %}
-
-{% load i18n careui %}
-
-{% block step_title %}
-  {% translate "Sandbox details" %}
-{% endblock step_title %}
-{% block step_description %}
-  {% blocktranslate with reference=application.reference %}Application {{ reference }}. Answers are saved as you go — you can stop half way and come back.{% endblocktranslate %}
-{% endblock step_description %}
-{% block step_content %}
-  <form method="post" class="flex flex-col gap-4">
-    {% csrf_token %}
-    {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
-    {% for field in form %}
-      {% ui_field field %}
-    {% endfor %}
-    <div class="flex items-center justify-between gap-3">
-      <a class="ui-btn ui-btn--ghost"
-         href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Back" %}</a>
-      <div class="flex gap-3">
-        {# formnovalidate: a half-finished draft must get past the browser's own required-field check #}
-        <button type="submit"
-                name="action"
-                value="save"
-                formnovalidate
-                class="ui-btn ui-btn--secondary">{% translate "Save and finish later" %}</button>
-        <button type="submit" class="ui-btn ui-btn--primary">{% translate "Continue" %}</button>
-      </div>
+{% extends "applications/wizard_base.html" %} {% load i18n careui %} {% block
+step_title %} {% translate "Sandbox details" %} {% endblock step_title %} {%
+block step_description %} {% blocktranslate with reference=application.reference
+%}Application {{ reference }}. Answers are saved as you go — you can stop half
+way and come back.{% endblocktranslate %} {% endblock step_description %} {%
+block step_content %}
+<form method="post" class="flex flex-col gap-4">
+  {% csrf_token %} {% for error in form.non_field_errors %}
+  <p class="ui-form-message" role="alert">{{ error }}</p>
+  {% endfor %} {% for field in form %} {% ui_field field %} {% endfor %}
+  <div class="flex items-center justify-between gap-3">
+    <a
+      class="ui-btn ui-btn--ghost"
+      href="{% url 'applications:step_product' %}{{ org_query }}"
+      >{% translate "Back" %}</a
+    >
+    <div class="flex gap-3">
+      {# formnovalidate: a half-finished draft must get past the browser's own
+      required-field check #}
+      <button
+        type="submit"
+        name="action"
+        value="save"
+        formnovalidate
+        class="ui-btn ui-btn--secondary"
+      >
+        {% translate "Save and finish later" %}
+      </button>
+      <button type="submit" class="ui-btn ui-btn--primary">
+        {% translate "Continue" %}
+      </button>
     </div>
-  </form>
+  </div>
+</form>
 {% endblock step_content %}

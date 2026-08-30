@@ -1,34 +1,52 @@
-{% comment %}
-  Settings sub-navigation — the 200px rail beside the settings panel.
+{% comment %} Settings sub-navigation — the 200px rail beside the settings
+panel. Context: settings_section — "organisation" | "profile". Boosted like the
+sidebar: the response is the ordinary whole page, htmx keeps #main-content
+(which contains this rail, so the active tab updates itself) and out-of-band
+swaps #app-nav so the sidebar cannot drift out of step. Every link is a real
+href, so with JavaScript off these are ordinary page loads. {% endcomment %} {%
+load i18n %}
 
-  Context: settings_section — "organisation" | "profile".
-
-  Boosted like the sidebar: the response is the ordinary whole page, htmx keeps
-  #main-content (which contains this rail, so the active tab updates itself) and
-  out-of-band swaps #app-nav so the sidebar cannot drift out of step. Every link
-  is a real href, so with JavaScript off these are ordinary page loads.
-{% endcomment %}
-{% load i18n %}
-
-<nav class="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0.5 md:overflow-visible md:pb-0"
-     aria-label="{% translate 'Settings' %}"
-     hx-boost="true"
-     hx-target="#main-content"
-     hx-select="#main-content"
-     hx-select-oob="#app-nav"
-     hx-swap="outerHTML"
-     hx-push-url="true"
-     hx-indicator="#nav-progress">
-  <a id="settings-nav-profile"
-     class="ui-subnav-link shrink-0 {% if settings_section == 'profile' %}ui-subnav-link--active{% endif %}"
-     href="{% url 'users:detail' request.user.external_id %}"
-     {% if settings_section == 'profile' %}aria-current="page"{% endif %}>{% translate "Your profile" %}</a>
+<nav
+  class="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0.5 md:overflow-visible md:pb-0"
+  aria-label="{% translate 'Settings' %}"
+  hx-boost="true"
+  hx-target="#main-content"
+  hx-select="#main-content"
+  hx-select-oob="#app-nav"
+  hx-swap="outerHTML"
+  hx-push-url="true"
+  hx-indicator="#nav-progress"
+>
+  <a
+    id="settings-nav-profile"
+    class="ui-subnav-link shrink-0 {% if settings_section == 'profile' %}ui-subnav-link--active{% endif %}"
+    href="{% url 'users:detail' request.user.external_id %}"
+    {%
+    if
+    settings_section=""
+    ="profile"
+    %}aria-current="page"
+    {%
+    endif
+    %}
+    >{% translate "Your profile" %}</a
+  >
   {# Organisation second and conditional: someone who has not created one yet #}
-  {# still has a profile, and OrganisationMixin answers them with a 404. #}
-  {% if is_organisation_member %}
-    <a id="settings-nav-organisation"
-       class="ui-subnav-link shrink-0 {% if settings_section == 'organisation' %}ui-subnav-link--active{% endif %}"
-       href="{% url 'organisations:profile' %}{{ org_query }}"
-       {% if settings_section == 'organisation' %}aria-current="page"{% endif %}>{% translate "Organisation" %}</a>
+  {# still has a profile, and OrganisationMixin answers them with a 404. #} {%
+  if is_organisation_member %}
+  <a
+    id="settings-nav-organisation"
+    class="ui-subnav-link shrink-0 {% if settings_section == 'organisation' %}ui-subnav-link--active{% endif %}"
+    href="{% url 'organisations:profile' %}{{ org_query }}"
+    {%
+    if
+    settings_section=""
+    ="organisation"
+    %}aria-current="page"
+    {%
+    endif
+    %}
+    >{% translate "Organisation" %}</a
+  >
   {% endif %}
 </nav>
