@@ -44,6 +44,12 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# INTEGRATIONS
+# ------------------------------------------------------------------------------
+# `api_names_for` refuses to guess, and the real names are still outstanding from
+# NHA (B4). The chain needs *some* set to subscribe to, so tests pin one.
+WSO2_API_NAMES = {"SANDBOX": ("HealthIdAPI", "GatewayAPI")}
+
 # DEBUGGING FOR TEMPLATES
 # ------------------------------------------------------------------------------
 TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]

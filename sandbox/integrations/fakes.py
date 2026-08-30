@@ -34,6 +34,7 @@ from sandbox.integrations.ports import NotificationChannel
 from sandbox.integrations.ports import NotificationMessage
 from sandbox.integrations.ports import SecretRotated
 from sandbox.integrations.ports import SendResult
+from sandbox.integrations.secret_ref import resolve_secret
 
 _PREFIX = "fake_integrations"
 _CONTROL_KEY = f"{_PREFIX}:control"
@@ -245,6 +246,9 @@ class FakeApiGateway:
         _guard(ExternalSystem.WSO2, "map_keys")
         apps = _store(ExternalSystem.WSO2)
         record = self._require(apps, external_id)
+        # Dereferenced and thrown away, as the real adapter does. A fake that
+        # accepted a dead ref is what let B7's secret-expiry dead-end hide.
+        resolve_secret(secret_ref, ExternalSystem.WSO2)
         record["keys_mapped"] = True
         record["consumer_key"] = consumer_key
         record["secret_ref"] = secret_ref  # a reference, never a secret value

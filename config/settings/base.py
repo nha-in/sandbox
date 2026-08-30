@@ -463,6 +463,31 @@ HIECM_SESSION_PATH = env.str("HIECM_SESSION_PATH", default="/sessions")
 HIECM_CLIENT_ID = env.str("HIECM_CLIENT_ID", default="")
 HIECM_CLIENT_SECRET = env.str("HIECM_CLIENT_SECRET", default="")
 HIECM_CM_ID = env.str("HIECM_CM_ID", default="sbx")
+# Where HIE-CM delivers an integrator's gateway callbacks. A per-application
+# placeholder on a base we control until P4's `applications_callback` collects
+# the integrator's real endpoint; legacy pointed every bridge at one hardcoded
+# webhook.site bin. `.invalid` by default so an unconfigured deployment cannot
+# quietly publish somebody else's host.
+HIECM_BRIDGE_CALLBACK_BASE_URL = env.str(
+    "HIECM_BRIDGE_CALLBACK_BASE_URL",
+    default="https://bridge.invalid",
+)
+
+# PROVISIONING CHAIN (B7)
+# ------------------------------------------------------------------------------
+# ~30 minutes across five attempts (120s doubling, capped at 15m). The ledger,
+# not this policy, is what makes a retry safe.
+PROVISIONING_MAX_ATTEMPTS = env.int("PROVISIONING_MAX_ATTEMPTS", default=5)
+PROVISIONING_RETRY_BACKOFF_SECONDS = env.int(
+    "PROVISIONING_RETRY_BACKOFF_SECONDS",
+    default=120,
+)
+PROVISIONING_RETRY_BACKOFF_MAX_SECONDS = env.int(
+    "PROVISIONING_RETRY_BACKOFF_MAX_SECONDS",
+    default=900,
+)
+# Bounded: the detail lands on a transition comment a reviewer reads.
+PROVISIONING_DETAIL_MAX_CHARS = 500
 
 # NOTIFICATIONS (B6)
 # ------------------------------------------------------------------------------

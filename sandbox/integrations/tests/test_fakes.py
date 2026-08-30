@@ -23,11 +23,13 @@ from sandbox.integrations.ports import GatewayAppSpec
 from sandbox.integrations.ports import IdpAdmin
 from sandbox.integrations.ports import NotificationGateway
 from sandbox.integrations.ports import NotificationMessage
+from sandbox.integrations.secret_ref import store_secret
 
 SPEC = ClientSpec(reference="SBX-2026-00001", display_name="Acme", role_names=("hip",))
 APP_SPEC = GatewayAppSpec(reference="SBX-2026-00001", name="Acme", api_names=("abha",))
 BRIDGE_SPEC = BridgeSpec(bridge_id="SBX_ABC", name="Acme", url="https://acme.test")
-# A pointer into a secret store, never a secret value.
+# A pointer into a secret store, never a secret value. Deliberately never parked,
+# so it stands in for one that has expired.
 SECRET_REF = "vault://x"  # noqa: S105
 LATENCY = 0.05
 
@@ -141,12 +143,29 @@ def test_unsubscribe_is_idempotent_for_a_missing_application():
 def test_map_keys_stores_a_reference_not_a_secret():
     gateway = FakeApiGateway()
     created = gateway.create_application(APP_SPEC)
+    ref = store_secret("the-actual-secret")
 
-    gateway.map_keys(created.external_id, consumer_key="ck", secret_ref=SECRET_REF)
+    gateway.map_keys(created.external_id, consumer_key="ck", secret_ref=ref)
 
     record = app_record(gateway, created.external_id)
     assert record["keys_mapped"] is True
-    assert record["secret_ref"] == SECRET_REF
+    assert record["secret_ref"] == ref
+    assert "the-actual-secret" not in str(record)
+
+
+def test_map_keys_refuses_a_reference_that_has_expired():
+    """The fake has to fail here too, or B7's expiry dead-end is invisible in CI."""
+    gateway = FakeApiGateway()
+    created = gateway.create_application(APP_SPEC)
+
+    with pytest.raises(AdapterError) as exc:
+        gateway.map_keys(
+            created.external_id,
+            consumer_key="ck",
+            secret_ref=SECRET_REF,
+        )
+
+    assert exc.value.code == "SECRET_REF_EXPIRED"
 
 
 # HIE-CM
