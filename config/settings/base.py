@@ -399,6 +399,59 @@ INTEGRATION_PORTS = {
     ),
 }
 
+# KEYCLOAK (B3)
+# ------------------------------------------------------------------------------
+# Issues the integrator's machine credentials. The local realm
+# (compose/local/keycloak/) stands in for ABDM's; a real sandbox-tier service
+# account is still outstanding (00-master-plan.md open question 4).
+KEYCLOAK_BASE_URL = env.str("KEYCLOAK_BASE_URL", default="http://keycloak:8080")
+KEYCLOAK_REALM = env.str("KEYCLOAK_REALM", default="abdm-sandbox")
+KEYCLOAK_CLIENT_ID = env.str("KEYCLOAK_CLIENT_ID", default="sandbox-provisioner")
+KEYCLOAK_CLIENT_SECRET = env.str("KEYCLOAK_CLIENT_SECRET", default="")
+# Role NAMES per application kind — never realm UUIDs, which legacy hardcoded.
+# This subset is provisional: legacy granted all 14 roles to everyone, and NHA
+# has not yet confirmed the per-kind set (open question 4).
+KEYCLOAK_ROLE_NAMES = {
+    "SANDBOX": tuple(
+        env.list(
+            "KEYCLOAK_SANDBOX_ROLE_NAMES",
+            default=["healthId", "hip", "hiu", "hfr"],
+        ),
+    ),
+}
+
+# WSO2 (B4)
+# ------------------------------------------------------------------------------
+# The API gateway an integrator's credentials actually pass through. TLS is
+# verified by the shared client; legacy disabled it on every WSO2 call.
+WSO2_BASE_URL = env.str("WSO2_BASE_URL", default="https://wso2.invalid")
+# Legacy talked to ABDM's instance over devportal v2.1; v3 is current. Confirm
+# against the real gateway before staging sign-off.
+WSO2_DEVPORTAL_PATH = env.str("WSO2_DEVPORTAL_PATH", default="/api/am/devportal/v3")
+WSO2_TOKEN_PATH = env.str("WSO2_TOKEN_PATH", default="/oauth2/token")
+WSO2_CLIENT_ID = env.str("WSO2_CLIENT_ID", default="")
+WSO2_CLIENT_SECRET = env.str("WSO2_CLIENT_SECRET", default="")
+WSO2_USERNAME = env.str("WSO2_USERNAME", default="")
+WSO2_PASSWORD = env.str("WSO2_PASSWORD", default="")
+WSO2_GRANT_TYPE = env.str("WSO2_GRANT_TYPE", default="password")
+WSO2_SCOPES = tuple(
+    env.list(
+        "WSO2_SCOPES",
+        default=["apim:subscribe", "apim:app_manage", "apim:sub_manage"],
+    ),
+)
+WSO2_THROTTLING_POLICY = env.str("WSO2_THROTTLING_POLICY", default="Unlimited")
+WSO2_TOKEN_TYPE = env.str("WSO2_TOKEN_TYPE", default="JWT")
+WSO2_KEY_MANAGER = env.str("WSO2_KEY_MANAGER", default="Resident Key Manager")
+WSO2_KEY_TYPE = env.str("WSO2_KEY_TYPE", default="PRODUCTION")
+WSO2_READ_TIMEOUT_SECONDS = env.float("WSO2_READ_TIMEOUT_SECONDS", default=15.0)
+# API NAMES, never ids. No default: NHA has not published the sandbox API names,
+# and a wrong or empty guess would fail silently at provisioning time.
+WSO2_API_NAMES = {"SANDBOX": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[]))}
+
+# How long a secret parked for `map_keys` stays readable (B7 → B4 hand-off).
+SECRET_REF_TTL_SECONDS = env.int("SECRET_REF_TTL_SECONDS", default=900)
+
 # OTP
 # ------------------------------------------------------------------------------
 # Carried from legacy `OtpServiceImpl` / `SandboxConstant`: OTP_VALIDITY_MINUTES=10,

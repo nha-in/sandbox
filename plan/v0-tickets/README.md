@@ -43,42 +43,42 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 
 ## Lane A — Backend: domain & workflow
 
-| Ticket                                                                                                 | Phase     | Status                        |
-| ------------------------------------------------------------------------------------------------------ | --------- | ----------------------------- |
-| [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**                      |
-| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done** (2 carry-over)       |
-| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**                      |
-| [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | **done**                      |
-| [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**                      |
-| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | **done**                      |
-| [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | **done**                      |
-| [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | open (A7 done, see OQ3)       |
-| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | **V0.2 scope done**           |
+| Ticket                                                                                                 | Phase     | Status              |
+| ------------------------------------------------------------------------------------------------------ | --------- | ------------------- |
+| [A1 ⚡ — `catalog` app: milestones, seeds, admin](A1-catalog-app.md)                                   | V0.2      | **done**            |
+| [A2 — `users` + `organisations`, membership, org-scoping mixin](A2-users-organisations-org-scoping.md) | V0.2      | **done**            |
+| [A3 — `applications` model: kind + payload envelope + SANDBOX schema](A3-applications-model.md)        | V0.2      | **done**            |
+| [A4 — OTP service (Redis token bucket, attempt caps)](A4-otp-service.md)                               | V0.2      | **done**            |
+| [A5 — Workflow state machine + `transition()` + audit events](A5-workflow-state-machine.md)            | V0.2      | **done**            |
+| [A6 — Reviews + admin approve guard](A6-reviews-quorum.md)                                             | V0.2      | **done**            |
+| [A7 — Declarations + document uploads](A7-declarations-uploads.md)                                     | V0.4      | **done**            |
+| [A8 — Exit workflow + production approval](A8-exit-workflow.md)                                        | V0.4      | **done**            |
+| [A9 ⚑ — `seed_sandbox_demo`](A9-seed-sandbox-demo.md)                                                  | V0.2→V0.4 | **V0.2 scope done** |
 
 ## Lane B — Backend: integrations
 
-| Ticket                                                                                       | Phase | Status                                |
-| -------------------------------------------------------------------------------------------- | ----- | ------------------------------------- |
-| [B1 — `integrations` ports + shared HTTP policy](B1-integration-ports-http-policy.md)        | V0.3  | **done** (1 carry-over)               |
-| [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | **done**                              |
-| [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | blocked (NHA access, open question 4) |
-| [B4 — WSO2 adapter (`ApiGateway`)](B4-wso2-adapter.md)                                       | V0.3  | blocked (NHA access)                  |
-| [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | blocked (NHA access)                  |
-| [B6 — Notification adapter + Celery send task + delivery log](B6-notification-adapter.md)    | V0.3  | blocked (NHA access)                  |
-| [B7 — Provisioning chain + ledger + `PROVISIONING_FAILED` + retry](B7-provisioning-chain.md) | V0.3  | blocked (B3–B6, A5)                   |
-| [B8 — Deprovisioning chain (rejection path)](B8-deprovisioning-chain.md)                     | V0.3  | blocked (B7)                          |
-| [B9 — WireMock contract + fault-injection suite](B9-wiremock-fault-injection-suite.md)       | V0.3  | open                                  |
+| Ticket                                                                                       | Phase | Status                  |
+| -------------------------------------------------------------------------------------------- | ----- | ----------------------- |
+| [B1 — `integrations` ports + shared HTTP policy](B1-integration-ports-http-policy.md)        | V0.3  | **done** (1 carry-over) |
+| [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | **done**                |
+| [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | **done** (1 carry-over) |
+| [B4 — WSO2 adapter (`ApiGateway`)](B4-wso2-adapter.md)                                       | V0.3  | **done** (1 carry-over) |
+| [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | blocked (NHA access)    |
+| [B6 — Notification adapter + Celery send task + delivery log](B6-notification-adapter.md)    | V0.3  | blocked (NHA access)    |
+| [B7 — Provisioning chain + ledger + `PROVISIONING_FAILED` + retry](B7-provisioning-chain.md) | V0.3  | blocked (B3–B6, A5)     |
+| [B8 — Deprovisioning chain (rejection path)](B8-deprovisioning-chain.md)                     | V0.3  | blocked (B7)            |
+| [B9 — WireMock contract + fault-injection suite](B9-wiremock-fault-injection-suite.md)       | V0.3  | open                    |
 
 ## Lane C — Full-stack UI
 
-| Ticket                                                                                         | Phase | Status           |
-| ---------------------------------------------------------------------------------------------- | ----- | ---------------- |
-| [C3 — Route-gate test harness](C3-route-gate-harness.md)                                       | V0.2  | **done**         |
+| Ticket                                                                                         | Phase | Status            |
+| ---------------------------------------------------------------------------------------------- | ----- | ----------------- |
+| [C3 — Route-gate test harness](C3-route-gate-harness.md)                                       | V0.2  | **done**          |
 | [C4 — Enrollment wizard (SANDBOX) + OTP partial](C4-enrollment-wizard.md)                      | V0.2  | **done**          |
 | [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | **done**          |
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | open (A3/A5 done) |
 | [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | blocked (B7, C6)  |
-| [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | blocked (A8)      |
+| [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | open (A7/A8 done) |
 | [C9 — Playwright e2e: full journey + JS-disabled pass](C9-playwright-e2e.md)                   | V0.4  | blocked (C4–C8)   |
 
 ⚑ = junior-suitable starter.
@@ -91,12 +91,12 @@ from a ticket's _Out of scope_ section (deliberate v1 deferrals) and from
 ticket may be marked done with an open carry-over row; the row closes when the
 unblocking ticket lands.
 
-| From                                        | Deliverable                                                         | Blocked on                     | Notes                                                                                                                                                                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [B1](B1-integration-ports-http-policy.md)   | `ProvisionedResource` ledger model + migration                      | [A3](A3-applications-model.md) | FK and `UNIQUE (application, system)` both need `applications.Application`. Only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) consume it, and both are behind A3 anyway.                                         |
-| [A4](A4-otp-service.md)                     | Stamping `email_verified_at` / `phone_verified_at` on verify        | —                              | Unblocked: A2 shipped both columns. Row closes when A4 lands.                                                                                                                                                                       |
-| [A2](A2-users-organisations-org-scoping.md) | `users:detail` scoped to the signed-in user, keyed on `external_id` | —                              | Found by [C3](C3-route-gate-harness.md): any signed-in user can read any account's name and email by integer pk. Held as a `strict=True` xfail in `tests/test_route_gates.py`, so it flips to a failure the moment the rule is met. |
-| [A2](A2-users-organisations-org-scoping.md) | `users` migration `0002` cannot apply to a database with ≥2 users   | —                              | `AddField(default=uuid.uuid4, unique=True)` writes one UUID to every existing row. Passes on an empty DB (CI stays green) and fails mid-deploy on staging. Needs AddField-null → RunPython → AlterField-unique.                     |
+| From                                      | Deliverable                                                    | Blocked on                     | Notes                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [B1](B1-integration-ports-http-policy.md) | `ProvisionedResource` ledger model + migration                 | [A3](A3-applications-model.md) | FK and `UNIQUE (application, system)` both need `applications.Application`. Only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) consume it, and both are behind A3 anyway.                                                           |
+| [A4](A4-otp-service.md)                   | Stamping `email_verified_at` / `phone_verified_at` on verify   | —                              | Unblocked: A2 shipped both columns. Row closes when A4 lands.                                                                                                                                                                                         |
+| [B3](B3-keycloak-adapter.md)              | End-to-end verification against the real sandbox-tier Keycloak | NHA service account            | Adapter is complete and verified against the local realm (roles land in a real token, GET does not rotate, disable revokes). Open question 4 also owes the per-kind role subset; ours is a documented default, changed by one env var.                |
+| [B4](B4-wso2-adapter.md)                  | End-to-end verification against the real sandbox-tier WSO2     | NHA gateway access             | No local WSO2 stand-in exists, so the adapter has only met a stub. Devportal path defaults to v3 while the only evidence (legacy) says v2.1 — one env var, confirm on staging. NHA also owes the sandbox API names; there is deliberately no default. |
 
 ## Dependency sketch
 

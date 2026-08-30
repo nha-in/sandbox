@@ -15,7 +15,9 @@ from django.http import Http404
 
 from sandbox.declarations.models import Declaration
 from sandbox.declarations.models import DeclarationDocument
+from sandbox.declarations.models import DeclarationKind
 from sandbox.declarations.models import DeclarationMilestone
+from sandbox.declarations.models import DeclarationState
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -66,6 +68,50 @@ def declarations_for_organisation(
 ) -> QuerySet[Declaration]:
     return Declaration.objects.for_organisation(organisation).select_related(
         "application",
+    )
+
+
+def current_exit_declaration(application: Application) -> Declaration | None:
+    """The exit bundle awaiting an outcome, if there is one.
+
+    Both filters earn their place. `state` excludes a settled bundle — a
+    rejection releases no claims, so a rejected declaration still holds live
+    ones until the replacement supersedes them, and without this it could be
+    re-requested unchanged. `superseded_by` excludes a bundle that was replaced
+    before it was ever reviewed, which is still SUBMITTED.
+    """
+    return (
+        Declaration.objects.filter(
+            application=application,
+            kind=DeclarationKind.EXIT,
+            state=DeclarationState.SUBMITTED,
+            milestones__superseded_by__isnull=True,
+        )
+        .prefetch_related("milestones__milestone", "documents")
+        .distinct()
+        .first()
+    )
+
+
+def undeclared_exit_milestones(declaration: Declaration) -> list[str]:
+    """Milestone keys the exit covers that were never declared complete.
+
+    A8's `request_exit` guard: you cannot take M2 to production without having
+    declared M2 done, but exiting M1 does not oblige you to declare M3.
+    """
+    covered = {claim.milestone_id for claim in declaration.milestones.all()}
+    declared = set(
+        DeclarationMilestone.objects.filter(
+            application_id=declaration.application_id,
+            kind=DeclarationKind.MILESTONE,
+            milestone_id__in=covered,
+        ).values_list("milestone_id", flat=True),
+    )
+    missing = covered - declared
+    return sorted(
+        claim.milestone.key
+        for claim in declaration.milestones.all()
+        if claim.milestone_id in missing
     )
 
 

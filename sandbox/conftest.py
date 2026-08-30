@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import boto3
 import pytest
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.conf import settings as django_settings
+from django.core.files.storage import storages
+from moto import mock_aws
 
 from sandbox.integrations.fakes import reset_fakes
 from sandbox.users.tests.factories import UserFactory
@@ -26,6 +30,27 @@ def _reset_integration_fakes() -> None:
 @pytest.fixture
 def user(db) -> User:
     return UserFactory.create()
+
+
+def _drop_cached_declaration_storage() -> None:
+    """`storages` memoizes per alias, so a cached client outlives the mock."""
+    storages._storages.pop("declarations", None)  # type: ignore[attr-defined]  # noqa: SLF001
+
+
+@pytest.fixture
+def mock_s3():
+    """A real S3 conversation against `moto`, for anything that stores a file.
+
+    Shared rather than local to declarations because the demo seed uploads an
+    exit document too.
+    """
+    with mock_aws():
+        boto3.client("s3", region_name="us-east-1").create_bucket(
+            Bucket=django_settings.AWS_STORAGE_BUCKET_NAME,
+        )
+        _drop_cached_declaration_storage()
+        yield
+        _drop_cached_declaration_storage()
 
 
 @pytest.fixture

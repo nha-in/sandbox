@@ -14,5 +14,5 @@ urlpatterns = [
         view=contact_verification_view,
         name="verify_contacts",
     ),
-    path("<int:pk>/", view=user_detail_view, name="detail"),
+    path("<uuid:external_id>/", view=user_detail_view, name="detail"),
 ]

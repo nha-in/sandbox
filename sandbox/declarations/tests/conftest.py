@@ -7,12 +7,8 @@ per test and thrown away with it.
 
 from __future__ import annotations
 
-import boto3
 import pytest
-from django.conf import settings
-from django.core.files.storage import storages
 from django.core.files.uploadedfile import SimpleUploadedFile
-from moto import mock_aws
 
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
@@ -34,22 +30,6 @@ def _no_scanners():
     services.clear_scanners()
     yield
     services.clear_scanners()
-
-
-def _drop_cached_backend() -> None:
-    """`storages` memoizes per alias, so a cached client outlives the mock."""
-    storages._storages.pop("declarations", None)  # type: ignore[attr-defined]  # noqa: SLF001
-
-
-@pytest.fixture
-def mock_s3():
-    with mock_aws():
-        boto3.client("s3", region_name="us-east-1").create_bucket(
-            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
-        )
-        _drop_cached_backend()
-        yield
-        _drop_cached_backend()
 
 
 @pytest.fixture

@@ -39,7 +39,8 @@
           <span class="ui-nav-link text-muted-foreground">{{ active_organisation.name }}</span>
         {% endif %}
         {% if request.user.is_authenticated %}
-          <a class="ui-nav-link" href="{% url 'users:detail' request.user.pk %}">{{ request.user.email }}</a>
+          <a class="ui-nav-link"
+             href="{% url 'users:detail' request.user.external_id %}">{{ request.user.email }}</a>
           <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
              href="{% url 'account_logout' %}">{% translate "Sign out" %}</a>
         {% else %}

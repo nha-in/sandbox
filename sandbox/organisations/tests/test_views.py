@@ -62,7 +62,9 @@ def test_a_user_with_no_organisation_is_offered_one(client):
     user = VerifiedUserFactory.create()
     client.force_login(user)
 
-    response = client.get(reverse("users:detail", kwargs={"pk": user.pk}))
+    response = client.get(
+        reverse("users:detail", kwargs={"external_id": user.external_id})
+    )
     assert reverse("organisations:create") in response.content.decode()
 
     response = client.post(reverse("organisations:create"), data=_create_post())
@@ -216,7 +218,9 @@ def test_shell_links_a_member_to_the_wizard(client):
     MembershipFactory.create(user=user)
     client.force_login(user)
 
-    response = client.get(reverse("users:detail", kwargs={"pk": user.pk}))
+    response = client.get(
+        reverse("users:detail", kwargs={"external_id": user.external_id})
+    )
 
     assert reverse("applications:new") in response.content.decode()
 
@@ -225,7 +229,9 @@ def test_shell_shows_no_wizard_link_to_a_non_member(client):
     user = VerifiedUserFactory.create()
     client.force_login(user)
 
-    response = client.get(reverse("users:detail", kwargs={"pk": user.pk}))
+    response = client.get(
+        reverse("users:detail", kwargs={"external_id": user.external_id})
+    )
 
     assert "is_organisation_member" not in response.context
     assert reverse("applications:new") not in response.content.decode()
@@ -248,6 +254,8 @@ def test_a_single_org_member_can_reach_the_organisation_list(client):
     membership = MembershipFactory.create(user=VerifiedUserFactory.create())
     client.force_login(membership.user)
 
-    response = client.get(reverse("users:detail", kwargs={"pk": membership.user.pk}))
+    response = client.get(
+        reverse("users:detail", kwargs={"external_id": membership.user.external_id})
+    )
 
     assert reverse("organisations:choose") in response.content.decode()

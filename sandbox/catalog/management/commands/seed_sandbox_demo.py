@@ -15,6 +15,8 @@ from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
@@ -27,8 +29,11 @@ from sandbox.applications.schemas.sandbox import IntegrationIntent
 from sandbox.applications.schemas.sandbox import PayerCategory
 from sandbox.applications.schemas.sandbox import SolutionType
 from sandbox.applications.services import create_draft
+from sandbox.catalog.models import Milestone
 from sandbox.catalog.selectors import districts_for_state
 from sandbox.catalog.selectors import state_choices
+from sandbox.declarations.services import submit_exit_declaration
+from sandbox.declarations.services import submit_milestone_declaration
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import MembershipRole
 from sandbox.organisations.models import NatureOfEntity
@@ -88,13 +93,25 @@ DEMO_PAYLOAD = {
 
 # Every state, reached the way a real actor would reach it.
 #: an action plus the key of the actor performing it; None means a system move
-Step = tuple[Action, str | None]
+Step = tuple["Action | str", str | None]
+
+#: not a workflow move — the exit bundle A8's `exit_bundle` guard requires
+DECLARE_EXIT = "declare_exit"
+
+#: the milestones the demo declares and then exits, matching DEMO_PAYLOAD
+DEMO_MILESTONE_KEYS = ("m1", "m2")
+
+DEMO_EVIDENCE = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n%%EOF\n"
 
 _SUBMITTED: list[Step] = [(Action.SUBMIT, "owner")]
 _APPROVED = [*_SUBMITTED, (Action.APPROVE, "admin")]
 _PROVISIONING = [*_APPROVED, (Action.START_PROVISIONING, None)]
 _PROVISIONED = [*_PROVISIONING, (Action.COMPLETE_PROVISIONING, None)]
-_EXIT_REQUESTED = [*_PROVISIONED, (Action.REQUEST_EXIT, "owner")]
+_EXIT_REQUESTED = [
+    *_PROVISIONED,
+    (DECLARE_EXIT, "owner"),
+    (Action.REQUEST_EXIT, "owner"),
+]
 _EXIT_REVIEW = [*_EXIT_REQUESTED, (Action.START_EXIT_REVIEW, "admin")]
 
 PATHS: dict[str, list[Step]] = {
@@ -140,6 +157,48 @@ def _demo_profile(address_line1: str, city: str, pincode: str) -> dict:
     }
 
 
+def _declare_exit_bundle(application, actor):
+    """Milestone declarations, then the exit bundle they justify.
+
+    Built through A7's services so the seeded evidence has real sha256s and
+    real objects behind it, and so it satisfies A8's guard the same way a
+    person would.
+    """
+    milestones = [
+        Milestone.objects.get(key=key)
+        for key in DEMO_MILESTONE_KEYS
+        if Milestone.objects.filter(key=key).exists()
+    ]
+    if not milestones:
+        message = (
+            f"no demo milestones {DEMO_MILESTONE_KEYS} in the catalog — "
+            "seed_catalog must run first"
+        )
+        raise CommandError(message)
+
+    for milestone in milestones:
+        submit_milestone_declaration(
+            application=application,
+            milestone=milestone,
+            actor=actor,
+            completed_on=timezone.localdate(),
+        )
+
+    submit_exit_declaration(
+        application=application,
+        milestones=milestones,
+        actor=actor,
+        payload={"readiness": "Functional testing complete on the sandbox gateway."},
+        files=[
+            SimpleUploadedFile(
+                "exit-readiness.pdf",
+                DEMO_EVIDENCE,
+                content_type="application/pdf",
+            ),
+        ],
+    )
+
+
 class Command(BaseCommand):
     help = "Create or refresh the local demo dataset."
 
@@ -170,6 +229,10 @@ class Command(BaseCommand):
 
         if options["fresh"]:
             self._retire()
+
+        # The demo declares and exits milestones, so it needs the catalog it
+        # references. seed_catalog is idempotent, so calling it is free.
+        call_command("seed_catalog", verbosity=0)
 
         users = self._seed_users(password)
         demo_org, other_org = self._seed_organisations(users)
@@ -338,10 +401,14 @@ class Command(BaseCommand):
     @staticmethod
     def _walk(application, path, users):
         for action, actor_key in path:
+            actor = users[actor_key] if actor_key else None
+            if action == DECLARE_EXIT:
+                _declare_exit_bundle(application, actor)
+                continue
             transition(
                 application=application,
                 action=action,
-                actor=users[actor_key] if actor_key else None,
+                actor=actor,
             )
 
     def _seed_review_rounds(self, organisation, users):

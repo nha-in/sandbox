@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponseRedirect
 from django.urls import reverse
@@ -46,7 +47,7 @@ class TestUserUpdateView:
         request.user = user
 
         view.request = request
-        assert view.get_success_url() == f"/users/{user.pk}/"
+        assert view.get_success_url() == f"/users/{user.external_id}/"
 
     def test_get_object(self, user: User, rf: RequestFactory):
         view = UserUpdateView()
@@ -85,21 +86,29 @@ class TestUserRedirectView:
         request.user = user
 
         view.request = request
-        assert view.get_redirect_url() == f"/users/{user.pk}/"
+        assert view.get_redirect_url() == f"/users/{user.external_id}/"
 
 
 class TestUserDetailView:
-    def test_authenticated(self, user: User, rf: RequestFactory):
+    def test_own_page_renders(self, user: User, rf: RequestFactory):
         request = rf.get("/fake-url/")
-        request.user = UserFactory.create()
-        response = user_detail_view(request, pk=user.pk)
+        request.user = user
+        response = user_detail_view(request, external_id=user.external_id)
 
         assert response.status_code == HTTPStatus.OK
+
+    def test_another_users_page_is_not_found(self, user: User, rf: RequestFactory):
+        """404 rather than 403: a 403 would confirm the account exists."""
+        request = rf.get("/fake-url/")
+        request.user = UserFactory.create()
+
+        with pytest.raises(Http404):
+            user_detail_view(request, external_id=user.external_id)
 
     def test_not_authenticated(self, user: User, rf: RequestFactory):
         request = rf.get("/fake-url/")
         request.user = AnonymousUser()
-        response = user_detail_view(request, pk=user.pk)
+        response = user_detail_view(request, external_id=user.external_id)
         login_url = reverse(settings.LOGIN_URL)
 
         assert isinstance(response, HttpResponseRedirect)

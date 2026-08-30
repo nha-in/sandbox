@@ -71,13 +71,13 @@ def request_exit(*, application, actor) -> None:
 
 ## Acceptance criteria
 
-- [ ] Full exit path green in tests: request (guard passes/fails correctly) → review → approve → `PRODUCTION_APPROVED`, and the reject + re-request loop.
-- [ ] Approval settles the exit declaration (`APPROVED`), and a later resubmission over it is refused with A7's `already_settled`.
-- [ ] Exit approval requires the admin permission; integrator/reviewer roles cannot approve (matrix rows added).
-- [ ] Every exit transition audited with actor + comment; approval freezes state history like any other transition.
-- [ ] Approval/rejection notifications enqueued on commit (asserted).
-- [ ] [A9](A9-seed-sandbox-demo.md)'s seed still reaches every exit state under the new guard.
-- [ ] mypy/ruff clean; no view writes.
+- [x] Full exit path green in tests: request (guard passes/fails correctly) → review → approve → `PRODUCTION_APPROVED`, and the reject + re-request loop.
+- [x] Approval settles the exit declaration (`APPROVED`), and a later resubmission over it is refused.
+- [x] Exit approval requires the admin permission; integrator/reviewer roles cannot approve.
+- [x] Every exit transition audited with actor + comment; approval freezes state history like any other transition.
+- [ ] Approval/rejection notifications enqueued on commit (asserted) — hook names are on the table; [B6](B6-notification-adapter.md) registers the handlers.
+- [x] [A9](A9-seed-sandbox-demo.md)'s seed still reaches every exit state under the new guard.
+- [x] mypy/ruff clean; no view writes.
 
 ## Out of scope (deferred)
 

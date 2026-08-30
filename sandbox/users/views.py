@@ -26,9 +26,19 @@ if TYPE_CHECKING:
 
 
 class UserDetailView(LoginRequiredMixin, DetailView):
+    """Your own account page, and only ever your own.
+
+    The queryset is the access control; `external_id` only keeps integer pks
+    out of URLs (A2). Someone else's id therefore 404s rather than 403s.
+    """
+
     model = User
-    slug_field = "id"
-    slug_url_kwarg = "id"
+    slug_field = "external_id"
+    slug_url_kwarg = "external_id"
+
+    def get_queryset(self) -> QuerySet[User]:
+        assert self.request.user.is_authenticated  # type guard
+        return User.objects.filter(external_id=self.request.user.external_id)
 
 
 user_detail_view = UserDetailView.as_view()
@@ -55,7 +65,11 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
     permanent = False
 
     def get_redirect_url(self) -> str:
-        return reverse("users:detail", kwargs={"pk": self.request.user.pk})
+        assert self.request.user.is_authenticated  # type guard
+        return reverse(
+            "users:detail",
+            kwargs={"external_id": self.request.user.external_id},
+        )
 
 
 user_redirect_view = UserRedirectView.as_view()
