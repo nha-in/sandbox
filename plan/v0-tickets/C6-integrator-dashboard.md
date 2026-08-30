@@ -19,13 +19,13 @@ Server-rendered under `OrganisationMixin`; org-scoped selectors only; no writes 
 
 ### Deliverables
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | Dashboard view under `OrganisationMixin` (read-only) | `sandbox/applications/views.py` (or `dashboard/`) + `urls.py` |
-| 2 | Dashboard template: welcome/CTA, stepper, hint card, summary card, slots | `sandbox/templates/dashboard/index.html` |
-| 3 | State→step display mapping (covers every state incl. edge states) | template tag / selector |
-| 4 | Self-polling `partials/application_status.html` | templates |
-| 5 | Route-gate rows + parametrised all-states render test | `tests/` |
+| #   | Deliverable                                                              | Where                                                         |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| 1   | Dashboard view under `OrganisationMixin` (read-only)                     | `sandbox/applications/views.py` (or `dashboard/`) + `urls.py` |
+| 2   | Dashboard template: welcome/CTA, stepper, hint card, summary card, slots | `sandbox/templates/dashboard/index.html`                      |
+| 3   | State→step display mapping (covers every state incl. edge states)        | template tag / selector                                       |
+| 4   | Self-polling `partials/application_status.html`                          | templates                                                     |
+| 5   | Route-gate rows + parametrised all-states render test                    | `tests/`                                                      |
 
 ### Details
 
@@ -41,11 +41,66 @@ Server-rendered under `OrganisationMixin`; org-scoped selectors only; no writes 
 
 ## Acceptance criteria
 
-- [ ] Every workflow state renders a sensible dashboard (parametrised template test over all states — no state falls through to a blank/broken view).
-- [ ] Stepper mapping correct for the full state list incl. failure/edge states.
-- [ ] Polling partial stops at terminal states and degrades to plain refresh (htmx-off test).
-- [ ] Org scoping proven (two-org fixture); matrix rows added.
-- [ ] djLint/i18n/mypy/ruff clean; no writes in any dashboard view.
+- [x] Every workflow state renders a sensible dashboard (parametrised over all 13 states — each has guidance and either a track or a banner).
+- [x] Stepper mapping correct for the full state list incl. failure/edge states.
+- [x] Polling partial stops at terminal states and degrades to plain refresh (htmx-off test).
+- [x] Org scoping proven (two-org fixture); matrix rows added.
+- [x] djLint/i18n/mypy/ruff clean; no writes in any dashboard view.
+
+## How it was built
+
+### Not `ui-progress-track`
+
+This ticket named careui's `ui-progress-track`/`ui-progress-indicator` for the
+stepper. They are a _determinate progress bar_: `h-1.5` with `overflow-x-hidden`,
+so labelled steps get crushed to six pixels and clipped. The browser showed an
+unreadable green smear. The stepper is the badge rail [C4](C4-enrollment-wizard.md)
+already uses, which reads correctly and carries `aria-current="step"`.
+
+### The track has seven steps but only six reachable positions
+
+The stepper answers "where am I", and it reads that off `Application.state`.
+Six of the seven steps have a state that means "you are here". `milestones` has
+none, so it renders only as upcoming or done — never current.
+
+The reason is that **the application stops changing state for the longest part
+of the journey**. You reach `PROVISIONED` the moment credentials are issued, and
+you stay there while you integrate, while you declare M1, then M2, then M3 — all
+the way until you request exit and it becomes `EXIT_REQUESTED`. That work is real
+and it is months long, but it is recorded in `declarations`, a different table.
+Nothing about it touches `Application.state`.
+
+So `PROVISIONED` covers two quite different situations that a stepper wants to
+distinguish:
+
+| What is true                      | What the user is doing       | State         |
+| --------------------------------- | ---------------------------- | ------------- |
+| Credentials just arrived          | reading them, first API call | `PROVISIONED` |
+| Integrating, declaring milestones | the bulk of the sandbox      | `PROVISIONED` |
+
+This ticket assigns `PROVISIONED` to `credentials`, so the highlighted step reads
+"Credentials" for that whole period — accurate on day one, stale by week two. The
+hint copy compensates ("declare your first milestone"), which is why this is a
+wart rather than a defect, but the badge and the copy disagree.
+
+Two ways out, both deliberately not taken here:
+
+- **Map `PROVISIONED` to `milestones` instead.** One line. Trades a wrong
+  "Milestones" for the few minutes after provisioning against a right one for the
+  months that follow. Contradicts this ticket's wording, though not its intent —
+  the ticket's own hint for `PROVISIONED` is a milestones instruction.
+- **Read `declarations` as well as `Application.state`** — `credentials` until the
+  first milestone declaration exists, `milestones` after. Correct in both
+  situations, and natural work for [C8](C8-milestone-exit-forms.md), which builds
+  the milestone timeline and already needs those queries.
+
+Worth settling in C8 rather than guessing now.
+
+### The dashboard is the home, so it took the nav slot
+
+`/applications/` is now the integrator's landing page and the first nav entry;
+the wizard is reached from its CTA rather than from the header, and the
+organisation picker defaults here instead of to the wizard.
 
 ## Out of scope (deferred)
 

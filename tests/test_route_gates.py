@@ -149,6 +149,12 @@ ROUTES: dict[str, Route] = {
     ),
     # Enrolment wizard (C4). Every screen names its tenant in `?org=`, so the
     # rule is the same whether or not the URL also names an application.
+    "applications:dashboard": Route(Access.ORG_SCOPED, query=_org_a),
+    "applications:application_status": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
     "applications:new": Route(Access.ORG_SCOPED, query=_org_a),
     "applications:step_product": Route(
         Access.ORG_SCOPED,

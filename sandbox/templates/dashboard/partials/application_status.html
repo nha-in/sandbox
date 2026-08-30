@@ -1,0 +1,30 @@
+{% load i18n %}
+
+{# Swapped in place by htmx; a plain refresh renders the same thing. #}
+<div id="application-status"
+     {% if should_poll %}hx-get="{% url 'applications:application_status' external_id=application.external_id %}{{ org_query }}" hx-trigger="every 4s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  {% if is_edge_state %}
+    <div class="ui-alert ui-alert--warning">
+      <p class="font-medium">{{ hint_title }}</p>
+      <p>{{ hint_body }}</p>
+    </div>
+  {% else %}
+    {# Not ui-progress-track: that is a 6px determinate bar with overflow hidden, #}
+    {# which crushes and clips labelled steps. Badge rail, as the wizard uses. #}
+    <ol class="mb-4 flex flex-wrap items-center gap-2"
+        aria-label="{% translate 'Sandbox journey' %}">
+      {% for step in journey %}
+        <li class="ui-badge ui-badge--size-sm {% if step.status == 'current' %}ui-badge--primary{% elif step.status == 'done' %}ui-badge--success{% else %}ui-badge--neutral{% endif %}"
+            {% if step.status == "current" %}aria-current="step"{% endif %}>
+          {{ step.label }}
+          {% if step.status == "done" %}
+            <span class="sr-only">{% translate "(complete)" %}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    <p class="ui-page-subtitle">
+      <span class="font-medium">{{ hint_title }}</span> — {{ hint_body }}
+    </p>
+  {% endif %}
+</div>

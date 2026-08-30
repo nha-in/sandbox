@@ -21,6 +21,8 @@ from sandbox.integrations.models import ProvisionedSystem
 
 pytestmark = pytest.mark.django_db
 
+LIVE_PLUS_RETIRED = 2
+
 
 def _resource(**overrides) -> ProvisionedResource:
     defaults = {
@@ -59,7 +61,7 @@ def test_a_soft_deleted_resource_frees_the_slot():
 
     assert replacement.state == ProvisionedResourceState.ACTIVE
     assert ProvisionedResource.objects.count() == 1
-    assert ProvisionedResource.all_objects.count() == 2
+    assert ProvisionedResource.all_objects.count() == LIVE_PLUS_RETIRED
 
 
 def test_notification_is_not_a_provisionable_system():

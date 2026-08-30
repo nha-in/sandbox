@@ -5,18 +5,22 @@ Wrong-org lookups 404 rather than 403 — a 403 confirms the record exists (A2).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from django.http import Http404
+from django.utils.translation import gettext_lazy as _
 
 from sandbox.applications.models import NON_BLOCKING_STATES
 from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationState
 from sandbox.organisations.models import Product
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from django.db.models import QuerySet
+    from django_stubs_ext import StrOrPromise
 
     from sandbox.organisations.models import Organisation
 
@@ -73,3 +77,78 @@ def products_available_for(
         .values("product_id")
     )
     return Product.objects.for_organisation(organisation).exclude(pk__in=taken)
+
+
+@dataclass(frozen=True, slots=True)
+class JourneyStep:
+    key: str
+    label: str
+    status: str  # done | current | upcoming
+
+
+JOURNEY_LABELS: tuple[tuple[str, StrOrPromise], ...] = (
+    ("apply", _("Apply")),
+    ("verify", _("Verify")),
+    ("review", _("Review")),
+    ("credentials", _("Credentials")),
+    ("milestones", _("Milestones")),
+    ("exit", _("Exit")),
+    ("production", _("Production")),
+)
+
+S = ApplicationState
+
+STATE_STEP: dict[str, str] = {
+    S.DRAFT: "apply",
+    S.SUBMITTED: "review",
+    S.SANDBOX_APPROVED: "credentials",
+    S.PROVISIONING: "credentials",
+    S.PROVISIONING_FAILED: "credentials",
+    S.PROVISIONED: "credentials",
+    S.EXIT_REQUESTED: "exit",
+    S.EXIT_REVIEW: "exit",
+    S.PRODUCTION_APPROVED: "production",
+}
+
+EDGE_STATES = frozenset(
+    {S.REJECTED, S.SENT_BACK, S.WITHDRAWN, S.EXIT_REJECTED},
+)
+
+PENDING_STATES = frozenset({S.SUBMITTED, S.PROVISIONING})
+
+
+def journey_for(state: str) -> list[JourneyStep]:
+    """The track with each step marked done, current or upcoming.
+
+    Edge states have no position, so every step reads as upcoming and the
+    template shows a banner rather than a stepper.
+    """
+    current = STATE_STEP.get(state, "")
+    keys = [key for key, _label in JOURNEY_LABELS]
+    current_index = keys.index(current) if current else -1
+    steps = []
+    for index, (key, label) in enumerate(JOURNEY_LABELS):
+        if current_index < 0:
+            status = "upcoming"
+        elif index < current_index:
+            status = "done"
+        elif index == current_index:
+            status = "current"
+        else:
+            status = "upcoming"
+        steps.append(JourneyStep(key=key, label=str(label), status=status))
+    return steps
+
+
+def dashboard_application(organisation: Organisation) -> Application | None:
+    """The application the dashboard narrates.
+
+    Newest first, because a rejected or withdrawn one leaves the slot free for a
+    fresh attempt and the fresh one is what the integrator cares about.
+    """
+    return (
+        applications_for_organisation(organisation)
+        .select_related("product")
+        .order_by("-created_date", "-id")
+        .first()
+    )
