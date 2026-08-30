@@ -13,7 +13,7 @@ Developers must be able to run the whole portal on a laptop with no VPN and no a
 
 Local dev must require **no VPN and no live ABDM systems**: `docker compose up` + seeds + fakes = fully working portal. That rule is what lets Lane A/C build and test the provisioning UX before (and independent of) real sandbox-tier access. The fakes are also what Playwright e2e runs against in CI — they are a permanent deliverable, not scaffolding.
 
-One in-process fake per port from [B1](B1-integration-ports-http-policy.md), selected by settings (`local`/`test` default to fakes; WireMock stays the CI *contract* harness — different job, [B9](B9-wiremock-fault-injection-suite.md)).
+One in-process fake per port from [B1](B1-integration-ports-http-policy.md), selected by settings (`local`/`test` default to fakes; the real adapters meet a real socket in [B9](B9-adapter-resilience-suite.md)'s suite — different job).
 
 ## What to build
 
@@ -65,4 +65,4 @@ One in-process fake per port from [B1](B1-integration-ports-http-policy.md), sel
 
 ## Out of scope
 
-Fakes for deferred ports (LGD, ReferenceEnv) · WireMock fixtures ([B9](B9-wiremock-fault-injection-suite.md)).
+Fakes for deferred ports (LGD, ReferenceEnv) · the resilience suite ([B9](B9-adapter-resilience-suite.md)).

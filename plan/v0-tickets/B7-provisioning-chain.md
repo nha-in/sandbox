@@ -65,7 +65,7 @@ names we cannot yet validate would be premature.
 ## Acceptance criteria
 
 - [x] Happy path: approve → three ledger rows ACTIVE → `PROVISIONED`, notification sent (against fakes in CI).
-- [x] **Kill mid-chain, re-run ⇒ no duplicates** (ledger-skip asserted; WireMock fault-injection version in [B9](B9-wiremock-fault-injection-suite.md)).
+- [x] **Kill mid-chain, re-run ⇒ no duplicates** (ledger-skip asserted here; proven again from the request journal in [B9](B9-adapter-resilience-suite.md), where a ledger that wrongly believed a step had run would be caught).
 - [x] Terminal failure lands `PROVISIONING_FAILED` with detail on the transition comment; retry provisions only the missing systems.
 - [x] All state moves via `transition()` and are audited; chain enqueue happens on commit only.
 - [x] No secret persisted anywhere (asserted: the value appears in no ledger column, and the ref is read exactly once).

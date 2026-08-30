@@ -44,7 +44,7 @@ The complete provisioning story ships in v0 — this is the pilot's critical pat
 | Notification adapter + Celery send task + delivery log | [B6](v0-tickets/B6-notification-adapter.md) |
 | Provisioning chain (Keycloak → WSO2 → HIE-CM) + `PROVISIONING_FAILED` + retry | [B7](v0-tickets/B7-provisioning-chain.md) |
 | Deprovisioning chain on rejection (reverse order, all three systems) | [B8](v0-tickets/B8-deprovisioning-chain.md) |
-| WireMock contract + fault-injection suite (incl. kill/retry idempotency proofs) | [B9](v0-tickets/B9-wiremock-fault-injection-suite.md) |
+| Adapter resilience + chain idempotency suite (real sockets; kill/retry proofs from the request journal) | [B9](v0-tickets/B9-adapter-resilience-suite.md) |
 
 v0 notification templates: `send-otp`, `sandbox-approved`, `sandbox-rejected`, `exit-rejected`/`exit-sent-back`, `production-approved` — approval email links to the credentials panel, **never contains credentials**.
 
@@ -68,7 +68,7 @@ v0 notification templates: `send-otp`, `sandbox-approved`, `sandbox-rejected`, `
 **v0**
 
 - [ ] All v0 ports implemented; domain imports ports only (import-linter green).
-- [ ] Every adapter: timeouts, retry, breaker, DTOs — proven by fault injection ([B9](v0-tickets/B9-wiremock-fault-injection-suite.md)).
+- [ ] Every adapter: timeouts, retry, breaker, DTOs — proven by fault injection ([B9](v0-tickets/B9-adapter-resilience-suite.md)).
 - [ ] Both chains idempotent under kill/retry; failures visible + retryable in the console.
 - [ ] Role assignment resolves names at runtime; zero instance UUIDs in config; no gateway credential outside the secret store.
 - [ ] Fakes cover every port; `compose up && seed_sandbox_demo` ⇒ fully navigable portal offline.

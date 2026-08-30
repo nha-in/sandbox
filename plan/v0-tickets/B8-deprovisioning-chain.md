@@ -42,7 +42,7 @@ v2 runs the **reverse chain** over the provisioning ledger whenever an applicati
 ## Acceptance criteria
 
 - [x] Withdrawal of a provisioned application flips all three ledger rows to DISABLED and disables the resources (fakes in CI).
-- [x] Kill mid-chain, re-run ⇒ remaining steps only, no errors on already-disabled resources ([B9](B9-wiremock-fault-injection-suite.md) fault-injection version still owed).
+- [x] Kill mid-chain, re-run ⇒ remaining steps only, no errors on already-disabled resources ([B9](B9-adapter-resilience-suite.md) proves the same from the request journal).
 - [x] Terminal failure visible (row FAILED + Sentry) and manually retryable from the console.
 - [x] Chain enqueued on commit; retries audited.
 - [ ] Rejected integrator's credentials stop working within the token lifetime; lifetime ≤15m confirmed — **staging, blocked on NHA**. Deliverable 4 (token lifetime + [P6](P6-backup-restore-drill-and-pilot-runbook.md) runbook note) is not done.

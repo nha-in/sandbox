@@ -30,7 +30,7 @@ Legacy pitfalls this adapter must design against (all verified in source):
 | 1   | `KeycloakIdpAdmin` implementing `IdpAdmin` (create / roles-by-name / rotate / disable) | `sandbox/integrations/keycloak/adapter.py`      |
 | 2   | Service-account token handling (cache + early refresh) via the B1 factory              | same                                            |
 | 3   | Per-kind role-name sets in typed settings (SANDBOX only in v0)                         | `config/settings/base.py` + `keycloak/roles.py` |
-| 4   | Contract + fault-injection coverage (with [B9](B9-wiremock-fault-injection-suite.md))  | `sandbox/integrations/tests/test_keycloak.py`   |
+| 4   | Contract + fault-injection coverage (with [B9](B9-adapter-resilience-suite.md))  | `sandbox/integrations/tests/test_keycloak.py`   |
 | 5   | Staging verification note: real client created/rotated/disabled                        | ticket PR                                       |
 
 Implements `IdpAdmin` over the Keycloak Admin REST API using the [B1](B1-integration-ports-http-policy.md) http factory:
@@ -84,7 +84,7 @@ With both, the integrator token carries exactly `["hip", "hiu"]`. With scope-map
 
 ## Acceptance criteria
 
-- [x] Contract tests against a recording stub transport: create / roles-by-name / rotate / disable, happy + error shapes. Wire-level WireMock fixtures remain [B9](B9-wiremock-fault-injection-suite.md)'s job; the stub records requests, which is what the read-vs-rotate proof needs.
+- [x] Contract tests against a recording stub transport: create / roles-by-name / rotate / disable, happy + error shapes. The read-vs-rotate proof needs a recorded request, which the stub gives; it is asserted again over a real socket in [B9](B9-adapter-resilience-suite.md).
 - [x] A test proves read paths never hit the rotate endpoint (`test_reading_the_secret_never_posts_to_the_rotate_endpoint`), and a live run confirms two reads return the same secret.
 - [x] Role resolution: names → IDs at runtime; config contains role _names_ only; only the configured SANDBOX set is assigned — a live token carried exactly `["healthId", "hip", "hiu"]` and nothing else.
 - [x] client_id non-derivability tested (random 16 hex chars, no sequence component).

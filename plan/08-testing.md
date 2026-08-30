@@ -20,7 +20,7 @@ The legacy system's tests didn't even compile, so quality lived in people's head
 | DB/model | pytest-django | constraints (partial-unique live app incl. `deleted=false`, review uniqueness), migrations from zero, seed idempotency |
 | **Route-gate matrix** | pytest-django | §4 — the authz proof ([C3](v0-tickets/C3-route-gate-harness.md)) |
 | View/partial | pytest-django + test client | pages render, partials swap, **every mutation works as a plain POST** (htmx-off), messages/redirects correct |
-| Adapter contract | pytest + WireMock | per-system happy path + error shapes; fault injection: timeouts, retry counts, breaker opens, chain kill/retry idempotency ([B9](v0-tickets/B9-wiremock-fault-injection-suite.md)) |
+| Adapter resilience | pytest + WireMock | real-socket timeouts, retry counts, breaker open/half-open, severed sockets, chain kill/retry idempotency from the request journal ([B9](v0-tickets/B9-adapter-resilience-suite.md)). Per-system contract coverage is stub-transport level until a real container or a recording exists — see B9. |
 | e2e | Playwright vs compose + seed | the full journey + branch scenarios; one pass with JavaScript disabled ([C9](v0-tickets/C9-playwright-e2e.md)) |
 | Load | Locust/k6 | v1 (P6): 10k+ applications, p95 TTFB budgets per URL group |
 | Parity | golden-data harness | v1 (P5): reporting numbers vs a legacy snapshot before cutover |
