@@ -238,6 +238,7 @@ forbidden_modules = [
   "sandbox.integrations.http",
   "sandbox.integrations.keycloak",
   "sandbox.integrations.wso2",
+  "sandbox.integrations.hiecm",
   "httpx",
   "pybreaker",
   "tenacity",
