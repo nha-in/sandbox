@@ -556,6 +556,31 @@ NOTIFICATION_CREDENTIALS_ROUTE = env.str(
     default="applications:step_review",
 )
 
+# FAKES (B2)
+# ------------------------------------------------------------------------------
+# What the fake realm contains, so `FakeIdpAdmin` 404s an unknown role name the
+# way a real Keycloak does. Mirrors compose/local/keycloak/realm-abdm-sandbox.json;
+# a role in KEYCLOAK_ROLE_NAMES but not here is a misconfiguration, and the point
+# is that it fails offline rather than on first contact with staging.
+FAKE_KEYCLOAK_REALM_ROLES = env.list(
+    "FAKE_KEYCLOAK_REALM_ROLES",
+    default=[
+        "bridge",
+        "hip",
+        "hiu",
+        "healthId",
+        "health_locker",
+        "phr",
+        "hfr",
+        "hp_id",
+        "OIDC",
+        "HidAbhaSearch",
+        "DIGI_DOCTOR",
+        "HIP_PAYER",
+        "HIU_PAYER",
+    ],
+)
+
 # OTP
 # ------------------------------------------------------------------------------
 # Carried from legacy `OtpServiceImpl` / `SandboxConstant`: OTP_VALIDITY_MINUTES=10,

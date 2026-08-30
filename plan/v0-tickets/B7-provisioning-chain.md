@@ -106,10 +106,17 @@ names we cannot yet validate would be premature.
   used to store the ref without reading it, which is exactly why the expiry
   dead-end above was invisible against the fakes.
 
-- **Residual duplicate window.** `create_client` is a plain POST with a fresh
-  random id — it has no create-or-lookup — so a crash between the remote create
-  and the ledger write can still orphan a client. P4's reconciliation sweep owns
-  that; the ledger closes every other case.
+- **Residual duplicate window, and it is Keycloak only.** WSO2 and HIE-CM both
+  recover on their own: `create_application` is create-or-lookup on
+  `sbx-{reference}` and adopts the winner of a 409, and `create_bridge` is a PUT
+  against a bridge id we choose, so both re-runs converge on the resource the
+  last attempt made. `create_client` is a plain POST with a fresh **random**
+  client id, so a crash between the remote create and the ledger write orphans
+  it — and lookup cannot rescue that either, because the random id was the only
+  handle and it died with the task. Making the client id derivable from
+  `application.external_id` would close it, at the cost of B3's rule that ids are
+  not guessable from anything public; P4's reconciliation sweep is the cheaper
+  answer and owns this today.
 
 ## Out of scope (deferred)
 

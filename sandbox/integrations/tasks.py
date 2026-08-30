@@ -86,8 +86,9 @@ def _record(
 ) -> ProvisionedResource:
     """Write the ledger the instant the external system says yes.
 
-    The window between the remote create and this write is the one place a
-    duplicate can still be born; P4's reconciliation sweep owns that residue.
+    The gap between the remote create and this write only orphans a Keycloak
+    client: WSO2 create-or-looks-up and HIE-CM upserts, but a random client id
+    dies with the task that made it. P4's reconciliation sweep owns that.
     """
     row, _created = ProvisionedResource.objects.update_or_create(
         application=application,

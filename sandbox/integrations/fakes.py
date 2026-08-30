@@ -20,7 +20,10 @@ from typing import Any
 from django.conf import settings
 from django.core.cache import cache
 from django.core.mail import EmailMessage
+from django.template import TemplateDoesNotExist
+from django.template.loader import render_to_string
 
+from sandbox.integrations.naming import APP_NAME_TEMPLATE
 from sandbox.integrations.ports import AdapterError
 from sandbox.integrations.ports import BridgeCreated
 from sandbox.integrations.ports import BridgeSpec
@@ -160,6 +163,19 @@ class FakeIdpAdmin:
 
     def create_client(self, spec: ClientSpec) -> ClientCreated:
         _guard(ExternalSystem.KEYCLOAK, "create_client")
+        # The real adapter resolves each role name with GET /roles/{name}, so an
+        # unknown one is a hard 404. Accepting anything here would let a wrong
+        # KEYCLOAK_ROLE_NAMES pass every CI run and fail on first contact with a
+        # real realm — which is exactly what open question 4 leaves uncertain.
+        unknown = sorted(set(spec.role_names) - set(settings.FAKE_KEYCLOAK_REALM_ROLES))
+        if unknown:
+            raise AdapterError(
+                ExternalSystem.KEYCLOAK,
+                "HTTP_404",
+                retryable=False,
+                message=f"realm has no role {', '.join(unknown)}",
+            )
+
         clients = _store(ExternalSystem.KEYCLOAK)
         external_id = str(uuid.uuid4())
         client_id = f"SBX_{secrets.token_hex(8).upper()}"
@@ -213,17 +229,24 @@ class FakeApiGateway:
     """Stand-in for B4."""
 
     def create_application(self, spec: GatewayAppSpec) -> GatewayAppCreated:
+        """Create-or-lookup on the derived name, as the real adapter does."""
         _guard(ExternalSystem.WSO2, "create_application")
         apps = _store(ExternalSystem.WSO2)
+        name = APP_NAME_TEMPLATE.format(reference=spec.reference)
+
+        for existing_id, record in apps.items():
+            if record["name"] == name:
+                return GatewayAppCreated(external_id=existing_id, name=name)
+
         external_id = str(uuid.uuid4())
         apps[external_id] = {
-            "name": spec.name,
+            "name": name,
             "reference": spec.reference,
             "subscriptions": sorted(spec.api_names),
             "keys_mapped": False,
         }
         _save(ExternalSystem.WSO2, apps)
-        return GatewayAppCreated(external_id=external_id, name=spec.name)
+        return GatewayAppCreated(external_id=external_id, name=name)
 
     def subscribe(self, external_id: str, api_names: tuple[str, ...]) -> None:
         _guard(ExternalSystem.WSO2, "subscribe")
@@ -329,12 +352,16 @@ class FakeNotificationGateway:
     def send(self, message: NotificationMessage) -> SendResult:
         _guard(ExternalSystem.NOTIFICATION, "send")
         provider_message_id = uuid.uuid4().hex
+        body = self._body(message)
 
         # no local SMS sink exists, so those are recorded only
         if message.channel is NotificationChannel.EMAIL:
             EmailMessage(
-                subject=f"[sandbox] {message.template}",
-                body=self._body(message),
+                subject=settings.NOTIFICATION_SUBJECTS.get(
+                    message.template,
+                    f"[sandbox] {message.template}",
+                ),
+                body=body,
                 to=[message.to],
             ).send(fail_silently=False)
 
@@ -353,9 +380,19 @@ class FakeNotificationGateway:
 
     @staticmethod
     def _body(message: NotificationMessage) -> str:
-        """B6 replaces this with real templates; readable is enough for Mailpit."""
-        lines = [f"{key}: {value}" for key, value in sorted(message.context.items())]
-        return "\n".join(lines) or "(no context)"
+        """The real template, so a typo'd key fails here as it would upstream."""
+        try:
+            return render_to_string(
+                f"notifications/{message.template}.txt",
+                dict(message.context),
+            ).strip()
+        except TemplateDoesNotExist as exc:
+            raise AdapterError(
+                ExternalSystem.NOTIFICATION,
+                "UNKNOWN_TEMPLATE",
+                retryable=False,
+                message=f"no body for {message.template}",
+            ) from exc
 
 
 def recorded_sends() -> list[dict[str, Any]]:
