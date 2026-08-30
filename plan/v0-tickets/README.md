@@ -77,7 +77,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | [C4 — Enrollment wizard (SANDBOX) + OTP partial](C4-enrollment-wizard.md)                      | V0.2  | **done**          |
 | [C5 — Console: review queue + application detail + review actions](C5-console-review-queue.md) | V0.2  | **done**          |
 | [C6 — Integrator dashboard + journey stepper](C6-integrator-dashboard.md)                      | V0.2  | **done**          |
-| [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | blocked (B7, C6)  |
+| [C7 — Credentials panel: show-once, rotate, polling status](C7-credentials-panel.md)           | V0.3  | **done** (2 carry-overs) |
 | [C8 — Milestone + exit forms with uploads](C8-milestone-exit-forms.md)                         | V0.4  | open (A7/A8 done) |
 | [C9 — Playwright e2e: full journey + JS-disabled pass](C9-playwright-e2e.md)                   | V0.4  | blocked (C4–C8)   |
 
@@ -104,6 +104,8 @@ unblocking ticket lands.
 | [B8](B8-deprovisioning-chain.md) | Sandbox token lifetime ≤15m + revocation-latency runbook note  | NHA Keycloak config           | Access is JWT-signature based, so disabling a client only bites at token expiry. The lifetime has not been read or set on a real realm, and [P6](P6-backup-restore-drill-and-pilot-runbook.md) still owes the note explaining the lag.                |
 | [B9](B9-adapter-resilience-suite.md) | Contract tests for Keycloak and WSO2 against real containers | — (appetite only)             | Neither needs NHA. `compose/local/keycloak` already runs a real Keycloak and B3 was verified against it by hand; `wso2/wso2am` is published. Deferred past v0 with the rest of the contract half, but nothing external blocks it.                     |
 | [B9](B9-adapter-resilience-suite.md) | Recorded cassettes for HIE-CM and the notification gateway | NHA access (B5, B6)           | The only two systems with no public implementation to run, so recordings are the only route. `vcrpy`/`pytest-recording` rather than WireMock, because redaction is code there and manual here.                                                        |
+| [C7](C7-credentials-panel.md)    | Staging: panel credentials obtain a token and call a sandbox API | NHA access + `WSO2_API_NAMES` | Same evidence B7 owes, from the other end: this is the screen the credentials come off. Proven against the fakes end to end.                                                                                                                          |
+| [C7](C7-credentials-panel.md)    | Staging: the same call still works after a rotation              | NHA access                    | Rotation touches Keycloak only; B4's `map_keys` left WSO2 holding the previous secret, and WSO2-side rotation is P4. Expected harmless because the gateway validates the JWT — unverified, and if wrong, rotation bricks a live integrator.            |
 
 ## Dependency sketch
 
