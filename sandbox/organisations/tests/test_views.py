@@ -212,8 +212,9 @@ def test_shell_offers_a_way_back_to_the_picker(client):
     assert reverse("organisations:choose") in response.content.decode()
 
 
-def test_shell_links_a_member_to_the_wizard(client):
-    """The wizard had no inbound link at all — reachable only by typing the URL."""
+def test_shell_links_a_member_to_their_dashboard(client):
+    """The application flow had no inbound link at all — reachable only by typing
+    the URL. The dashboard is the entry point; the wizard hangs off its CTA."""
     user = VerifiedUserFactory.create()
     MembershipFactory.create(user=user)
     client.force_login(user)
@@ -222,7 +223,7 @@ def test_shell_links_a_member_to_the_wizard(client):
         reverse("users:detail", kwargs={"external_id": user.external_id}),
     )
 
-    assert reverse("applications:new") in response.content.decode()
+    assert reverse("applications:dashboard") in response.content.decode()
 
 
 def test_shell_shows_no_wizard_link_to_a_non_member(client):

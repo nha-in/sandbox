@@ -28,12 +28,12 @@ v2 puts every external call behind an **anti-corruption layer**: typed ports (Pr
 | 5   | Settings toggle: port → real adapter / fake per environment       | `config/settings/*`              |
 | 6   | Unit tests for every http-policy behaviour                        | `sandbox/integrations/tests/`    |
 
-> **Deliverable 3 is deferred to a follow-up PR.** The ledger's `application` FK and
-> its `UNIQUE (application, system)` backstop both require `applications.Application`,
-> which [A3](A3-applications-model.md) has not shipped. Deliverables 1, 2, 4, 5 and 6
-> are complete and unblock [B2](B2-fake-adapters.md)–[B6](B6-notification-adapter.md);
-> only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) need the ledger,
-> and they are behind A3 anyway.
+> **Deliverable 3 landed later, once [A3](A3-applications-model.md) shipped.** The
+> ledger's `application` FK and its `UNIQUE (application, system)` backstop both
+> require `applications.Application`, so deliverables 1, 2, 4, 5 and 6 went first
+> and unblocked [B2](B2-fake-adapters.md)–[B6](B6-notification-adapter.md); the
+> ledger followed, before [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md)
+> need it.
 
 ### Layout
 
@@ -95,14 +95,23 @@ Client factory applying to every adapter:
 
 `integrations_provisioned_resource`:
 
-| Field         | Type             | Constraints / notes                                                             |
-| ------------- | ---------------- | ------------------------------------------------------------------------------- |
-| `application` | FK → application |                                                                                 |
-| `system`      | char + CHECK     | `KEYCLOAK \| WSO2 \| HIECM`                                                     |
-| `external_id` | char             | id in the external system                                                       |
-| `secret_ref`  | char             | secret-store reference only — **never a secret value**                          |
-| `state`       | char + CHECK     | `ACTIVE \| DISABLED \| FAILED \| ORPHANED`                                      |
-| —             |                  | `UNIQUE (application, system) WHERE deleted = false` — the idempotency backstop |
+| Field          | Type             | Constraints / notes                                                             |
+| -------------- | ---------------- | ------------------------------------------------------------------------------- |
+| `application`  | FK → application | `PROTECT` — the ledger outlives cleanup scripts                                 |
+| `system`       | char + CHECK     | `KEYCLOAK \| WSO2 \| HIECM`                                                     |
+| `external_ref` | char             | id in the external system — **not** `external_id`, see below                    |
+| `secret_ref`   | char             | secret-store reference only — **never a secret value**                          |
+| `state`        | char + CHECK     | `ACTIVE \| DISABLED \| FAILED \| ORPHANED`                                      |
+| —              |                  | `UNIQUE (application, system) WHERE deleted = false` — the idempotency backstop |
+
+> **`external_ref`, not `external_id`.** This ticket originally specified
+> `external_id` for "id in the external system", which collides with
+> `BaseModel.external_id` — our own public UUID. Declaring it does not error:
+> Django silently replaces the inherited field, and the first generated migration
+> had a single `CharField`, leaving the ledger with no identifier of its own and
+> no unique index on it. mypy caught the type change; nothing else would have.
+> `external_ref` is the name [03-database.md](../03-database.md)'s ERD already
+> used, and it pairs with `secret_ref`.
 
 ### Boundaries
 
@@ -114,7 +123,7 @@ Client factory applying to every adapter:
 - [x] Ports + DTOs defined, mypy-strict clean; adapters interchangeable with fakes behind settings.
 - [x] http factory unit-tested: timeout honored, retry count on idempotent op, no retry on non-idempotent op, breaker opens after 5 failures and half-opens after 30s.
 - [x] `AdapterError` carries system/code/retryable; unknown shapes mapped, not propagated.
-- [ ] Ledger migration applied; uniqueness enforced. — **deferred, blocked on [A3](A3-applications-model.md)**
+- [x] Ledger migration applied; uniqueness enforced. — asserted against the database, including that a soft-deleted row frees the slot for re-provisioning.
 - [x] Import-linter contract green in CI.
 
 ### Decisions taken while building

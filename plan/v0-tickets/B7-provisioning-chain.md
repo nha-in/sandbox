@@ -34,7 +34,7 @@ v2: a Celery chain driven off the `SANDBOX_APPROVED` transition, with the `integ
 - **Celery chain**, enqueued via `transaction.on_commit` of the `SANDBOX_APPROVED` transition; first step moves the application to `PROVISIONING` (via `transition()` — never direct writes). One step per system, **strict order** Keycloak → WSO2 → HIE-CM (WSO2 key-mapping needs the client; the bridge needs the client identity). Every step:
   1. checks the ledger for an existing `(application, system)` row → **skip if done** (idempotent re-runs);
   2. calls the adapter (idempotency key / create-or-lookup where the system supports it);
-  3. on success writes the ledger row (`external_id`, `secret_ref` where applicable, `state=ACTIVE`);
+  3. on success writes the ledger row (`external_ref`, `secret_ref` where applicable, `state=ACTIVE`);
   4. on error raises a structured failure (system, op, `AdapterError` detail).
 - **Chain-level retry policy**: step failure retries with backoff, max 5 attempts over ~30 min; terminal failure → application `PROVISIONING_FAILED` (via `transition()`), failure detail recorded, admins notified (Sentry + console visibility).
 - **Manual retry hook**: an idempotent service the console button ([C5](C5-console-review-queue.md)/[C7](C7-credentials-panel.md)) POSTs to — `PROVISIONING_FAILED → PROVISIONING`, re-enqueues the chain; completed steps skip via the ledger, only missing systems run.

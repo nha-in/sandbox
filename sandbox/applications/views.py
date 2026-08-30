@@ -30,10 +30,15 @@ from django.views.generic import View
 from django.views.generic.base import ContextMixin
 
 from sandbox.applications.forms import ProductStepForm
+from sandbox.applications.models import NON_BLOCKING_STATES
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.schemas import payload_form
+from sandbox.applications.selectors import EDGE_STATES
+from sandbox.applications.selectors import PENDING_STATES
+from sandbox.applications.selectors import dashboard_application
+from sandbox.applications.selectors import journey_for
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
@@ -49,6 +54,7 @@ from sandbox.workflow.services import transition
 if TYPE_CHECKING:
     from django.forms import Form
     from django.http import HttpRequest
+    from django_stubs_ext import StrOrPromise
 
     from sandbox.users.models import User
 
@@ -272,3 +278,124 @@ class WizardEntryView(LoginRequiredMixin, OrganisationMixin, View):
                 ),
             )
         return redirect(url_for("applications:step_product", self.organisation))
+
+
+#: Static per state, not computed: v0 has no next-action engine (deferred to P5),
+#: so the copy carries the "what now" and nothing pretends to be smarter.
+_HINTS: dict[str, tuple[StrOrPromise, StrOrPromise]] = {
+    ApplicationState.DRAFT: (
+        _("Finish your application"),
+        _("Your answers are saved. Pick up where you left off and submit when ready."),
+    ),
+    ApplicationState.SUBMITTED: (
+        _("With the review team"),
+        _(
+            "A reviewer will read your application and either approve it, ask for "
+            "changes, or reject it. You will see the outcome here.",
+        ),
+    ),
+    ApplicationState.SENT_BACK: (
+        _("Changes requested"),
+        _(
+            "A reviewer has asked for changes. Open your application to read their "
+            "comments and resubmit.",
+        ),
+    ),
+    ApplicationState.SANDBOX_APPROVED: (
+        _("Approved — setting up your access"),
+        _("Your sandbox credentials are being created. This page updates itself."),
+    ),
+    ApplicationState.PROVISIONING: (
+        _("Setting up your access"),
+        _(
+            "We are creating your credentials in the ABDM systems. This page updates "
+            "itself.",
+        ),
+    ),
+    ApplicationState.PROVISIONING_FAILED: (
+        _("Setup did not complete"),
+        _(
+            "Something went wrong creating your credentials. The team has been "
+            "notified and will retry.",
+        ),
+    ),
+    ApplicationState.PROVISIONED: (
+        _("You are in the sandbox"),
+        _(
+            "Your credentials are ready. Start integrating, then declare your first "
+            "milestone when it is complete.",
+        ),
+    ),
+    ApplicationState.EXIT_REQUESTED: (
+        _("Exit requested"),
+        _("Your exit declaration is with the review team."),
+    ),
+    ApplicationState.EXIT_REVIEW: (
+        _("Exit under review"),
+        _("A reviewer is checking your declared milestones and evidence."),
+    ),
+    ApplicationState.PRODUCTION_APPROVED: (
+        _("Approved for production"),
+        _("You have completed the sandbox journey."),
+    ),
+    ApplicationState.REJECTED: (
+        _("Application rejected"),
+        _(
+            "Read the reviewer's comments. You can start a new application for this "
+            "product.",
+        ),
+    ),
+    ApplicationState.EXIT_REJECTED: (
+        _("Exit rejected"),
+        _(
+            "Read the reviewer's comments and address them before requesting exit "
+            "again.",
+        ),
+    ),
+    ApplicationState.WITHDRAWN: (
+        _("Application withdrawn"),
+        _("You can start a new application for this product whenever you are ready."),
+    ),
+}
+
+
+class DashboardView(LoginRequiredMixin, OrganisationMixin, TemplateView):
+    """The integrator's home. Read-only: no state changes from this screen."""
+
+    template_name = "dashboard/index.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["organisation"] = self.organisation
+        application = dashboard_application(self.organisation)
+        context["application"] = application
+        context["can_start_new"] = (
+            application is not None and application.state in NON_BLOCKING_STATES
+        )
+        context.update(_status_context(application))
+        return context
+
+
+class ApplicationStatusView(ApplicationStepMixin, TemplateView):
+    """The self-polling fragment. Same truth as a full refresh, just smaller."""
+
+    template_name = "dashboard/partials/application_status.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_status_context(self.application))
+        return context
+
+
+def _status_context(application: Application | None) -> dict:
+    if application is None:
+        return {"journey": [], "is_edge_state": False, "should_poll": False}
+    title, body = _HINTS.get(application.state, ("", ""))
+    return {
+        "journey": journey_for(application.state),
+        "is_edge_state": application.state in EDGE_STATES,
+        # The trigger stops rendering once nothing else will change on its own.
+        "should_poll": application.state in PENDING_STATES,
+        "hint_title": title,
+        "hint_body": body,
+    }

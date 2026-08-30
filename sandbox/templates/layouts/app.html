@@ -18,7 +18,7 @@
           {% block nav_items %}
             {% if is_organisation_member %}
               <a class="ui-nav-link"
-                 href="{% url 'applications:new' %}{{ org_query }}">{% translate "Sandbox enrolment" %}</a>
+                 href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Dashboard" %}</a>
               <a class="ui-nav-link"
                  href="{% url 'organisations:profile' %}{{ org_query }}">{% translate "Organisation" %}</a>
             {% elif request.user.is_authenticated and not request.user.is_staff %}
