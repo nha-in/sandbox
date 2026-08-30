@@ -10,6 +10,7 @@ from django.test import override_settings
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.audit.models import AuditEvent
+from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.fakes import always_fail
 from sandbox.integrations.fakes import fail_next
 from sandbox.integrations.hooks import register_workflow_hooks
@@ -20,7 +21,6 @@ from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.secret_ref import discard_secret
 from sandbox.integrations.secret_ref import resolve_secret
 from sandbox.integrations.services import retry_provisioning
-from sandbox.integrations.services import take_initial_secret
 from sandbox.notifications import hooks as notification_hooks
 from sandbox.notifications.models import Message
 from sandbox.notifications.models import TemplateKey

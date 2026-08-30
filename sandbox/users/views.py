@@ -66,6 +66,11 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 
     def get_redirect_url(self) -> str:
         assert self.request.user.is_authenticated  # type guard
+        # Where signing in lands. Staff hold no membership, so the integrator
+        # dashboard 404s for them and the profile page is a dead end — the
+        # console is the only screen they came here for.
+        if self.request.user.is_staff:
+            return reverse("console:queue")
         return reverse(
             "users:detail",
             kwargs={"external_id": self.request.user.external_id},

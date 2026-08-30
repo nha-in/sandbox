@@ -174,6 +174,26 @@ ROUTES: dict[str, Route] = {
         kwargs=_application_id,
         query=_org_a,
     ),
+    # Credentials panel (C7). The two mutating rows are the ones that matter:
+    # they are the only routes in the system that can put a secret on a screen,
+    # so "wrong org 404s" is load-bearing rather than routine.
+    "applications:credentials": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
+    "applications:reveal_credentials": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("POST",),
+    ),
+    "applications:rotate_credentials": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("POST",),
+    ),
     # Console (C5). Staff-only; an org member must be refused even for their own
     # application, because the console is a different surface, not a nicer view.
     "console:queue": Route(Access.CONSOLE),
@@ -184,6 +204,11 @@ ROUTES: dict[str, Route] = {
         methods=("POST",),
     ),
     "console:decide": Route(
+        Access.CONSOLE,
+        kwargs=_application_id,
+        methods=("POST",),
+    ),
+    "console:retry_provisioning": Route(
         Access.CONSOLE,
         kwargs=_application_id,
         methods=("POST",),

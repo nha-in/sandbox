@@ -13,10 +13,15 @@
     {% csrf_token %}
     {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
     {% if "product" in form.fields %}
-      {% translate "Choose one of your products, or leave this as “new product” and name it below." as product_help %}
-      {% ui_field form.product help_text=product_help %}
+      {# Each field is optional on its own; exactly one of the pair is not. #}
+      <p class="text-sm text-muted-foreground">
+        {% translate "Choose one of your existing products, or name a new one. You need one or the other, not both." %}
+      </p>
+      {% ui_field form.product optional=False %}
+      {% ui_field form.new_product_name optional=False %}
+    {% else %}
+      {% ui_field form.new_product_name %}
     {% endif %}
-    {% ui_field form.new_product_name %}
     <div class="flex justify-end">
       <button type="submit" class="ui-btn ui-btn--primary">{% translate "Continue" %}</button>
     </div>

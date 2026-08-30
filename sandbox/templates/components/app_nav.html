@@ -68,7 +68,17 @@
          href="{% url 'organisations:choose' %}"
          {% if nav_section == 'organisations' %}aria-current="page"{% endif %}>{% translate "Your organisations" %}</a>
     </div>
-  {% elif request.user.is_authenticated and not request.user.is_staff %}
+  {% elif request.user.is_staff %}
+    {# Staff reach this shell through their profile and the MFA screens. Without #}
+    {# this the only way back to the console is typing the URL. #}
+    <div class="ui-sidebar-group">
+      <span class="ui-sidebar-label">{% translate "Review" %}</span>
+      <a id="nav-console"
+         class="ui-sidebar-link"
+         href="{% url 'console:queue' %}"
+         hx-boost="false">{% translate "Console" %}</a>
+    </div>
+  {% elif request.user.is_authenticated %}
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Get started" %}</span>
       <a id="nav-organisation-create"
@@ -80,7 +90,7 @@
   {% if request.user.is_authenticated %}
     <div class="mt-auto flex items-center gap-2 border-t border-sidebar-border px-2.5 pt-3">
       <a class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-         href="{% url 'users:redirect' %}">
+         href="{% url 'users:detail' request.user.external_id %}">
         {% if active_organisation %}
           <span class="block truncate text-[12.5px] font-semibold text-sidebar-foreground">{{ active_organisation.name }}</span>
         {% endif %}

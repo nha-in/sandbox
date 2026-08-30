@@ -249,6 +249,49 @@ def test_sent_back_application_is_editable_again(
     assert application.state == ApplicationState.SENT_BACK
 
 
+def test_a_locked_application_offers_the_read_only_view_not_an_editor(
+    member_client,
+    application,
+):
+    """The editor used to render in full for a submitted application, under a
+    line saying it could no longer be edited."""
+    url = _org_url(
+        "applications:step_details",
+        application.product.organisation,
+        external_id=application.external_id,
+    )
+
+    response = member_client.get(url)
+
+    assert response.status_code == HTTP_FOUND
+    assert "/review/" in response["Location"]
+
+
+def test_a_refused_save_never_reports_success(
+    member_client,
+    application,
+    org_a,
+):
+    """`update_draft` always refused this write, but the save path ignored the
+    refusal and flashed "Draft saved." over a payload it had not touched."""
+    url = _org_url(
+        "applications:step_details",
+        org_a,
+        external_id=application.external_id,
+    )
+    before = dict(application.payload["data"])
+
+    response = member_client.post(
+        url,
+        {**DETAILS_POST, "action": "save"},
+        follow=True,
+    )
+
+    assert "Draft saved" not in response.content.decode()
+    application.refresh_from_db()
+    assert application.payload["data"] == before
+
+
 def test_unverified_contact_cannot_reach_the_wizard(client, org_a):
     """The ticket's OTP step is discharged by A4: an application cannot be
     started, let alone submitted, until both contacts are verified. This asserts

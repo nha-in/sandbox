@@ -13,6 +13,25 @@
  * (plan/design/README.md), so no chart library is implied and none is added.
  */
 
+/* ── Multi-select ────────────────────────────────────────────────────────── */
+
+/* A `<select multiple>` is a list box, not a dropdown, and careui's `ui-select`
+   is a dropdown's styling: a fixed 36px height, `appearance-none`, and a
+   wrapper that paints a chevron. Applied to a list box that collapses it to two
+   scrolling rows behind an arrow that opens nothing.
+
+   So: no `appearance-none` (the browser's own list rendering is the point), no
+   chevron wrapper, and a height that shows several options at once. The height
+   is here rather than a `size` attribute because CSS wins over `size` anyway,
+   and the row count is a design decision. */
+@utility ui-multiselect {
+  @apply h-44 w-full min-w-0 rounded-md border border-input bg-transparent px-1 py-1 text-base shadow-xs outline-none md:text-sm;
+  @apply focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50;
+  @apply aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+  @apply disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50;
+  @apply dark:bg-input/30;
+}
+
 /* ── Sidebar rail ────────────────────────────────────────────────────────── */
 
 /* The rail itself. Off-canvas below md, static from md up.

@@ -58,8 +58,12 @@ class IntegrationIntent(TextChoices):
 
 @register(ApplicationKind.SANDBOX, 1)
 class SandboxPayloadV1Form(forms.Form):
+    # Checkboxes rather than Django's default `<select multiple>`: there, a plain
+    # click on a second option replaces the first rather than adding to it, and
+    # losing two of three answers silently is the failure that matters here.
     solution_types = forms.MultipleChoiceField(
         choices=SolutionType.choices,
+        widget=forms.CheckboxSelectMultiple,
         label=_("Solution type"),
     )
     solution_type_others = forms.CharField(
@@ -69,11 +73,13 @@ class SandboxPayloadV1Form(forms.Form):
     )
     integration_intents = forms.MultipleChoiceField(
         choices=IntegrationIntent.choices,
+        widget=forms.CheckboxSelectMultiple,
         label=_("Intent for request"),
     )
     # legacy stored NULL here and rendered it as "NA"
     payer_categories = forms.MultipleChoiceField(
         choices=PayerCategory.choices,
+        widget=forms.CheckboxSelectMultiple,
         required=False,
         label=_("Payer categories"),
     )

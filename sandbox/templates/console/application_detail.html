@@ -64,6 +64,24 @@
       </div>
     </div>
     <div class="space-y-6">
+      {% if provisioning %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Provisioning" %}</h2>
+            <p class="ui-card-description">{% translate "Status only — secrets are never visible here." %}</p>
+          </div>
+          <div class="ui-card-content">{% include "partials/provisioning_status.html" %}</div>
+          {% if can_retry_provisioning %}
+            <div class="ui-card-footer">
+              <form method="post"
+                    action="{% url 'console:retry_provisioning' application.external_id %}">
+                {% csrf_token %}
+                <button class="ui-btn ui-btn--secondary ui-btn--size-sm" type="submit">{% translate "Retry provisioning" %}</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
       <div class="ui-card">
         <div class="ui-card-header">
           <h2 class="ui-card-title">{% translate "Reviews" %}</h2>

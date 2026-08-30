@@ -43,8 +43,14 @@ from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
 from sandbox.applications.services import update_draft
+from sandbox.integrations.credentials import rotate_credentials
+from sandbox.integrations.credentials import take_initial_secret
+from sandbox.integrations.selectors import CREDENTIAL_STATES
+from sandbox.integrations.selectors import credentials_for
+from sandbox.integrations.selectors import provisioning_progress
 from sandbox.organisations.mixins import OrganisationMixin
 from sandbox.organisations.mixins import url_for
+from sandbox.organisations.selectors import is_owner
 from sandbox.utils.errors import DomainError
 from sandbox.workflow.machine import Action
 from sandbox.workflow.selectors import current_round
@@ -174,6 +180,35 @@ class DetailsStepView(ApplicationStepMixin, FormView):
     template_name = "applications/step_details.html"
     step = "details"
 
+    def _refuse_if_locked(self):
+        """Only an editable application gets an editor.
+
+        `update_draft` has always refused the write, so nothing could be
+        corrupted — but the screen still rendered every field and both buttons
+        under a line saying it could no longer be edited, and the save path
+        reported success for a write it had just been refused. The read-only
+        view already exists; send them to it.
+
+        Checked per handler rather than in `dispatch`, because the application
+        cannot be resolved until `OrganisationMixin.dispatch` has run.
+        """
+        if self.application.state in EDITABLE_STATES:
+            return None
+        messages.info(
+            self.request,
+            _("This application can no longer be edited. Here is what was submitted."),
+        )
+        return redirect(
+            url_for(
+                "applications:step_review",
+                self.organisation,
+                external_id=self.application.external_id,
+            ),
+        )
+
+    def get(self, request, *args, **kwargs):
+        return self._refuse_if_locked() or super().get(request, *args, **kwargs)
+
     def get_form_class(self):
         return payload_form(self.application.kind, SCHEMA_VERSION)
 
@@ -183,10 +218,14 @@ class DetailsStepView(ApplicationStepMixin, FormView):
     def post(self, request, *args, **kwargs):
         # "Save and finish later" keeps whatever has been typed, however
         # incomplete; only "Continue" has to satisfy the schema.
+        locked = self._refuse_if_locked()
+        if locked is not None:
+            return locked
         if request.POST.get("action") == "save":
             form = self.get_form()
             form.is_valid()  # populates cleaned_data for the fields that parsed
-            self._save(form)
+            if not self._save(form):
+                return self.form_invalid(form)
             messages.success(request, _("Draft saved."))
             return redirect(
                 url_for(
@@ -373,6 +412,7 @@ class DashboardView(LoginRequiredMixin, OrganisationMixin, TemplateView):
             application is not None and application.state in NON_BLOCKING_STATES
         )
         context.update(_status_context(application))
+        context.update(_credentials_context(application, self.request.user))
         return context
 
 
@@ -387,6 +427,79 @@ class ApplicationStatusView(ApplicationStepMixin, TemplateView):
         return context
 
 
+class CredentialsPanelView(ApplicationStepMixin, TemplateView):
+    """The panel as its own polling fragment while the chain runs (C7).
+
+    GET only, and it never carries a secret: polling is a repeated request, and
+    a value that may be shown exactly once cannot live on one.
+    """
+
+    template_name = "dashboard/credentials_panel.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_credentials_context(self.application, self.request.user))
+        return context
+
+
+class RevealCredentialsView(ApplicationStepMixin, TemplateView):
+    """Consume the one-time hand-off and render the secret exactly once.
+
+    Deliberately not POST-redirect-GET: the redirect target would have to carry
+    the secret in a URL or a session, and both are places it is not allowed to
+    be. The cost is that this URL ends up in the address bar, so a refresh
+    re-posts — which is correct, because the second POST finds the hand-off gone
+    and renders the masked panel.
+
+    GET only ever redirects. It cannot consume anything (consumption lives in
+    `post`), and a browser landing here from history or a restored tab should
+    meet the dashboard rather than a 405.
+    """
+
+    template_name = "dashboard/index.html"
+
+    def get(self, request, *args, **kwargs):
+        return redirect(url_for("applications:dashboard", self.organisation))
+
+    def post(self, request, *args, **kwargs):
+        secret = take_initial_secret(self.application)
+        if secret is None:
+            messages.info(
+                request,
+                _("That secret has already been shown. Rotate to get a new one."),
+            )
+        return self.render_to_response(
+            self.get_context_data(revealed_secret=secret, **kwargs),
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["organisation"] = self.organisation
+        context["can_start_new"] = self.application.state in NON_BLOCKING_STATES
+        context.update(_status_context(self.application))
+        context.update(_credentials_context(self.application, self.request.user))
+        return context
+
+
+class RotateCredentialsView(RevealCredentialsView):
+    """Mint a new secret and show it once, on the same page as the reveal."""
+
+    def post(self, request, *args, **kwargs):
+        try:
+            secret = rotate_credentials(
+                application=self.application,
+                actor=cast("User", request.user),
+            )
+        except DomainError as error:
+            messages.error(request, error.message)
+            secret = None
+        else:
+            messages.success(request, _("Your secret has been replaced."))
+        return self.render_to_response(
+            self.get_context_data(revealed_secret=secret, **kwargs),
+        )
+
+
 def _status_context(application: Application | None) -> dict:
     if application is None:
         return {"journey": [], "is_edge_state": False, "should_poll": False}
@@ -398,4 +511,17 @@ def _status_context(application: Application | None) -> dict:
         "should_poll": application.state in PENDING_STATES,
         "hint_title": title,
         "hint_body": body,
+    }
+
+
+def _credentials_context(application: Application | None, user) -> dict:
+    if application is None or application.state not in CREDENTIAL_STATES:
+        return {"credentials": None, "provisioning": [], "can_rotate": False}
+    return {
+        "credentials": credentials_for(application),
+        "provisioning": provisioning_progress(application),
+        "should_poll_provisioning": (
+            application.state == ApplicationState.PROVISIONING
+        ),
+        "can_rotate": is_owner(application.product.organisation, user),
     }

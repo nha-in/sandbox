@@ -56,7 +56,9 @@
           </div>
         </div>
       </div>
-      {# C7 (V0.3) drops the credentials panel here. #}
+      {% if credentials or provisioning %}
+        {% include "dashboard/credentials_panel.html" %}
+      {% endif %}
       {# C8 (V0.4) drops the milestone timeline and exit status here. #}
     {% else %}
       <div class="ui-card">

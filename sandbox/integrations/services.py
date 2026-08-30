@@ -1,8 +1,12 @@
-"""Starting and restarting provisioning, and reading its credentials back once.
+"""Starting and restarting provisioning.
 
 Both entry points go through `transition()`: the console's retry button is a
 workflow move like any other, so it is permission-checked and audited rather
 than being a bare "run the job again".
+
+Reading and rotating the secret live in `credentials.py`, not here: this module
+imports `tasks`, which pulls in the adapter packages that domain code is
+forbidden to reach.
 """
 
 from __future__ import annotations
@@ -10,13 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sandbox.audit.services import emit
-from sandbox.integrations.models import ProvisionedResource
-from sandbox.integrations.models import ProvisionedResourceState
-from sandbox.integrations.models import ProvisionedSystem
-from sandbox.integrations.ports import AdapterError
-from sandbox.integrations.ports import ExternalSystem
-from sandbox.integrations.secret_ref import discard_secret
-from sandbox.integrations.secret_ref import resolve_secret
 from sandbox.integrations.tasks import enqueue_chain
 from sandbox.integrations.tasks import enqueue_teardown
 from sandbox.utils.errors import DomainError
@@ -82,29 +79,3 @@ def retry_deprovisioning(*, application: Application, actor: User) -> None:
         data={"reference": application.reference},
     )
     enqueue_teardown(application)
-
-
-def take_initial_secret(application: Application) -> str | None:
-    """Read the Keycloak secret once, then destroy the reference (C7).
-
-    Returns None when it has already been read or the short TTL has passed; the
-    integrator's route back from there is rotation, not a second look.
-    """
-    row = ProvisionedResource.objects.filter(
-        application=application,
-        system=ProvisionedSystem.KEYCLOAK,
-        state=ProvisionedResourceState.ACTIVE,
-    ).first()
-    if row is None or not row.secret_ref:
-        return None
-
-    try:
-        secret = resolve_secret(row.secret_ref, ExternalSystem.KEYCLOAK)
-    except AdapterError:
-        return None
-    finally:
-        discard_secret(row.secret_ref)
-        row.secret_ref = ""
-        row.save(update_fields=["secret_ref", "modified_date"])
-
-    return secret

@@ -51,9 +51,15 @@ CHROME_LESS = {
     "users:redirect",
     # A JSON fragment for the district select.
     "organisations:district_options",
+    # Fragments and POST targets inside the dashboard, not places you navigate
+    # to. The credentials panel is a region of applications:dashboard.
+    "applications:credentials",
+    "applications:reveal_credentials",
+    "applications:rotate_credentials",
     # POST-only console actions and a presigned redirect: no page, no chrome.
     "console:record_review",
     "console:decide",
+    "console:retry_provisioning",
     "declarations:document_download",
     # Development-only, and deliberately outside the product's nav.
     "theme:styleguide",
@@ -70,6 +76,10 @@ NO_INBOUND_LINK = {
     # Reached by VerificationRequiredMiddleware, which redirects every request
     # here until contacts are verified. A link would be redundant.
     "users:verify_contacts",
+    # `LOGIN_REDIRECT_URL`. allauth sends you here; nothing links to it, and the
+    # nav deliberately does not — "your profile" must mean the profile, not
+    # "wherever this account belongs after signing in".
+    "users:redirect",
     # Deliberately outside the product's navigation.
     "theme:styleguide",
     # No upload or evidence screen exists yet, so nothing can link a document.
@@ -79,6 +89,63 @@ NO_INBOUND_LINK = {
 
 _URL_TAG = re.compile(r"{%\s*url\s*['\"]([^'\"]+)['\"]")
 _TEMPLATES = Path(settings.APPS_DIR) / "templates"
+_HREF_ATTR = re.compile(rb'href="(/[^"]*)"')
+
+
+@pytest.mark.parametrize(
+    ("actor", "destination"),
+    [
+        (ORG_MEMBER, "applications:dashboard"),
+        (STAFF, "console:queue"),
+    ],
+)
+def test_signing_in_leads_to_the_screen_that_actor_came_for(
+    clients,
+    actor,
+    destination,
+):
+    """`users:redirect` is where allauth drops everyone after sign-in.
+
+    A reviewer used to land on their own profile page, in the integrator shell,
+    whose sidebar offered them nothing they could open — the console was
+    reachable only by typing its URL. `test_every_screen_has_an_inbound_link`
+    was green throughout, because the console *is* linked: from inside itself.
+    A link you can only follow once you have arrived is not a way in.
+    """
+    landing = clients[actor].get(reverse("users:redirect"), follow=True)
+    final = landing.redirect_chain[-1][0] if landing.redirect_chain else ""
+    reachable = {
+        href.decode().split("?")[0] for href in _HREF_ATTR.findall(landing.content)
+    }
+
+    assert reverse(destination) in final or reverse(destination) in reachable, (
+        f"{actor} signs in, lands on {final!r}, and cannot click through to "
+        f"{destination}"
+    )
+
+
+def test_a_staff_user_in_the_integrator_shell_can_get_back_to_the_console(clients):
+    """Staff reach that shell through their profile and the MFA screens."""
+    response = clients[STAFF].get(reverse("users:update"))
+    links = _sidebar_links(response.content, b"app-nav")
+
+    assert reverse("console:queue") in links
+
+
+def test_a_console_user_can_reach_their_own_account(clients, staff_user):
+    """The rail's user card was inert text, so 2FA and email settings were
+    unreachable from the only shell staff ever see."""
+    links = {
+        href.split("?")[0]
+        for href in _sidebar_links(
+            clients[STAFF].get(reverse("console:queue")).content,
+            b"console-nav",
+        )
+    }
+
+    assert (
+        reverse("users:detail", kwargs={"external_id": staff_user.external_id}) in links
+    )
 
 
 def test_every_screen_has_an_inbound_link():

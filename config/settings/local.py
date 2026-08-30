@@ -5,6 +5,7 @@ from .base import MIDDLEWARE
 from .base import REDIS_URL
 from .base import env
 from .guards import assert_isolated_local_environment
+from .guards import assert_staff_mfa_is_required
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -66,5 +67,24 @@ INSTALLED_APPS += ["django_extensions"]
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Integrations
+# ------------------------------------------------------------------------------
+# Base leaves this empty so a real environment fails loudly rather than
+# subscribing an integrator to invented APIs — the published names are NHA's to
+# supply (open question 4). Locally every port is a fake that does not care what
+# the names are, and without something here the provisioning chain fails at WSO2
+# on every dev machine, which made both B7's happy path and C7's panel
+# unreachable without knowing to set an env var nobody had written down.
+WSO2_API_NAMES = {
+    "SANDBOX": tuple(
+        env.list("WSO2_SANDBOX_API_NAMES", default=["HealthIdAPI", "GatewayAPI"]),
+    ),
+}
+
+# Staff sign in without an authenticator app here. `guards.py` refuses to boot
+# any settings module that does this with DEBUG off.
+STAFF_MFA_REQUIRED = env.bool("STAFF_MFA_REQUIRED", default=False)
+assert_staff_mfa_is_required(DEBUG, STAFF_MFA_REQUIRED)
 # Your stuff...
 # ------------------------------------------------------------------------------

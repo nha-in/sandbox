@@ -9,11 +9,6 @@
   {% blocktranslate with reference=application.reference %}Application {{ reference }}. Answers are saved as you go — you can stop half way and come back.{% endblocktranslate %}
 {% endblock step_description %}
 {% block step_content %}
-  {% if not editable %}
-    <p class="ui-form-message" role="status">
-      {% translate "This application is under review and can no longer be edited." %}
-    </p>
-  {% endif %}
   <form method="post" class="flex flex-col gap-4">
     {% csrf_token %}
     {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}

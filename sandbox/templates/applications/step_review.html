@@ -3,10 +3,18 @@
 {% load i18n %}
 
 {% block step_title %}
-  {% translate "Review and submit" %}
+  {% if editable %}
+    {% translate "Review and submit" %}
+  {% else %}
+    {% translate "Your application" %}
+  {% endif %}
 {% endblock step_title %}
 {% block step_description %}
-  {% blocktranslate with reference=application.reference %}Check {{ reference }} before it goes to the review team.{% endblocktranslate %}
+  {% if editable %}
+    {% blocktranslate with reference=application.reference %}Check {{ reference }} before it goes to the review team.{% endblocktranslate %}
+  {% else %}
+    {% blocktranslate with reference=application.reference %}What was submitted as {{ reference }}.{% endblocktranslate %}
+  {% endif %}
 {% endblock step_description %}
 {% block step_content %}
   {% if reviews %}
@@ -50,14 +58,18 @@
     {% endfor %}
   </dl>
   <div class="flex items-center justify-between gap-3">
-    <a class="ui-btn ui-btn--ghost"
-       href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+    {# Back to the editor only while there is one: the details step redirects #}
+    {# here once the application is locked, which would be a loop. #}
     {% if editable %}
+      <a class="ui-btn ui-btn--ghost"
+         href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
       <form method="post">
         {% csrf_token %}
         <button type="submit" class="ui-btn ui-btn--primary">{% translate "Submit for review" %}</button>
       </form>
     {% else %}
+      <a class="ui-btn ui-btn--ghost"
+         href="{% url 'applications:dashboard' %}{{ org_query }}">{% translate "Back to dashboard" %}</a>
       <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>
     {% endif %}
   </div>

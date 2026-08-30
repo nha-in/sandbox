@@ -6,6 +6,7 @@ from sandbox.console.views import ApplicationDetailView
 from sandbox.console.views import DecideView
 from sandbox.console.views import QueueView
 from sandbox.console.views import RecordReviewView
+from sandbox.console.views import RetryProvisioningView
 
 app_name = "console"
 urlpatterns = [
@@ -24,5 +25,10 @@ urlpatterns = [
         "applications/<uuid:external_id>/decide/",
         DecideView.as_view(),
         name="decide",
+    ),
+    path(
+        "applications/<uuid:external_id>/retry-provisioning/",
+        RetryProvisioningView.as_view(),
+        name="retry_provisioning",
     ),
 ]

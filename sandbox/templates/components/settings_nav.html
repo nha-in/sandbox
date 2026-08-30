@@ -21,7 +21,7 @@
      hx-indicator="#nav-progress">
   <a id="settings-nav-profile"
      class="ui-subnav-link shrink-0 {% if settings_section == 'profile' %}ui-subnav-link--active{% endif %}"
-     href="{% url 'users:redirect' %}"
+     href="{% url 'users:detail' request.user.external_id %}"
      {% if settings_section == 'profile' %}aria-current="page"{% endif %}>{% translate "Your profile" %}</a>
   {# Organisation second and conditional: someone who has not created one yet #}
   {# still has a profile, and OrganisationMixin answers them with a 404. #}

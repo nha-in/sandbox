@@ -8,6 +8,7 @@ from pathlib import Path
 import environ
 
 from .guards import assert_isolated_local_environment
+from .guards import assert_staff_mfa_is_required
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # sandbox/
@@ -647,4 +648,9 @@ STORAGES = {
 
 # Your stuff...
 # ------------------------------------------------------------------------------
+#: Deliberately not read from the environment: a control this important should
+#: take a code change to remove, not a stray variable. `local.py` turns it off.
+STAFF_MFA_REQUIRED = True
+
 assert_isolated_local_environment(DEBUG, DATABASES, REDIS_URL)
+assert_staff_mfa_is_required(DEBUG, STAFF_MFA_REQUIRED)

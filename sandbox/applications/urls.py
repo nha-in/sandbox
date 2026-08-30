@@ -18,6 +18,21 @@ urlpatterns = [
         name="application_status",
     ),
     path(
+        "<uuid:external_id>/credentials/",
+        views.CredentialsPanelView.as_view(),
+        name="credentials",
+    ),
+    path(
+        "<uuid:external_id>/credentials/reveal/",
+        views.RevealCredentialsView.as_view(),
+        name="reveal_credentials",
+    ),
+    path(
+        "<uuid:external_id>/credentials/rotate/",
+        views.RotateCredentialsView.as_view(),
+        name="rotate_credentials",
+    ),
+    path(
         "<uuid:external_id>/review/",
         views.ReviewStepView.as_view(),
         name="step_review",

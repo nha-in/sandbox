@@ -19,18 +19,25 @@ if TYPE_CHECKING:
 register = template.Library()
 
 # Widget class → the careui control class it should render as.
+#
+# Order matters: `CheckboxSelectMultiple` subclasses `RadioSelect`, so it has to
+# be matched first.
 _CONTROL_CLASSES: list[tuple[type, str]] = [
     (forms.CheckboxInput, "ui-checkbox"),
-    (forms.CheckboxSelectMultiple, ""),
+    (forms.CheckboxSelectMultiple, "ui-checkbox"),
     (forms.RadioSelect, ""),
     (forms.Textarea, "ui-textarea"),
-    (forms.SelectMultiple, "ui-select"),
+    (forms.SelectMultiple, "ui-multiselect"),
     (forms.Select, "ui-select"),
 ]
 _DEFAULT_CONTROL_CLASS = "ui-input"
 
-# Widgets that render as a native <select> and therefore need the chevron wrapper.
-_SELECT_WIDGETS = (forms.Select, forms.SelectMultiple)
+# Widgets that render as a dropdown and therefore need the chevron wrapper.
+# `SelectMultiple` subclasses `Select`, so it has to be excluded by name: it is
+# a list box that never opens, and the arrow plus `ui-select`'s fixed height
+# crushed it into two scrolling rows.
+_SELECT_WIDGETS = (forms.Select,)
+_LIST_BOX_WIDGETS = (forms.SelectMultiple,)
 
 
 def _control_class(widget: forms.Widget) -> str:
@@ -71,8 +78,17 @@ def is_checkbox(field: BoundField) -> bool:
 
 
 @register.filter
+def is_checkbox_group(field: BoundField) -> bool:
+    return isinstance(field.field.widget, forms.CheckboxSelectMultiple)
+
+
+@register.filter
 def is_select(field: BoundField) -> bool:
-    return isinstance(field.field.widget, _SELECT_WIDGETS)
+    widget = field.field.widget
+    return isinstance(widget, _SELECT_WIDGETS) and not isinstance(
+        widget,
+        _LIST_BOX_WIDGETS,
+    )
 
 
 @register.inclusion_tag("components/form_field.html")
@@ -81,24 +97,30 @@ def ui_field(
     label: str = "",
     placeholder: str = "",
     help_text: str = "",
-    extra_class: str = "",
+    *,
+    optional: bool | None = None,
 ) -> dict:
     """Render a full label + control + help + errors block.
 
     `label`, `placeholder` and `help_text` override whatever the form declared,
     which is how the allauth screens pick up the mockup's copy without us
     reaching into allauth's form classes.
+
+    `optional` overrides the marker for the case the per-field flag cannot
+    express: two fields that are each `required=False` because the rule is
+    "one of these two", where marking both optional tells the user nothing is
+    needed and then refuses the form.
     """
     if placeholder:
         field.field.widget.attrs["placeholder"] = placeholder
     return {
-        "field": _style(field, extra_class),
+        "field": _style(field),
         "label": label or field.label,
         "help_text": help_text or field.help_text,
         # The mockups mark nothing as required — almost every field is. Flag the
         # exceptions instead, which is both closer to the design and the clearer
         # convention.
-        "is_optional": not field.field.required,
+        "is_optional": not field.field.required if optional is None else optional,
     }
 
 

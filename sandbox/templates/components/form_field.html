@@ -12,6 +12,25 @@
     {{ field }}
     <label class="text-sm leading-snug text-muted-foreground select-none"
            for="{{ field.id_for_label }}">{{ label }}</label>
+  {% elif field|is_checkbox_group %}
+    {# A fieldset, not a label: the group has no single control to point `for` #}
+    {# at, and each option wraps its own label so the whole row is a hit target. #}
+    <fieldset>
+      <legend class="ui-label">
+        {{ label }}
+        {% if is_optional %}
+          <span class="font-normal text-soft-foreground">({% translate "optional" %})</span>
+        {% endif %}
+      </legend>
+      <div class="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+        {% for option in field %}
+          <label class="flex items-start gap-2.5 rounded-md py-1 text-sm leading-snug text-muted-foreground has-[:checked]:text-foreground">
+            {{ option.tag }}
+            <span class="min-w-0">{{ option.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
   {% else %}
     <label class="ui-label" for="{{ field.id_for_label }}">
       {{ label }}

@@ -47,10 +47,12 @@
   {% endif %}
   {% if request.user.is_authenticated %}
     <div class="mt-auto flex items-center gap-2 border-t border-border px-2.5 pt-3">
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-[12.5px] font-semibold">{% translate "NHA console" %}</span>
+      <a class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+         href="{% url 'users:detail' request.user.external_id %}"
+         hx-boost="false">
+        <span class="block truncate text-[12.5px] font-semibold text-foreground">{% translate "NHA console" %}</span>
         <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
-      </span>
+      </a>
       <a class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline"
          href="{% url 'account_logout' %}"
          hx-boost="false"

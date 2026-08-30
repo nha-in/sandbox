@@ -132,6 +132,25 @@ PATHS: dict[str, list[Step]] = {
 
 # A second visit to review, so the console tally has more than one round to show.
 ROUND_TWO_SLUG = "review-rounds"
+
+#: One product per state, so every state is demonstrable. The slug still names
+#: the state (it is the idempotency key); the *name* must not, because the
+#: product picker then reads as a list of statuses rather than of products.
+PRODUCT_NAMES: dict[str, str] = {
+    S.DRAFT: "Aarogya Clinic Suite",
+    S.SUBMITTED: "Nirogya HMIS",
+    S.SENT_BACK: "Sanjeevani Records",
+    S.WITHDRAWN: "Prayaas Teleconsult",
+    S.REJECTED: "Vaidya Diagnostics",
+    S.SANDBOX_APPROVED: "Setu Health Locker",
+    S.PROVISIONING: "Chikitsa OPD",
+    S.PROVISIONED: "Swasthya Bridge",
+    S.PROVISIONING_FAILED: "Amrit Pharmacy Link",
+    S.EXIT_REQUESTED: "Jeevan Care Connect",
+    S.EXIT_REVIEW: "Nidaan Lab Gateway",
+    S.PRODUCTION_APPROVED: "Kavach Insurance Hub",
+    S.EXIT_REJECTED: "Sahayak PHR",
+}
 ROUND_TWO_PATH: list[Step] = [
     *_SUBMITTED,
     (Action.SEND_BACK, "admin"),
@@ -368,7 +387,12 @@ class Command(BaseCommand):
     def _seed_applications(self, organisation, users):
         for state, path in PATHS.items():
             slug = state.lower().replace("_", "-")
-            application = self._application_for(organisation, slug, users["owner"])
+            application = self._application_for(
+                organisation,
+                slug,
+                users["owner"],
+                name=PRODUCT_NAMES.get(state, ""),
+            )
             if application is None:
                 continue
             self._walk(application, path, users)
@@ -381,12 +405,12 @@ class Command(BaseCommand):
         if application is not None:
             self._walk(application, _SUBMITTED, {**users, "owner": users["rival"]})
 
-    def _application_for(self, organisation, slug: str, applicant):
+    def _application_for(self, organisation, slug: str, applicant, name: str = ""):
         """Returns None when this slug is already seeded — the idempotency guard."""
         product, created = Product.objects.get_or_create(
             organisation=organisation,
             slug=slug,
-            defaults={"name": slug.replace("-", " ").title()},
+            defaults={"name": name or slug.replace("-", " ").title()},
         )
         if not created and Application.objects.filter(product=product).exists():
             return None

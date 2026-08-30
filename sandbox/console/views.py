@@ -24,6 +24,9 @@ from sandbox.console.selectors import PAGE_SIZE
 from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
 from sandbox.console.selectors import state_counts
+from sandbox.integrations.selectors import CREDENTIAL_STATES
+from sandbox.integrations.selectors import provisioning_progress
+from sandbox.integrations.services import retry_provisioning
 from sandbox.utils.errors import DomainError
 from sandbox.workflow.machine import Action
 from sandbox.workflow.selectors import available_actions
@@ -98,6 +101,14 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                 "review_form": ReviewForm(),
                 "decision_actions": [a for a in DECISION_ACTIONS if a in allowed],
                 "can_review": self.request.user.has_perm("workflow.review_application"),
+                # Status only. There is no reveal route on this surface, and no
+                # staff-facing path to a secret anywhere in the system.
+                "provisioning": (
+                    provisioning_progress(application)
+                    if application.state in CREDENTIAL_STATES
+                    else []
+                ),
+                "can_retry_provisioning": Action.RETRY_PROVISIONING in allowed,
             },
         )
         return context
@@ -176,5 +187,23 @@ class DecideView(ApplicationActionView):
             messages.success(
                 request,
                 f"{application.reference} moved to {application.state}.",
+            )
+        return self.back_to(application)
+
+
+class RetryProvisioningView(ApplicationActionView):
+    """Re-run a failed chain. The console's only credentials-adjacent action —
+    it moves the application, it does not read anything."""
+
+    def post(self, request, *args, **kwargs):
+        application = self.get_application()
+        try:
+            retry_provisioning(application=application, actor=request.user)
+        except DomainError as error:
+            messages.error(request, error.message)
+        else:
+            messages.success(
+                request,
+                f"Provisioning restarted for {application.reference}.",
             )
         return self.back_to(application)

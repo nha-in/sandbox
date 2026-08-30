@@ -9,6 +9,14 @@ class SampleForm(forms.Form):
     kind = forms.ChoiceField(choices=[("a", "A")])
     notes = forms.CharField(widget=forms.Textarea, required=False)
     agreed = forms.BooleanField()
+    tags = forms.MultipleChoiceField(
+        choices=[("a", "A"), ("b", "B")],
+        widget=forms.CheckboxSelectMultiple,
+    )
+    # No widget named: Django's default for this field is `SelectMultiple`, so
+    # this is what anyone gets who adds a multi-choice field without thinking
+    # about it.
+    regions = forms.MultipleChoiceField(choices=[("a", "A"), ("b", "B")])
 
 
 def bound(field_name, data=None):
@@ -22,10 +30,25 @@ def bound(field_name, data=None):
         ("kind", "ui-select"),
         ("notes", "ui-textarea"),
         ("agreed", "ui-checkbox"),
+        ("tags", "ui-checkbox"),
+        ("regions", "ui-multiselect"),
     ],
 )
 def test_each_widget_gets_its_house_control_class(field_name, expected):
     assert expected in careui.ui_widget(bound(field_name))
+
+
+@pytest.mark.parametrize("field_name", ["tags", "regions"])
+def test_a_multi_choice_control_is_never_styled_as_a_dropdown(field_name):
+    """`ui-select` is a dropdown's styling — fixed height, chevron,
+    appearance-none. On a checkbox group it is meaningless; on a list box it
+    collapsed the options into two scrolling rows behind an arrow that opened
+    nothing. `SelectMultiple` subclasses `Select`, which is how it got there.
+    """
+    field = bound(field_name)
+
+    assert "ui-select" not in careui.ui_widget(field)
+    assert not careui.is_select(field), "only a dropdown gets the chevron wrapper"
 
 
 def test_help_text_is_wired_for_screen_readers():
@@ -65,6 +88,8 @@ def test_ui_field_overrides_win_and_placeholder_reaches_the_widget():
 def test_widget_type_filters():
     assert careui.is_checkbox(bound("agreed"))
     assert not careui.is_checkbox(bound("email"))
+    assert careui.is_checkbox_group(bound("tags"))
+    assert not careui.is_checkbox_group(bound("regions"))
     assert careui.is_select(bound("kind"))
     assert not careui.is_select(bound("notes"))
 

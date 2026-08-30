@@ -25,7 +25,9 @@ class VerificationRequiredMiddleware:
             return self.get_response(request)
 
         if user.is_staff:
-            if not get_mfa_adapter().is_mfa_enabled(user):
+            if settings.STAFF_MFA_REQUIRED and not get_mfa_adapter().is_mfa_enabled(
+                user,
+            ):
                 messages.warning(
                     request,
                     _("Set up two-factor authentication to continue."),
