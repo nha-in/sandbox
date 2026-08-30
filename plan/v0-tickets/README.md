@@ -61,7 +61,7 @@ P1 scaffold · P2 compose/Dockerfiles · P3 CI gates · P4 staging+Sentry · P5 
 | -------------------------------------------------------------------------------------------- | ----- | ------------------------------------- |
 | [B1 — `integrations` ports + shared HTTP policy](B1-integration-ports-http-policy.md)        | V0.3  | **done** (1 carry-over)               |
 | [B2 ⚑ — Fake adapters for every port](B2-fake-adapters.md)                                   | V0.3  | **done**                              |
-| [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | blocked (NHA access, open question 4) |
+| [B3 — Keycloak adapter (`IdpAdmin`)](B3-keycloak-adapter.md)                                 | V0.3  | **done** (1 carry-over)               |
 | [B4 — WSO2 adapter (`ApiGateway`)](B4-wso2-adapter.md)                                       | V0.3  | blocked (NHA access)                  |
 | [B5 — HIE-CM adapter (`BridgeRegistry`)](B5-hiecm-adapter.md)                                | V0.3  | blocked (NHA access)                  |
 | [B6 — Notification adapter + Celery send task + delivery log](B6-notification-adapter.md)    | V0.3  | blocked (NHA access)                  |
@@ -95,6 +95,7 @@ unblocking ticket lands.
 | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [B1](B1-integration-ports-http-policy.md)   | `ProvisionedResource` ledger model + migration                      | [A3](A3-applications-model.md) | FK and `UNIQUE (application, system)` both need `applications.Application`. Only [B7](B7-provisioning-chain.md)/[B8](B8-deprovisioning-chain.md) consume it, and both are behind A3 anyway.                                         |
 | [A4](A4-otp-service.md)                     | Stamping `email_verified_at` / `phone_verified_at` on verify        | —                              | Unblocked: A2 shipped both columns. Row closes when A4 lands.                                                                                                                                                                       |
+| [B3](B3-keycloak-adapter.md)                | End-to-end verification against the real sandbox-tier Keycloak      | NHA service account            | Adapter is complete and verified against the local realm (roles land in a real token, GET does not rotate, disable revokes). Open question 4 also owes the per-kind role subset; ours is a documented default, changed by one env var. |
 
 ## Dependency sketch
 

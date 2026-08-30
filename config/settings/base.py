@@ -398,6 +398,27 @@ INTEGRATION_PORTS = {
     ),
 }
 
+# KEYCLOAK (B3)
+# ------------------------------------------------------------------------------
+# Issues the integrator's machine credentials. The local realm
+# (compose/local/keycloak/) stands in for ABDM's; a real sandbox-tier service
+# account is still outstanding (00-master-plan.md open question 4).
+KEYCLOAK_BASE_URL = env.str("KEYCLOAK_BASE_URL", default="http://keycloak:8080")
+KEYCLOAK_REALM = env.str("KEYCLOAK_REALM", default="abdm-sandbox")
+KEYCLOAK_CLIENT_ID = env.str("KEYCLOAK_CLIENT_ID", default="sandbox-provisioner")
+KEYCLOAK_CLIENT_SECRET = env.str("KEYCLOAK_CLIENT_SECRET", default="")
+# Role NAMES per application kind — never realm UUIDs, which legacy hardcoded.
+# This subset is provisional: legacy granted all 14 roles to everyone, and NHA
+# has not yet confirmed the per-kind set (open question 4).
+KEYCLOAK_ROLE_NAMES = {
+    "SANDBOX": tuple(
+        env.list(
+            "KEYCLOAK_SANDBOX_ROLE_NAMES",
+            default=["healthId", "hip", "hiu", "hfr"],
+        ),
+    ),
+}
+
 # OTP
 # ------------------------------------------------------------------------------
 # Carried from legacy `OtpServiceImpl` / `SandboxConstant`: OTP_VALIDITY_MINUTES=10,

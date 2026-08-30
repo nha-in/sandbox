@@ -42,6 +42,26 @@ v2: a Celery chain driven off the `SANDBOX_APPROVED` transition, with the `integ
 - Structured logs with correlation ID per step; ledger + state queryable by the [C7](C7-credentials-panel.md) polling partial.
 - **Carry the correlation id into every task explicitly.** `sandbox.utils.correlation` holds it in a `ContextVar`, which is per-process, so it does **not** survive `transaction.on_commit` → broker → worker: a chain that does nothing will start a fresh id, and the approval will not be linked to the provisioning it caused — the exact case the field exists for. Pass the id from `get_correlation_id()` as a task argument (or a message header) and call `set_correlation_id()` as the first line of each task. Then [A5](A5-workflow-state-machine.md)'s audit rows, this chain's audit rows, and the `X-Correlation-Id`/`traceparent` headers [B1](B1-integration-ports-http-policy.md) sends to Keycloak/WSO2/HIE-CM all share one value. Worth a test: approve, run the chain, assert every `audit_event` row for that application has the same `correlation_id`.
 
+### Worth considering: per-application role sets
+
+v0 grants `keycloak.roles.role_names_for(kind)` — one fixed set per application
+kind. A finer grant is possible without weakening anything, because the
+applicant already declares `integration_intents` in the [A3](A3-applications-model.md)
+payload (`ABHA_M1`, `HIP_M2`, `HIU_M3`, `HPR_HFR_M4`), and a reviewer approves
+that payload before provisioning runs. Mapping approved intents → role names
+server-side would let an integrator building only a HIP receive only `hip`.
+
+The rule that must survive any such change: **role names never come from a
+request.** They are derived from an approved, server-held record. A client that
+can name its own roles can name all fourteen, which is the legacy over-grant
+with extra steps ([05-security.md](../05-security.md) §3: no client-side role
+checks). A console screen letting a reviewer narrow the set is fine on the same
+terms — options from a server-side allowlist, validated on POST.
+
+Blocked on the same thing [B3](B3-keycloak-adapter.md) is: open question 4, where
+NHA still owes the per-kind role subset. Building an intent→role map onto role
+names we cannot yet validate would be premature.
+
 ## Acceptance criteria
 
 - [ ] Happy path: approve → three ledger rows ACTIVE → `PROVISIONED`, notification sent (against fakes in CI, real systems on staging).
