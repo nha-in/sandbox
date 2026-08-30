@@ -63,7 +63,7 @@ def test_a_user_with_no_organisation_is_offered_one(client):
     client.force_login(user)
 
     response = client.get(
-        reverse("users:detail", kwargs={"external_id": user.external_id})
+        reverse("users:detail", kwargs={"external_id": user.external_id}),
     )
     assert reverse("organisations:create") in response.content.decode()
 
@@ -219,7 +219,7 @@ def test_shell_links_a_member_to_the_wizard(client):
     client.force_login(user)
 
     response = client.get(
-        reverse("users:detail", kwargs={"external_id": user.external_id})
+        reverse("users:detail", kwargs={"external_id": user.external_id}),
     )
 
     assert reverse("applications:new") in response.content.decode()
@@ -230,7 +230,7 @@ def test_shell_shows_no_wizard_link_to_a_non_member(client):
     client.force_login(user)
 
     response = client.get(
-        reverse("users:detail", kwargs={"external_id": user.external_id})
+        reverse("users:detail", kwargs={"external_id": user.external_id}),
     )
 
     assert "is_organisation_member" not in response.context
@@ -255,7 +255,7 @@ def test_a_single_org_member_can_reach_the_organisation_list(client):
     client.force_login(membership.user)
 
     response = client.get(
-        reverse("users:detail", kwargs={"external_id": membership.user.external_id})
+        reverse("users:detail", kwargs={"external_id": membership.user.external_id}),
     )
 
     assert reverse("organisations:choose") in response.content.decode()
