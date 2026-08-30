@@ -46,6 +46,12 @@ class ProvisionedResource(BaseModel):
     #: NOT `external_id`: that is BaseModel's public UUID, and declaring it here
     #: silently replaces it, leaving the row with no identifier of its own.
     external_ref = models.CharField(max_length=255)
+    #: The handle a person sees, where it differs from the one we call the API
+    #: with. Only Keycloak has both: `external_ref` is the internal UUID that
+    #: `disable_client`/`rotate_client_secret` take, while the OAuth `clientId`
+    #: is what C7 shows the integrator, what WSO2 maps as its consumer key, and
+    #: what B7 names the HIE-CM bridge after.
+    public_ref = models.CharField(max_length=255, blank=True)
     secret_ref = models.CharField(max_length=255, blank=True)
     state = models.CharField(
         max_length=20,

@@ -41,11 +41,47 @@ v2 runs the **reverse chain** over the provisioning ledger whenever an applicati
 
 ## Acceptance criteria
 
-- [ ] Rejection of a provisioned application flips all three ledger rows to DISABLED and disables the resources (fakes in CI; verified against real systems on staging).
-- [ ] Kill mid-chain, re-run ⇒ remaining steps only, no errors on already-disabled resources ([B9](B9-wiremock-fault-injection-suite.md) fault-injection version).
-- [ ] Terminal failure visible (row FAILED + alert) and manually retryable from the console.
-- [ ] Rejected integrator's credentials stop working within the token lifetime (staging check); lifetime ≤15m confirmed.
-- [ ] Chain enqueued on commit; all transitions audited.
+- [x] Withdrawal of a provisioned application flips all three ledger rows to DISABLED and disables the resources (fakes in CI).
+- [x] Kill mid-chain, re-run ⇒ remaining steps only, no errors on already-disabled resources ([B9](B9-wiremock-fault-injection-suite.md) fault-injection version still owed).
+- [x] Terminal failure visible (row FAILED + Sentry) and manually retryable from the console.
+- [x] Chain enqueued on commit; retries audited.
+- [ ] Rejected integrator's credentials stop working within the token lifetime; lifetime ≤15m confirmed — **staging, blocked on NHA**. Deliverable 4 (token lifetime + [P6](P6-backup-restore-drill-and-pilot-runbook.md) runbook note) is not done.
+
+### The covered set
+
+Ledger rows only exist from `PROVISIONING` onward, so the trigger belongs on every
+edge that leaves those states for a terminal one:
+
+| Edge | Why |
+| --- | --- |
+| `SUBMITTED → REJECT` | No rows exist yet — `REJECT` is only legal from `SUBMITTED`. Wired anyway, and a no-op, so the wiring survives any future edge that makes rejection reachable later. |
+| `PROVISIONED → WITHDRAW` | The path the ticket anticipated. |
+| `PROVISIONING_FAILED → WITHDRAW` | **Added by this ticket.** `RETRY_PROVISIONING` was the only move out of `PROVISIONING_FAILED`, so an applicant whose chain failed for good was stuck forever *beside the partial resources it had already created* — a Keycloak client and possibly a WSO2 subscription, live, with no reachable state that would ever tear them down. |
+
+Not covered, deliberately: `PRODUCTION_APPROVED` and `EXIT_REJECTED` both leave
+sandbox resources live on purpose (P4 owns exit deprovisioning), and
+`PROVISIONING` itself can only move to `PROVISIONED` or `PROVISIONING_FAILED`,
+both of which are covered above.
+
+### Decisions worth knowing
+
+- **Teardown does not stop at the first failure; provisioning does.** Building a
+  bridge for a client that does not exist is pointless, so [B7](B7-provisioning-chain.md)
+  halts. Leaving a bridge switched on because Keycloak happened to be down is a
+  live credential for a departed integrator, so this chain records the failed row
+  and carries on to the next system.
+- **A FAILED row is retried, not skipped.** The step acts on `ACTIVE` and
+  `FAILED` and skips `DISABLED` and missing. The first draft skipped anything
+  that was not `ACTIVE`, which meant a failed teardown could never be retried —
+  caught by the console-retry test.
+- **`retry_deprovisioning` is not a transition.** The application is already
+  terminal, so there is no legal move to hang it on; the permission check
+  (`workflow.retry_provisioning`) and the audit row are made explicitly instead
+  of being inherited from `transition()`.
+- **WSO2 unsubscribes from `api_names_for(kind)`** — the same source provisioning
+  subscribed from, not a record of what was actually subscribed. If the
+  configured set changes between provision and teardown, the difference is left
+  for P4's sweep rather than guessed at.
 
 ## Out of scope (deferred)
 

@@ -43,5 +43,10 @@ def resolve_secret(ref: str, system: ExternalSystem) -> str:
     return value
 
 
+def has_secret(ref: str) -> bool:
+    """Whether a parked secret is still readable, without raising or consuming it."""
+    return bool(ref) and cache.get(_KEY.format(ref=ref)) is not None
+
+
 def discard_secret(ref: str) -> None:
     cache.delete(_KEY.format(ref=ref))

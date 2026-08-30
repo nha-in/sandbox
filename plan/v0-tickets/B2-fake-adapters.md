@@ -44,6 +44,24 @@ One in-process fake per port from [B1](B1-integration-ports-http-policy.md), sel
 - [ ] OTP + lifecycle emails visible in Mailpit locally.
 - [ ] Failure injection demonstrably drives `PROVISIONING_FAILED` + console retry.
 - [ ] Fakes reset cleanly between tests; used by default in `local`/`test` settings.
+- [x] **A fake refuses whatever its adapter refuses.** Added after B7: a fake more
+      permissive than the real thing hides bugs that only appear in staging, and
+      one did. `FakeApiGateway.map_keys` accepted a secret ref it never
+      dereferenced, so B7's secret-expiry dead-end passed CI. The audit that
+      followed closed three more of the same shape:
+      - `FakeIdpAdmin.create_client` now 404s an unknown role name, as
+        `_role_by_name` does. `FAKE_KEYCLOAK_REALM_ROLES` mirrors
+        `compose/local/keycloak/realm-abdm-sandbox.json`, so a wrong
+        `KEYCLOAK_ROLE_NAMES` fails offline — the setting open question 4 leaves
+        least certain.
+      - `FakeApiGateway.create_application` is create-or-lookup on the derived
+        name, as the adapter is, and returns that name rather than the product's.
+        The fake used to mint a fresh id every call, so the real adapter's
+        duplicate-recovery went untested and `public_ref` differed between fake
+        and real.
+      - `FakeNotificationGateway` renders the real template and raises
+        `UNKNOWN_TEMPLATE` when there is none, instead of dumping the context.
+        A typo'd key used to pass offline; Mailpit now shows the real body.
 
 ## Out of scope
 

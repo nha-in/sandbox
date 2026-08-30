@@ -36,6 +36,7 @@ from sandbox.integrations.http import HttpPolicy
 from sandbox.integrations.http import IntegrationClient
 from sandbox.integrations.http import Token
 from sandbox.integrations.http import TokenCache
+from sandbox.integrations.naming import APP_NAME_TEMPLATE
 from sandbox.integrations.ports import AdapterError
 from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.ports import GatewayAppCreated
@@ -48,10 +49,6 @@ if TYPE_CHECKING:
 
 NOT_FOUND = "HTTP_404"
 CONFLICT = "HTTP_409"
-
-#: WSO2 rejects an application name with a slash or space; the reference is the
-#: stable half, so re-running a chain finds the app it made last time.
-APP_NAME_TEMPLATE = "sbx-{reference}"
 
 
 class Wso2ApiGateway:

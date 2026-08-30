@@ -215,6 +215,7 @@ containers = [
   "sandbox.declarations",
   "sandbox.workflow",
   "sandbox.audit",
+  "sandbox.integrations",
   "sandbox.notifications",
   "sandbox.console",
 ]

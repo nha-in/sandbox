@@ -64,12 +64,59 @@ names we cannot yet validate would be premature.
 
 ## Acceptance criteria
 
-- [ ] Happy path: approve → three ledger rows ACTIVE → `PROVISIONED`, notification sent (against fakes in CI, real systems on staging).
-- [ ] **Kill mid-chain, re-run ⇒ no duplicates** (ledger-skip asserted; WireMock fault-injection version in [B9](B9-wiremock-fault-injection-suite.md)).
-- [ ] Terminal failure lands `PROVISIONING_FAILED` with detail visible in console; retry provisions only the missing systems.
-- [ ] All state moves via `transition()` and are audited; chain enqueue happens on commit only.
-- [ ] No secret persisted anywhere (schema + log assertions).
-- [ ] Staging: real end-to-end pass — issued credentials obtain a token and call a sandbox API through WSO2.
+- [x] Happy path: approve → three ledger rows ACTIVE → `PROVISIONED`, notification sent (against fakes in CI).
+- [x] **Kill mid-chain, re-run ⇒ no duplicates** (ledger-skip asserted; WireMock fault-injection version in [B9](B9-wiremock-fault-injection-suite.md)).
+- [x] Terminal failure lands `PROVISIONING_FAILED` with detail on the transition comment; retry provisions only the missing systems.
+- [x] All state moves via `transition()` and are audited; chain enqueue happens on commit only.
+- [x] No secret persisted anywhere (asserted: the value appears in no ledger column, and the ref is read exactly once).
+- [x] One correlation id spans the approval and every task the chain runs (asserted across `audit_event`).
+- [ ] Staging: real end-to-end pass — issued credentials obtain a token and call a sandbox API through WSO2. **Blocked on NHA**, and on `WSO2_API_NAMES`, which has no default.
+
+### Decisions worth knowing
+
+- **One extra ledger column, `public_ref`.** Keycloak is the only system with two
+  handles: `external_ref` is the internal UUID that `disable_client` and
+  `rotate_client_secret` take, and the OAuth `clientId` is what C7 shows, what
+  WSO2 maps as its consumer key, and what the HIE-CM bridge is named after. A
+  retry that skips the Keycloak step has to read both back from the ledger, so
+  neither could be left to travel only through the chain's arguments.
+- **The chain is four Celery tasks, not one.** Each retries on its own budget,
+  and `CELERY_TASK_SOFT_TIME_LIMIT` is 60s — Keycloak's create-plus-role-grants
+  alone would risk that in a single task.
+- **A parked run stops the remaining links by state, not by exception.** Every
+  step returns early unless the application is in `PROVISIONING`, so the chain
+  does not depend on Celery's error-propagation semantics to avoid running WSO2
+  after Keycloak has already failed.
+- **`ImproperlyConfigured` is terminal, not retryable.** A missing API-name list
+  will not fix itself in half an hour; retrying only delays the operator.
+- **`complete_provisioning` reads the ledger.** "The chain got this far" is not
+  evidence: it re-checks that all three systems are ACTIVE and parks the
+  application if not, because `PROVISIONED` is a claim about three systems.
+- **Failure writes no phantom ledger row.** Absence already means "not
+  provisioned"; a row with an empty `external_ref` would have to be reasoned
+  about by every later reader, including B8.
+- **The parked secret outlives its TTL by rotating, not by waiting.**
+  `SECRET_REF_TTL_SECONDS` is 900s and this chain's retry budget is
+  `120+240+480+900` = 1740s, so a WSO2 outage lasting past the TTL would reach a
+  step that can never succeed: Keycloak is already ACTIVE so it is skipped, and
+  nothing else mints a replacement. The WSO2 step now re-mints via
+  `rotate_client_secret` when the ref has aged out, which is the second reason
+  `external_ref` is on the ledger.
+- **The WSO2 fake dereferences the secret ref, as the real adapter does.** It
+  used to store the ref without reading it, which is exactly why the expiry
+  dead-end above was invisible against the fakes.
+
+- **Residual duplicate window, and it is Keycloak only.** WSO2 and HIE-CM both
+  recover on their own: `create_application` is create-or-lookup on
+  `sbx-{reference}` and adopts the winner of a 409, and `create_bridge` is a PUT
+  against a bridge id we choose, so both re-runs converge on the resource the
+  last attempt made. `create_client` is a plain POST with a fresh **random**
+  client id, so a crash between the remote create and the ledger write orphans
+  it — and lookup cannot rescue that either, because the random id was the only
+  handle and it died with the task. Making the client id derivable from
+  `application.external_id` would close it, at the cost of B3's rule that ids are
+  not guessable from anything public; P4's reconciliation sweep is the cheaper
+  answer and owns this today.
 
 ## Out of scope (deferred)
 

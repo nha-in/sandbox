@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 import pytest
+from django.conf import settings
 from django.core import mail
 
 from sandbox.integrations import fakes
@@ -23,11 +24,15 @@ from sandbox.integrations.ports import GatewayAppSpec
 from sandbox.integrations.ports import IdpAdmin
 from sandbox.integrations.ports import NotificationGateway
 from sandbox.integrations.ports import NotificationMessage
+from sandbox.integrations.secret_ref import store_secret
 
 SPEC = ClientSpec(reference="SBX-2026-00001", display_name="Acme", role_names=("hip",))
 APP_SPEC = GatewayAppSpec(reference="SBX-2026-00001", name="Acme", api_names=("abha",))
+#: WSO2 derives the name from the reference, and so does the fake.
+APP_NAME = "sbx-SBX-2026-00001"
 BRIDGE_SPEC = BridgeSpec(bridge_id="SBX_ABC", name="Acme", url="https://acme.test")
-# A pointer into a secret store, never a secret value.
+# A pointer into a secret store, never a secret value. Deliberately never parked,
+# so it stands in for one that has expired.
 SECRET_REF = "vault://x"  # noqa: S105
 LATENCY = 0.05
 
@@ -141,12 +146,29 @@ def test_unsubscribe_is_idempotent_for_a_missing_application():
 def test_map_keys_stores_a_reference_not_a_secret():
     gateway = FakeApiGateway()
     created = gateway.create_application(APP_SPEC)
+    ref = store_secret("the-actual-secret")
 
-    gateway.map_keys(created.external_id, consumer_key="ck", secret_ref=SECRET_REF)
+    gateway.map_keys(created.external_id, consumer_key="ck", secret_ref=ref)
 
     record = app_record(gateway, created.external_id)
     assert record["keys_mapped"] is True
-    assert record["secret_ref"] == SECRET_REF
+    assert record["secret_ref"] == ref
+    assert "the-actual-secret" not in str(record)
+
+
+def test_map_keys_refuses_a_reference_that_has_expired():
+    """The fake has to fail here too, or B7's expiry dead-end is invisible in CI."""
+    gateway = FakeApiGateway()
+    created = gateway.create_application(APP_SPEC)
+
+    with pytest.raises(AdapterError) as exc:
+        gateway.map_keys(
+            created.external_id,
+            consumer_key="ck",
+            secret_ref=SECRET_REF,
+        )
+
+    assert exc.value.code == "SECRET_REF_EXPIRED"
 
 
 # HIE-CM
@@ -191,7 +213,7 @@ def test_notification_goes_through_the_email_backend():
         NotificationMessage(
             template="sandbox-approved",
             to="a@b.test",
-            context={"ref": "SBX-1"},
+            context={"reference": "SBX-1", "panel_url": "https://portal.test/x/"},
         ),
     )
 
@@ -199,8 +221,21 @@ def test_notification_goes_through_the_email_backend():
     assert result.provider_message_id
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == ["a@b.test"]
-    assert "sandbox-approved" in mail.outbox[0].subject
-    assert "ref: SBX-1" in mail.outbox[0].body
+    # The real subject and the real body, not a placeholder rendering of them.
+    assert mail.outbox[0].subject == settings.NOTIFICATION_SUBJECTS["sandbox-approved"]
+    assert "SBX-1" in mail.outbox[0].body
+    assert "https://portal.test/x/" in mail.outbox[0].body
+
+
+def test_an_unknown_template_fails_in_the_fake_too():
+    """A typo'd key would otherwise pass offline and fail at the real gateway."""
+    with pytest.raises(AdapterError) as excinfo:
+        FakeNotificationGateway().send(
+            NotificationMessage(template="no-such-template", to="a@b.test", context={}),
+        )
+
+    assert excinfo.value.code == "UNKNOWN_TEMPLATE"
+    assert excinfo.value.retryable is False
 
 
 def test_sends_are_recorded_for_assertions():
@@ -244,7 +279,7 @@ def test_always_fail_persists_until_cleared():
 
     fakes.clear_failures(ExternalSystem.WSO2)
 
-    assert gateway.create_application(APP_SPEC).name == "Acme"
+    assert gateway.create_application(APP_SPEC).name == APP_NAME
 
 
 def test_failure_injection_is_scoped_to_one_system():
@@ -283,5 +318,5 @@ def test_reset_clears_state_and_failure_knobs():
     fakes.reset_fakes()
 
     assert idp.get_client(created.external_id) is None
-    assert FakeApiGateway().create_application(APP_SPEC).name == "Acme"
+    assert FakeApiGateway().create_application(APP_SPEC).name == APP_NAME
     assert fakes.recorded_sends() == []
