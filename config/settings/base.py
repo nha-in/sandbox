@@ -452,6 +452,17 @@ WSO2_API_NAMES = {"SANDBOX": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[]
 # How long a secret parked for `map_keys` stays readable (B7 → B4 hand-off).
 SECRET_REF_TTL_SECONDS = env.int("SECRET_REF_TTL_SECONDS", default=900)
 
+# HIE-CM (B5)
+# ------------------------------------------------------------------------------
+# The bridge registry. Internal base URL only — the external `/sandbox/v3/v1/*`
+# rewrite is IaC-owned (07-infra-cicd.md §5) and must never appear here.
+HIECM_BASE_URL = env.str("HIECM_BASE_URL", default="https://hiecm.invalid")
+HIECM_API_PATH = env.str("HIECM_API_PATH", default="/api/v3")
+HIECM_SESSION_PATH = env.str("HIECM_SESSION_PATH", default="/sessions")
+HIECM_CLIENT_ID = env.str("HIECM_CLIENT_ID", default="")
+HIECM_CLIENT_SECRET = env.str("HIECM_CLIENT_SECRET", default="")
+HIECM_CM_ID = env.str("HIECM_CM_ID", default="sbx")
+
 # OTP
 # ------------------------------------------------------------------------------
 # Carried from legacy `OtpServiceImpl` / `SandboxConstant`: OTP_VALIDITY_MINUTES=10,
