@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sandbox.audit.services import emit
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
@@ -17,6 +18,9 @@ from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.secret_ref import discard_secret
 from sandbox.integrations.secret_ref import resolve_secret
 from sandbox.integrations.tasks import enqueue_chain
+from sandbox.integrations.tasks import enqueue_teardown
+from sandbox.utils.errors import DomainError
+from sandbox.workflow.machine import PERM_RETRY_PROVISIONING
 from sandbox.workflow.machine import Action
 from sandbox.workflow.services import transition
 
@@ -50,6 +54,34 @@ def retry_provisioning(
         action=Action.RETRY_PROVISIONING,
         actor=actor,
     )
+
+
+def start_deprovisioning(
+    application: Application,
+    _transition: WorkflowTransition,
+) -> None:
+    """Hook body for `deprovisioning_chain`, fired by rejection and withdrawal."""
+    enqueue_teardown(application)
+
+
+def retry_deprovisioning(*, application: Application, actor: User) -> None:
+    """Re-run the teardown for the console's retry button.
+
+    Unlike `retry_provisioning` there is no transition to ride: the application
+    already sits in a terminal state, so the permission check and the audit row
+    have to be made here rather than inherited from `transition()`.
+    """
+    if not actor.has_perm(PERM_RETRY_PROVISIONING):
+        message = f"retrying deprovisioning requires {PERM_RETRY_PROVISIONING}"
+        raise DomainError(message, code="forbidden")
+
+    emit(
+        "application.deprovisioning_retried",
+        obj=application,
+        actor=actor,
+        data={"reference": application.reference},
+    )
+    enqueue_teardown(application)
 
 
 def take_initial_secret(application: Application) -> str | None:

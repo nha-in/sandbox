@@ -142,6 +142,14 @@ TRANSITIONS: dict[tuple[ApplicationState, Action], Spec] = {
         PERM_RETRY_PROVISIONING,
         hooks=("provisioning_chain",),
     ),
+    # Retry was the only way out of PROVISIONING_FAILED, which left an applicant
+    # whose chain failed for good stuck forever beside the partial resources it
+    # did create. Withdrawal is the way out, and it has to tear those down (B8).
+    (S.PROVISIONING_FAILED, Action.WITHDRAW): Spec(
+        S.WITHDRAWN,
+        ActorKind.OWNER,
+        hooks=("deprovisioning_chain",),
+    ),
     # Withdrawal after provisioning strands ACTIVE ledger rows, so it is the
     # v0 path that triggers deprovisioning (B8 documents the covered set).
     (S.PROVISIONED, Action.WITHDRAW): Spec(

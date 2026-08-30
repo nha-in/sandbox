@@ -352,3 +352,139 @@ def enqueue_chain(application: Application) -> None:
         ).delay()
 
     transaction.on_commit(_send)
+
+
+# Teardown — B8
+
+#: Ledger states a teardown step still has work to do in. ORPHANED is excluded:
+#: it means P4's sweep found the resource with no live owner here, so it is that
+#: sweep's to clean up, not this chain's.
+_TEARDOWN_PENDING = frozenset(
+    {ProvisionedResourceState.ACTIVE, ProvisionedResourceState.FAILED},
+)
+
+
+def _teardown_failed(
+    task: Task,
+    row: ProvisionedResource,
+    failure: _Failure,
+) -> None:
+    """Mark this one resource failed. Deliberately does not raise.
+
+    Provisioning stops at the first failure because there is no point building a
+    bridge for a client that does not exist. Teardown is the opposite: every
+    resource left switched on is a live credential for a rejected integrator, so
+    a step that gives up must still let the next one run.
+    """
+    attempts = task.request.retries + 1
+    if failure.retryable and attempts < settings.PROVISIONING_MAX_ATTEMPTS:
+        raise task.retry(countdown=_backoff(task.request.retries))
+
+    row.state = ProvisionedResourceState.FAILED
+    row.save(update_fields=["state", "modified_date"])
+    # ERROR reaches Sentry through the logging integration (production.py).
+    logger.error(
+        "deprovisioning %s for application %s failed after %s attempts: %s: %s",
+        row.system,
+        row.application_id,
+        attempts,
+        failure.code,
+        failure.detail,
+    )
+
+
+def _teardown_step(
+    task: Task,
+    application_id: int,
+    correlation_id: str,
+    system: ProvisionedSystem,
+    run: Callable[[Application, ProvisionedResource], None],
+) -> int:
+    set_correlation_id(correlation_id)
+    application = Application.objects.get(pk=application_id)
+
+    # Missing means nothing was ever created and DISABLED means a previous run
+    # finished the job; both are success. FAILED is not — that is a resource we
+    # tried and failed to switch off, and it is precisely what a retry is for.
+    row = _ledger_row(application, system)
+    if row is None or row.state not in _TEARDOWN_PENDING:
+        return application_id
+
+    try:
+        run(application, row)
+    except AdapterError as error:
+        _teardown_failed(
+            task,
+            row,
+            _Failure(error.code, error.message, retryable=error.retryable),
+        )
+        return application_id
+    except ImproperlyConfigured as error:
+        _teardown_failed(task, row, _Failure(CONFIG_ERROR, str(error), retryable=False))
+        return application_id
+
+    row.state = ProvisionedResourceState.DISABLED
+    row.save(update_fields=["state", "modified_date"])
+    return application_id
+
+
+@shared_task(bind=True, max_retries=None)
+def deprovision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
+    """First, because it is the only step that actually stops token issuance."""
+
+    def run(_application: Application, row: ProvisionedResource) -> None:
+        get_idp_admin().disable_client(row.external_ref)
+
+    return _teardown_step(
+        task,
+        application_id,
+        correlation_id,
+        ProvisionedSystem.KEYCLOAK,
+        run,
+    )
+
+
+@shared_task(bind=True, max_retries=None)
+def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
+    def run(application: Application, row: ProvisionedResource) -> None:
+        # The same source provisioning subscribed from. If the configured set has
+        # changed since, the difference is left behind for P4's sweep rather than
+        # guessed at from here.
+        get_api_gateway().unsubscribe(row.external_ref, api_names_for(application.kind))
+
+    return _teardown_step(
+        task,
+        application_id,
+        correlation_id,
+        ProvisionedSystem.WSO2,
+        run,
+    )
+
+
+@shared_task(bind=True, max_retries=None)
+def deprovision_hiecm(task: Task, application_id: int, correlation_id: str) -> int:
+    def run(_application: Application, row: ProvisionedResource) -> None:
+        get_bridge_registry().deactivate_bridge(row.external_ref)
+
+    return _teardown_step(
+        task,
+        application_id,
+        correlation_id,
+        ProvisionedSystem.HIECM,
+        run,
+    )
+
+
+def enqueue_teardown(application: Application) -> None:
+    """Schedule the reverse chain for after the caller's transaction commits."""
+    application_id = application.pk
+    correlation_id = get_correlation_id()
+
+    def _send() -> None:
+        (
+            deprovision_keycloak.s(application_id, correlation_id)
+            | deprovision_wso2.s(correlation_id)
+            | deprovision_hiecm.s(correlation_id)
+        ).delay()
+
+    transaction.on_commit(_send)

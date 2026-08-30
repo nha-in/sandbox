@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from sandbox.integrations.services import start_deprovisioning
 from sandbox.integrations.services import start_provisioning
 from sandbox.workflow.services import register_hook
 
@@ -34,4 +35,5 @@ def alert_provisioning_failed(
 
 def register_workflow_hooks() -> None:
     register_hook("provisioning_chain", start_provisioning)
+    register_hook("deprovisioning_chain", start_deprovisioning)
     register_hook("alert_provisioning_failed", alert_provisioning_failed)
