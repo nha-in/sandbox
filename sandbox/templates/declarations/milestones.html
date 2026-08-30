@@ -1,0 +1,124 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  Every active milestone, declared or not. No test counts, no certificates and
+  no locking: v0 is self-declaration reviewed by a person at exit, so "declared
+  on a date by someone" is the whole of what we know.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% translate "Milestones" %}
+{% endblock title %}
+{% block page_actions %}
+  {% if declared_count %}
+    <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
+       href="{% url 'declarations:exit' %}{{ org_query }}">{% translate "Request exit" %}</a>
+  {% endif %}
+{% endblock page_actions %}
+{% block content %}
+  <p class="ui-page-subtitle mb-6">
+    {% blocktranslate count counter=rows|length trimmed %}
+      {{ declared_count }} of {{ counter }} milestone declared for {{ application }}.
+    {% plural %}
+      {{ declared_count }} of {{ counter }} milestones declared for {{ application }}.
+    {% endblocktranslate %}
+  </p>
+  {% if not application %}
+    <div class="ui-alert mb-6" role="status">
+      <div class="flex-1 space-y-1">
+        <p>
+          {% translate "You have not applied for sandbox access yet. Milestones open once your sandbox is provisioned." %}
+          <a class="underline" href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start your application" %}</a>
+        </p>
+      </div>
+    </div>
+  {% elif not can_declare %}
+    <div class="ui-alert mb-6" role="status">
+      <div class="flex-1 space-y-1">
+        <p>
+          {% blocktranslate with state=application.get_state_display trimmed %}
+            Declarations are open once your sandbox is provisioned. This application is {{ state }}.
+          {% endblocktranslate %}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+  <div class="ui-card mb-8">
+    <div class="ui-card-content">
+      <dl>
+        {% for row in rows %}
+          <div class="ui-kv">
+            <dt class="ui-kv-key">
+              <span class="flex items-center gap-2">
+                {% if row.claim %}
+                  <span class="ui-dot ui-dot--ok"></span>
+                {% else %}
+                  <span class="ui-dot ui-dot--idle"></span>
+                {% endif %}
+                {{ row.milestone.title }}
+              </span>
+            </dt>
+            <dd class="ui-kv-value flex items-center justify-between gap-3">
+              {% if row.claim %}
+                <span class="text-soft-foreground">
+                  {% blocktranslate with when=row.claim.declaration.created_date|date:"j M Y" who=row.claim.declaration.declared_by trimmed %}
+                    Declared {{ when }} by {{ who }}
+                  {% endblocktranslate %}
+                </span>
+              {% else %}
+                <span class="text-soft-foreground">{% translate "Not declared" %}</span>
+              {% endif %}
+              {% if can_declare %}
+                <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
+                   href="{% url 'declarations:declare_milestone' key=row.milestone.key %}{{ org_query }}">
+                  {% if row.claim %}
+                    {% translate "Re-declare" %}
+                  {% else %}
+                    {% translate "Declare complete" %}
+                  {% endif %}
+                </a>
+              {% endif %}
+            </dd>
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </div>
+  <h2 class="mb-3 text-sm font-semibold tracking-tight">{% translate "History" %}</h2>
+  {% if timeline %}
+    <ol class="ui-timeline">
+      {% for declaration in timeline %}
+        <li class="ui-timeline-item">
+          <span class="ui-dot ui-dot--ok mt-1.5"></span>
+          <div class="min-w-0">
+            <p>
+              {% for claim in declaration.milestones.all %}
+                {{ claim.milestone.title }}{% if not forloop.last %},{% endif %}
+              {% empty %}
+                {% translate "Declaration" %}
+              {% endfor %}
+              <span class="text-soft-foreground">{{ declaration.created_date|date:"j M Y" }}</span>
+            </p>
+            {% if declaration.documents.all %}
+              <ul class="mt-1 flex flex-wrap gap-2">
+                {% for document in declaration.documents.all %}
+                  <li>
+                    <a class="ui-code-chip no-underline"
+                       href="{% url 'declarations:document_download' external_id=document.external_id %}{{ org_query }}">
+                      {{ document.filename }}</a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <div class="ui-empty">
+      <span class="font-medium text-muted-foreground">{% translate "Nothing declared yet" %}</span>
+      <span>{% translate "Declared milestones and the files you attach will appear here." %}</span>
+    </div>
+  {% endif %}
+{% endblock content %}

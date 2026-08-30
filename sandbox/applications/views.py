@@ -26,7 +26,6 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView
 from django.views.generic import TemplateView
-from django.views.generic import View
 from django.views.generic.base import ContextMixin
 
 from sandbox.applications.forms import ProductStepForm
@@ -37,12 +36,18 @@ from sandbox.applications.models import ApplicationState
 from sandbox.applications.schemas import payload_form
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
+from sandbox.applications.selectors import applications_for_organisation
 from sandbox.applications.selectors import dashboard_application
 from sandbox.applications.selectors import journey_for
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
+from sandbox.applications.services import rename_draft_product
+from sandbox.applications.services import set_draft_product
+from sandbox.applications.services import set_draft_product_by_name
 from sandbox.applications.services import update_draft
+from sandbox.declarations.selectors import milestone_progress
+from sandbox.declarations.services import DECLARABLE_STATES
 from sandbox.integrations.credentials import rotate_credentials
 from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.selectors import CREDENTIAL_STATES
@@ -110,38 +115,60 @@ class WizardMixin(LoginRequiredMixin, OrganisationMixin, ContextMixin):
 
 
 class ProductStepView(WizardMixin, FormView):
+    """Which product. Reached twice: to open a draft, and to correct one.
+
+    The second path is what `external_id` is for. Coming back here without it
+    would create a *second* draft on a *second* product of the same name, which
+    is what the Back button used to do.
+    """
+
     template_name = "applications/step_product.html"
     form_class = ProductStepForm
     step = "product"
+    kwargs: dict[str, Any]
+
+    @cached_property
+    def draft(self) -> Application | None:
+        external_id = self.kwargs.get("external_id")
+        if external_id is None:
+            return None
+        return get_object_or_404(
+            Application.objects.for_organisation(self.organisation),
+            external_id=external_id,
+        )
 
     def get_form_kwargs(self):
+        draft = self.draft
         return {
             **super().get_form_kwargs(),
             "available_products": products_available_for(
                 self.organisation,
                 ApplicationKind.SANDBOX,
+                keep=draft.product if draft else None,
             ),
+            # The product the name box is rendered for, read here rather than
+            # posted, so the browser cannot aim a rename at anything else.
+            "current": draft.product if draft else None,
         }
 
+    def get_initial(self):
+        draft = self.draft
+        if draft is None:
+            return {}
+        # By the time you come back, a product you named is a product you have.
+        return {
+            "product": str(draft.product.pk),
+            "product_name": draft.product.name,
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["application"] = self.draft
+        return context
+
     def form_valid(self, form):
-        product = form.cleaned_data.get("product")
         try:
-            if product:
-                application = create_draft(
-                    organisation=self.organisation,
-                    product=product,
-                    applicant=self.applicant,
-                    kind=ApplicationKind.SANDBOX,
-                    data={},
-                )
-            else:
-                application = create_draft_with_new_product(
-                    organisation=self.organisation,
-                    product_name=form.cleaned_data["new_product_name"],
-                    applicant=self.applicant,
-                    kind=ApplicationKind.SANDBOX,
-                    data={},
-                )
+            application = self._apply(form)
         except DomainError as error:
             form.add_error(None, error.message)
             return self.form_invalid(form)
@@ -153,6 +180,39 @@ class ProductStepView(WizardMixin, FormView):
                 external_id=application.external_id,
             ),
         )
+
+    def _apply(self, form) -> Application:
+        """Open a draft, or move the one already open. Named or existing product."""
+        draft = self.draft
+        product = form.cleaned_data["selected_product"]
+        name = form.cleaned_data["product_name"]
+
+        if draft is None:
+            if product:
+                return create_draft(
+                    organisation=self.organisation,
+                    product=product,
+                    applicant=self.applicant,
+                    kind=ApplicationKind.SANDBOX,
+                    data={},
+                )
+            return create_draft_with_new_product(
+                organisation=self.organisation,
+                product_name=name,
+                applicant=self.applicant,
+                kind=ApplicationKind.SANDBOX,
+                data={},
+            )
+
+        if form.cleaned_data["rename_to"]:
+            rename_draft_product(
+                application=draft,
+                name=form.cleaned_data["rename_to"],
+            )
+            return draft
+        if product:
+            return set_draft_product(application=draft, product=product)
+        return set_draft_product_by_name(application=draft, product_name=name)
 
 
 class ApplicationStepMixin(WizardMixin):
@@ -298,25 +358,29 @@ class ReviewStepView(ApplicationStepMixin, TemplateView):
         )
 
 
-class WizardEntryView(LoginRequiredMixin, OrganisationMixin, View):
-    """`/applications/new/` — resume the draft in flight, or start a new one."""
+class EnrolmentIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
+    """The Enrolment section's home: what has been applied for, and a way to
+    apply again.
 
-    def get(self, request, *args, **kwargs):
-        draft = (
-            Application.objects.for_organisation(self.organisation)
-            .filter(state__in=EDITABLE_STATES)
-            .order_by("-created_date")
-            .first()
-        )
-        if draft is not None:
-            return redirect(
-                url_for(
-                    "applications:step_details",
-                    self.organisation,
-                    external_id=draft.external_id,
-                ),
-            )
-        return redirect(url_for("applications:step_product", self.organisation))
+    This replaced a redirect that resumed whatever draft was newest. That was
+    invisible — an organisation with two products had no screen anywhere that
+    listed both applications, and the nav item silently took you to one of them.
+    """
+
+    template_name = "applications/enrolment.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["organisation"] = self.organisation
+        context["page_title"] = _("Enrolment")
+        context["rows"] = [
+            {
+                "application": application,
+                "is_editable": application.state in EDITABLE_STATES,
+            }
+            for application in applications_for_organisation(self.organisation)
+        ]
+        return context
 
 
 #: Static per state, not computed: v0 has no next-action engine (deferred to P5),
@@ -410,6 +474,13 @@ class DashboardView(LoginRequiredMixin, OrganisationMixin, TemplateView):
         context["application"] = application
         context["can_start_new"] = (
             application is not None and application.state in NON_BLOCKING_STATES
+        )
+        # Only once there is a sandbox to build against; before that the panel
+        # would count zero of six at someone who cannot yet declare any of them.
+        context["milestones"] = (
+            milestone_progress(application)
+            if application is not None and application.state in DECLARABLE_STATES
+            else None
         )
         context.update(_status_context(application))
         context.update(_credentials_context(application, self.request.user))

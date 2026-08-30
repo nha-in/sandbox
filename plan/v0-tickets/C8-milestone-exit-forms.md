@@ -43,11 +43,25 @@ Route-gate rows for every new URL (milestone pages, uploads, downloads, exit pag
 
 ## Acceptance criteria
 
-- [ ] Declare-milestone (with a real file) → timeline + document download works; duplicate declaration blocked with a friendly message.
-- [ ] Oversize/wrong-type upload rejected with per-file errors, form values preserved.
-- [ ] Exit gate: locked until prerequisites; request → console review → approve ⇒ PRODUCTION_APPROVED visible integrator-side; reject → comment shown → re-request works.
-- [ ] Every mutation passes with JS disabled; guard violations render as messages, never 500s.
-- [ ] Matrix rows added for all URLs; djLint/i18n/mypy/ruff clean.
+- [x] Declare-milestone (with a real file) → timeline + document download works; re-declaring supersedes the standing claim rather than duplicating it.
+- [x] Oversize/wrong-type upload rejected with per-file errors, form values preserved.
+- [x] Exit gate: locked until prerequisites; request → console review → approve ⇒ PRODUCTION_APPROVED visible integrator-side; reject → comment shown → re-request works.
+- [x] Every mutation passes with JS disabled; guard violations render as messages, never 500s.
+- [x] Matrix rows added for all URLs; djLint/i18n/mypy/ruff clean.
+
+### Built differently from the plan, and why
+
+- **"Duplicate declaration blocked with a friendly message"** became *re-declaring supersedes*. `DeclarationMilestone.superseded_by` exists precisely so a milestone can be re-declared against the same application; blocking it would have left an integrator who attached the wrong file with no way to correct it. Only a **settled** claim is refused, which A7 already does.
+- **Two document-download routes, not one.** `declarations:document_download` is scoped by organisation membership, which staff do not have. Rather than teach one view two authorization rules, the console got `console:document_download`, gated by `ConsoleMixin`.
+- **`record_review()` was widened to `EXIT_REVIEW`.** The exit decisions are `review_driven`, so `transition()` refuses a comment on them; `record_review()` refused any state but `SUBMITTED`. Between them an exit rejection had nowhere to record a reason. `workflow_review.comment` is already the "single home for the text" in [03-database.md](../03-database.md), so the service was aligned to the schema rather than the schema changed. `current_round()` now counts `SEND_BACK_EXIT` and `REJECT_EXIT` too, or a second exit round would overwrite the first reviewer's row.
+- **Milestones and Exit render an empty state for a member with no application**, instead of 404ing. They are permanent sidebar items; a 404 would be the dead link C10's navigation test exists to catch. Writes still require an application.
+- **`ui-file` / `ui-file-list` / `ui-file-item` added to `careui-ext.css`.** careui ships no file control, so an upload field fell through to `.ui-input` and rendered as a text box with a browser button loose inside it. The native input is restyled rather than hidden behind a label: a hidden input needs JavaScript to report the chosen filename.
+- **No ordering enforcement** (M1 before M2) and **no conformance** anywhere — both deliberately deferred, per the ticket's own out-of-scope list.
+
+### Carried over
+
+- After `APPROVE_EXIT` the application is `PRODUCTION_APPROVED`, which is terminal, so no further milestone can ever be declared. That is **open question 3** (are exits per-milestone-track and repeatable?), already flagged in `machine.py`. Out of scope here.
+- The queue's exit filters needed no work: `state_filters` already iterates every `ApplicationState`, and `AWAITING_REVIEW_STATES` already counts `EXIT_REQUESTED`/`EXIT_REVIEW`.
 
 ## Out of scope (deferred)
 

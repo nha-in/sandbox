@@ -21,14 +21,18 @@ from sandbox.console.forms import DecisionForm
 from sandbox.console.forms import ReviewForm
 from sandbox.console.mixins import ConsoleMixin
 from sandbox.console.selectors import PAGE_SIZE
+from sandbox.console.selectors import exit_bundle
 from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
 from sandbox.console.selectors import state_counts
+from sandbox.declarations.models import DeclarationDocument
+from sandbox.declarations.services import download_url
 from sandbox.integrations.selectors import CREDENTIAL_STATES
 from sandbox.integrations.selectors import provisioning_progress
 from sandbox.integrations.services import retry_provisioning
 from sandbox.utils.errors import DomainError
 from sandbox.workflow.machine import Action
+from sandbox.workflow.selectors import REVIEW_DECISION_FOR_ACTION
 from sandbox.workflow.selectors import available_actions
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import history_for
@@ -37,8 +41,20 @@ from sandbox.workflow.selectors import reviews_for_round
 from sandbox.workflow.services import record_review
 from sandbox.workflow.services import transition
 
-#: actions the detail page offers; exit actions arrive with A8
-DECISION_ACTIONS = (Action.APPROVE, Action.REJECT, Action.SEND_BACK)
+#: actions the detail page offers. Exit decisions sit on the same form as the
+#: sandbox ones because `available_actions()` already keeps them apart by state.
+DECISION_ACTIONS = (
+    Action.APPROVE,
+    Action.REJECT,
+    Action.SEND_BACK,
+    Action.START_EXIT_REVIEW,
+    Action.APPROVE_EXIT,
+    Action.REJECT_EXIT,
+    Action.SEND_BACK_EXIT,
+)
+
+#: actions rendered in the destructive style
+_DESTRUCTIVE_ACTIONS = frozenset({Action.REJECT, Action.REJECT_EXIT})
 
 
 class QueueView(ConsoleMixin, ListView):
@@ -94,12 +110,20 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                     {"label": application.reference},
                 ],
                 "payload_groups": payload_groups(application),
+                "exit_bundle": exit_bundle(application),
                 "history": history_for(application),
                 "reviews": reviews_for_round(application),
                 "tally": review_tally(application),
                 "round": current_round(application),
                 "review_form": ReviewForm(),
-                "decision_actions": [a for a in DECISION_ACTIONS if a in allowed],
+                "decision_actions": [
+                    {
+                        "value": action,
+                        "is_destructive": action in _DESTRUCTIVE_ACTIONS,
+                    }
+                    for action in DECISION_ACTIONS
+                    if action in allowed
+                ],
                 "can_review": self.request.user.has_perm("workflow.review_application"),
                 # Status only. There is no reveal route on this surface, and no
                 # staff-facing path to a secret anywhere in the system.
@@ -155,11 +179,13 @@ class RecordReviewView(ApplicationActionView):
 
 
 class DecideView(ApplicationActionView):
-    """Approve / reject / send back.
+    """Approve / reject / send back, on the sandbox review and on the exit.
 
     A supplied comment is recorded as the actor's review row first, because A5
     refuses a comment on a review-driven transition — the review row is the
-    single home for that text.
+    single home for that text. `START_EXIT_REVIEW` expresses no opinion, so its
+    comment rides on the transition instead, which is the other home the schema
+    allows ("only when no review behind it").
     """
 
     def post(self, request, *args, **kwargs):
@@ -171,16 +197,25 @@ class DecideView(ApplicationActionView):
 
         action = Action(form.cleaned_data["action"])
         comment = form.cleaned_data["comment"]
+        decision = REVIEW_DECISION_FOR_ACTION.get(action)
 
         try:
-            if comment:
-                record_review(
+            if decision is None:
+                transition(
                     application=application,
-                    reviewer=request.user,
-                    decision=action.value,
+                    action=action,
+                    actor=request.user,
                     comment=comment,
                 )
-            transition(application=application, action=action, actor=request.user)
+            else:
+                if comment:
+                    record_review(
+                        application=application,
+                        reviewer=request.user,
+                        decision=decision,
+                        comment=comment,
+                    )
+                transition(application=application, action=action, actor=request.user)
         except DomainError as error:
             messages.error(request, error.message)
         else:
@@ -207,3 +242,21 @@ class RetryProvisioningView(ApplicationActionView):
                 f"Provisioning restarted for {application.reference}.",
             )
         return self.back_to(application)
+
+
+class DocumentDownloadView(ConsoleMixin, View):
+    """A reviewer's way to the evidence — deliberately not the integrator's.
+
+    `declarations:document_download` scopes by organisation membership, which a
+    reviewer does not have. Rather than teach that view a second authorization
+    rule, this one looks the document up across every organisation and leans on
+    `ConsoleMixin`. Two audiences, two rules, two routes.
+
+    Staff-but-no-permission is the whole gate on purpose: the detail page it is
+    reached from already names these files to anyone who can open it, so a
+    stricter rule here would 404 the link that page renders.
+    """
+
+    def get(self, request, external_id):
+        document = get_object_or_404(DeclarationDocument, external_id=external_id)
+        return redirect(download_url(document))

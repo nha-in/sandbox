@@ -1,0 +1,64 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  The Enrolment section's home. Every application this organisation has made,
+  and the way to make another.
+
+  Deliberately a list even when there is one row: sandbox access is granted per
+  product, so an organisation with three products has three applications, and
+  the dashboard only ever narrates the newest of them.
+
+  Renaming a product is not here. It belongs to the draft that named it, on the
+  product step you reach with Back.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% translate "Enrolment" %}
+{% endblock title %}
+{% block page_actions %}
+  <a class="ui-btn ui-btn--primary ui-btn--size-sm no-underline"
+     href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start new application" %}</a>
+{% endblock page_actions %}
+{% block content %}
+  {% if rows %}
+    <div class="ui-card">
+      <div class="ui-card-content">
+        <dl>
+          {% for row in rows %}
+            <div class="ui-kv">
+              <dt class="ui-kv-key min-w-0">
+                <span class="block truncate text-foreground">{{ row.application.product.name }}</span>
+                <span class="ui-code-chip mt-1">{{ row.application.reference }}</span>
+              </dt>
+              <dd class="ui-kv-value flex flex-wrap items-center justify-between gap-3">
+                <span class="flex items-center gap-2">
+                  <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ row.application.get_state_display }}</span>
+                  <span class="text-soft-foreground">
+                    {% blocktranslate with when=row.application.created_date|date:"j M Y" %}Started {{ when }}{% endblocktranslate %}
+                  </span>
+                </span>
+                {% if row.is_editable %}
+                  <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
+                     href="{% url 'applications:step_details' external_id=row.application.external_id %}{{ org_query }}">{% translate "Continue" %}</a>
+                {% else %}
+                  <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
+                     href="{% url 'applications:step_review' external_id=row.application.external_id %}{{ org_query }}">{% translate "View" %}</a>
+                {% endif %}
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+      </div>
+    </div>
+  {% else %}
+    <div class="ui-empty">
+      <span class="font-medium text-muted-foreground">{% translate "No applications yet" %}</span>
+      <span>
+        {% blocktranslate with name=organisation.name %}{{ name }} has not applied for sandbox access. Access is granted per product, so you can apply more than once.{% endblocktranslate %}
+      </span>
+      <a class="ui-btn ui-btn--primary ui-btn--size-sm mt-3 no-underline"
+         href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start your sandbox application" %}</a>
+    </div>
+  {% endif %}
+{% endblock content %}

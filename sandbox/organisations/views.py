@@ -102,7 +102,7 @@ class OrganisationCreateView(LoginRequiredMixin, FormView):
             creator=cast("User", self.request.user),
             **form.cleaned_data,
         )
-        return redirect(url_for("applications:new", organisation))
+        return redirect(url_for("applications:step_product", organisation))
 
 
 class OrganisationProfileView(LoginRequiredMixin, OrganisationMixin, FormView):

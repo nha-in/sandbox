@@ -9,7 +9,14 @@ from sandbox.workflow.machine import Action
 from sandbox.workflow.models import ReviewDecision
 
 #: decisions that must be explained before they are recorded
-_COMMENT_REQUIRED_ACTIONS = frozenset({Action.REJECT, Action.SEND_BACK})
+_COMMENT_REQUIRED_ACTIONS = frozenset(
+    {
+        Action.REJECT,
+        Action.SEND_BACK,
+        Action.REJECT_EXIT,
+        Action.SEND_BACK_EXIT,
+    },
+)
 
 
 class ReviewForm(forms.Form):

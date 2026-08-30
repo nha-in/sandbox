@@ -18,12 +18,23 @@ if TYPE_CHECKING:
 _SLUG_BASE_MAX_LENGTH = 200
 
 
-def _unique_slug(organisation: Organisation, name: str) -> str:
-    """Unique within the organisation, matching the partial-unique constraint."""
+def _unique_slug(
+    organisation: Organisation,
+    name: str,
+    exclude_pk: int | None = None,
+) -> str:
+    """Unique within the organisation, matching the partial-unique constraint.
+
+    `exclude_pk` is the product being renamed: without it, saving a product
+    under its own name would walk past its own slug and append `-2`.
+    """
     base = slugify(name)[:_SLUG_BASE_MAX_LENGTH] or "product"
+    taken = Product.objects.for_organisation(organisation)
+    if exclude_pk is not None:
+        taken = taken.exclude(pk=exclude_pk)
     slug = base
     suffix = 2
-    while Product.objects.for_organisation(organisation).filter(slug=slug).exists():
+    while taken.filter(slug=slug).exists():
         slug = f"{base}-{suffix}"
         suffix += 1
     return slug
@@ -42,6 +53,16 @@ def create_product(
         slug=_unique_slug(organisation, name),
         description=description,
     )
+
+
+@transaction.atomic
+def rename_product(*, product: Product, name: str) -> Product:
+    """The slug follows the name: nothing addresses a product by it, and one
+    frozen from a typo would outlive the typo."""
+    product.name = name
+    product.slug = _unique_slug(product.organisation, name, exclude_pk=product.pk)
+    product.save(update_fields=["name", "slug", "modified_date"])
+    return product
 
 
 @transaction.atomic

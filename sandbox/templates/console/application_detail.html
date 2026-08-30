@@ -37,6 +37,46 @@
           </dl>
         </div>
       </div>
+      {% if exit_bundle %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Exit to production" %}</h2>
+            <p class="ui-card-description">
+              {% blocktranslate with when=exit_bundle.declaration.created_date|date:"j M Y" who=exit_bundle.declaration.declared_by trimmed %}
+                Requested {{ when }} by {{ who }}
+              {% endblocktranslate %}
+            </p>
+          </div>
+          <div class="ui-card-content">
+            <dl>
+              <div class="ui-kv">
+                <dt class="ui-kv-key">{% translate "Milestones claimed" %}</dt>
+                <dd class="ui-kv-value">
+                  {% for milestone in exit_bundle.milestones %}
+                    {{ milestone.title }}{% if not forloop.last %},{% endif %}
+                  {% endfor %}
+                </dd>
+              </div>
+              <div class="ui-kv">
+                <dt class="ui-kv-key">{% translate "Summary" %}</dt>
+                <dd class="ui-kv-value whitespace-pre-wrap">{{ exit_bundle.summary|default:"—" }}</dd>
+              </div>
+            </dl>
+            <h3 class="ui-label mt-4">{% translate "Evidence" %}</h3>
+            <ul class="ui-file-list">
+              {% for document in exit_bundle.documents %}
+                <li class="ui-file-item">
+                  <a class="truncate"
+                     href="{% url 'console:document_download' document.external_id %}">{{ document.filename }}</a>
+                  <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
+                </li>
+              {% empty %}
+                <li class="text-sm text-muted-foreground">{% translate "No documents attached." %}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
       <div class="ui-card">
         <div class="ui-card-header">
           <h2 class="ui-card-title">{% translate "History" %}</h2>
@@ -136,10 +176,10 @@
             </div>
             <div class="ui-card-footer flex flex-wrap gap-2">
               {% for action in decision_actions %}
-                <button class="ui-btn {% if action == "REJECT" %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
+                <button class="ui-btn {% if action.is_destructive %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
                         type="submit"
                         name="action"
-                        value="{{ action }}">{{ action }}</button>
+                        value="{{ action.value }}">{{ action.value }}</button>
               {% endfor %}
             </div>
           </form>

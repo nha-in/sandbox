@@ -60,6 +60,7 @@ CHROME_LESS = {
     "console:record_review",
     "console:decide",
     "console:retry_provisioning",
+    "console:document_download",
     "declarations:document_download",
     # Development-only, and deliberately outside the product's nav.
     "theme:styleguide",
@@ -82,9 +83,6 @@ NO_INBOUND_LINK = {
     "users:redirect",
     # Deliberately outside the product's navigation.
     "theme:styleguide",
-    # No upload or evidence screen exists yet, so nothing can link a document.
-    # It arrives with C8; until then this row is the honest record of the gap.
-    "declarations:document_download",
 }
 
 _URL_TAG = re.compile(r"{%\s*url\s*['\"]([^'\"]+)['\"]")
@@ -243,7 +241,7 @@ def test_a_member_reaches_the_wizard_and_the_switcher_from_the_sidebar(
         href.split("?")[0] for href in _sidebar_links(response.content, b"app-nav")
     }
 
-    assert reverse("applications:new") in links
+    assert reverse("applications:enrolment") in links
     assert reverse("organisations:choose") in links
 
 

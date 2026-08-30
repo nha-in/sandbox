@@ -16,6 +16,7 @@ from django.test import Client
 
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
+from sandbox.catalog.tests.factories import MilestoneFactory
 from sandbox.declarations.models import Declaration
 from sandbox.declarations.models import DeclarationDocument
 from sandbox.declarations.models import DeclarationKind
@@ -30,6 +31,7 @@ MEMBER_OTHER_ORG = "member_other_org"
 REVIEWER = "reviewer"
 STAFF = "staff"
 DOCUMENT_A = "document_a"
+MILESTONE_M1 = "milestone_m1"
 
 ACTORS = (ANONYMOUS, ORG_MEMBER, MEMBER_OTHER_ORG, REVIEWER, STAFF)
 STAFF_ACTORS = (REVIEWER, STAFF)
@@ -140,7 +142,14 @@ def document_a(org_a, org_member):
 
 
 @pytest.fixture
-def context(actors, application, document_a):
+def milestone_m1(db):
+    """The catalog is seeded by a management command, not a migration, so a
+    milestone URL has nothing to name unless a test makes one."""
+    return MilestoneFactory(key="m1")
+
+
+@pytest.fixture
+def context(actors, application, document_a, milestone_m1):
     """What a route's `kwargs` callable receives when it builds URL arguments.
 
     Organisations and products are reachable from these objects
@@ -150,6 +159,7 @@ def context(actors, application, document_a):
         **actors,
         "application": application,
         DOCUMENT_A: document_a,
+        MILESTONE_M1: milestone_m1,
     }
 
 

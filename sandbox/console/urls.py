@@ -4,6 +4,7 @@ from django.urls import path
 
 from sandbox.console.views import ApplicationDetailView
 from sandbox.console.views import DecideView
+from sandbox.console.views import DocumentDownloadView
 from sandbox.console.views import QueueView
 from sandbox.console.views import RecordReviewView
 from sandbox.console.views import RetryProvisioningView
@@ -30,5 +31,10 @@ urlpatterns = [
         "applications/<uuid:external_id>/retry-provisioning/",
         RetryProvisioningView.as_view(),
         name="retry_provisioning",
+    ),
+    path(
+        "documents/<uuid:external_id>/",
+        DocumentDownloadView.as_view(),
+        name="document_download",
     ),
 ]

@@ -13,6 +13,7 @@ from sandbox.applications.models import ApplicationState
 from sandbox.applications.schemas.sandbox import IntegrationIntent
 from sandbox.applications.schemas.sandbox import PayerCategory
 from sandbox.applications.schemas.sandbox import SolutionType
+from sandbox.declarations.selectors import current_exit_declaration
 
 if TYPE_CHECKING:
     from django.db.models import QuerySet
@@ -117,3 +118,24 @@ def payload_groups(application: Application) -> list[dict[str, Any]]:
     if narrative:
         groups.append({"heading": "Use case", "values": [narrative]})
     return groups
+
+
+def exit_bundle(application: Application) -> dict[str, Any] | None:
+    """What the reviewer decides on: the milestones claimed, the integrator's
+    summary, and the evidence attached.
+
+    Returns `None` when no exit is pending, which is what hides the panel. The
+    per-milestone claims come from the *declaration*, not from
+    `milestone_coverage()`: the bundle means "complete at the time of exit", so
+    recomputing coverage now would answer a different question.
+    """
+    declaration = current_exit_declaration(application)
+    if declaration is None:
+        return None
+
+    return {
+        "declaration": declaration,
+        "milestones": [claim.milestone for claim in declaration.milestones.all()],
+        "summary": declaration.payload.get("summary", ""),
+        "documents": list(declaration.documents.all()),
+    }

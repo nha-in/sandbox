@@ -79,7 +79,7 @@ def test_no_application_offers_the_wizard(member_client):
 
     assert response.status_code == HTTP_OK
     assert response.context["application"] is None
-    assert reverse("applications:new") in response.content.decode()
+    assert reverse("applications:step_product") in response.content.decode()
 
 
 def test_a_rejected_application_lets_you_start_again(

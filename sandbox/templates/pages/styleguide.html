@@ -191,5 +191,87 @@
         <span>This is what a locked or not-yet-reached panel looks like.</span>
       </div>
     </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">Choice groups</h2>
+      <div class="grid max-w-3xl gap-6 sm:grid-cols-2">
+        <fieldset class="min-w-0">
+          <legend class="ui-label">Short set — shown in full</legend>
+          <div class="ui-choice-list">
+            <label class="ui-choice">
+              <input class="ui-checkbox" type="checkbox" checked disabled /><span>TPA</span>
+            </label>
+            <label class="ui-choice">
+              <input class="ui-checkbox" type="checkbox" disabled /><span>Insurance company</span>
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="min-w-0">
+          <legend class="ui-label">Long set — collapsed</legend>
+          <details class="ui-picker group">
+            <summary class="ui-picker-summary">
+              <span class="min-w-0 flex-1 truncate text-muted-foreground">Clinic HMIS, EUA, Govt PHR and 2 more</span>
+              <svg class="size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-180"
+                   viewBox="0 0 24 24"
+                   fill="none"
+                   stroke="currentColor"
+                   stroke-width="2"
+                   stroke-linecap="round"
+                   stroke-linejoin="round"
+                   aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </summary>
+            <div class="ui-picker-panel">
+              <div class="ui-choice-list">
+                <label class="ui-choice">
+                  <input class="ui-checkbox" type="checkbox" checked disabled /><span>Clinic HMIS</span>
+                </label>
+                <label class="ui-choice">
+                  <input class="ui-checkbox" type="checkbox" checked disabled /><span>End User Applications (EUA)</span>
+                </label>
+                <label class="ui-choice">
+                  <input class="ui-checkbox" type="checkbox" disabled /><span>Telemedicine</span>
+                </label>
+              </div>
+            </div>
+          </details>
+        </fieldset>
+        <fieldset class="min-w-0">
+          <legend class="ui-label">Radios</legend>
+          <div class="ui-choice-list">
+            <label class="ui-choice">
+              <input class="ui-radio" type="radio" name="sg-radio" checked disabled /><span>Care Bridge</span>
+            </label>
+            <label class="ui-choice">
+              <input class="ui-radio" type="radio" name="sg-radio" disabled /><span>A new product</span>
+            </label>
+          </div>
+        </fieldset>
+      </div>
+    </section>
+    <section>
+      <h2 class="mb-3 text-sm font-semibold tracking-tight">File input and attachments</h2>
+      <div class="max-w-md space-y-4">
+        <div>
+          <label class="ui-label" for="styleguide-file">Supporting documents</label>
+          <input class="ui-file"
+                 id="styleguide-file"
+                 type="file"
+                 multiple
+                 disabled />
+          <span class="ui-hint">pdf, png, jpg, up to 10 MB each, 5 files at most</span>
+        </div>
+        <ul class="ui-file-list">
+          <li class="ui-file-item">
+            <span class="truncate">m1-linking-evidence.pdf</span>
+            <span class="shrink-0 tabular-nums">412 KB</span>
+          </li>
+          <li class="ui-file-item">
+            <span class="truncate">consent-flow-screenshots.png</span>
+            <span class="shrink-0 tabular-nums">1.2 MB</span>
+          </li>
+        </ul>
+      </div>
+    </section>
   </div>
 {% endblock content %}

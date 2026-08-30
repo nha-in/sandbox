@@ -9,9 +9,11 @@ the same whoever built the form.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Any
 
 from django import forms
 from django import template
+from django.utils.translation import gettext_lazy as _
 
 if TYPE_CHECKING:
     from django.forms import BoundField
@@ -24,11 +26,15 @@ register = template.Library()
 # be matched first.
 _CONTROL_CLASSES: list[tuple[type, str]] = [
     (forms.CheckboxInput, "ui-checkbox"),
+    # Attrs on a choice widget land on each option's <input>, so the boxes in a
+    # group are styled the same as a lone one.
     (forms.CheckboxSelectMultiple, "ui-checkbox"),
-    (forms.RadioSelect, ""),
+    (forms.RadioSelect, "ui-radio"),
     (forms.Textarea, "ui-textarea"),
     (forms.SelectMultiple, "ui-multiselect"),
     (forms.Select, "ui-select"),
+    # Covers ClearableFileInput and A7's multi-upload widget, both subclasses.
+    (forms.FileInput, "ui-file"),
 ]
 _DEFAULT_CONTROL_CLASS = "ui-input"
 
@@ -38,6 +44,19 @@ _DEFAULT_CONTROL_CLASS = "ui-input"
 # crushed it into two scrolling rows.
 _SELECT_WIDGETS = (forms.Select,)
 _LIST_BOX_WIDGETS = (forms.SelectMultiple,)
+
+#: Above this many options a choice group collapses behind a disclosure. Short
+#: lists are quicker to read open than to open; long ones bury the rest of the
+#: form. Two of the enrolment sets have sixteen and ten.
+PICKER_THRESHOLD = 6
+
+#: How many chosen labels the closed summary names before it counts the rest.
+_SUMMARY_NAMED = 3
+
+#: Handed to the template so `project.js` can rebuild the same sentence as boxes
+#: are ticked. One definition, or the text changes the moment JavaScript loads.
+PICKER_EMPTY = _("Nothing selected")
+PICKER_MORE = _("and {count} more")
 
 
 def _control_class(widget: forms.Widget) -> str:
@@ -91,6 +110,35 @@ def is_select(field: BoundField) -> bool:
     )
 
 
+def _choices(field: BoundField) -> list[tuple[Any, Any]]:
+    """Only choice fields have them, and `Field` does not declare the attribute."""
+    return list(getattr(field.field, "choices", None) or [])
+
+
+def _chosen_labels(field: BoundField) -> list[str]:
+    """The labels behind the chosen values, in the order the field declares them.
+
+    Both sides are compared as strings: bound data arrives from the POST as
+    text, while an unbound initial may hold the choice values themselves.
+    """
+    selected = {str(value) for value in (field.value() or [])}
+    return [str(label) for value, label in _choices(field) if str(value) in selected]
+
+
+def _choice_summary(field: BoundField) -> str:
+    """What the closed picker says. `project.js` recomputes this as boxes are
+    ticked; the server-rendered text is what a reader with no JavaScript sees,
+    so it has to be right on its own."""
+    labels = _chosen_labels(field)
+    if not labels:
+        return str(PICKER_EMPTY)
+    if len(labels) <= _SUMMARY_NAMED:
+        return ", ".join(labels)
+    named = ", ".join(labels[:_SUMMARY_NAMED])
+    more = str(PICKER_MORE).format(count=len(labels) - _SUMMARY_NAMED)
+    return f"{named} {more}"
+
+
 @register.inclusion_tag("components/form_field.html")
 def ui_field(
     field: BoundField,
@@ -113,6 +161,7 @@ def ui_field(
     """
     if placeholder:
         field.field.widget.attrs["placeholder"] = placeholder
+    group = is_checkbox_group(field)
     return {
         "field": _style(field),
         "label": label or field.label,
@@ -121,6 +170,10 @@ def ui_field(
         # exceptions instead, which is both closer to the design and the clearer
         # convention.
         "is_optional": not field.field.required if optional is None else optional,
+        "collapse": group and len(_choices(field)) > PICKER_THRESHOLD,
+        "choice_summary": _choice_summary(field) if group else "",
+        "picker_empty": PICKER_EMPTY,
+        "picker_more": PICKER_MORE,
     }
 
 

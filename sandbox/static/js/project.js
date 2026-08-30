@@ -74,6 +74,58 @@
     }, COPIED_MS);
   });
 
+  /*
+    Keep a collapsed picker's summary in step with its checkboxes.
+
+    Enhancement only: components/form_field.html renders the same sentence
+    server-side, so with this file absent the closed summary is still correct
+    for the page as loaded — it just goes stale until the next render. The
+    wording is duplicated from careui.py on purpose; the alternative is a round
+    trip per tick.
+  */
+  const SUMMARY_NAMED = 3;
+
+  function summarise(picker) {
+    const target = picker.querySelector("[data-picker-summary]");
+    if (!target) return;
+    const labels = [
+      ...picker.querySelectorAll("input[type=checkbox]:checked"),
+    ].map((box) => box.closest("label")?.textContent.trim() ?? "");
+    if (labels.length === 0) {
+      target.textContent = target.dataset.pickerEmpty ?? "";
+    } else if (labels.length <= SUMMARY_NAMED) {
+      target.textContent = labels.join(", ");
+    } else {
+      const rest = String(labels.length - SUMMARY_NAMED);
+      const more = (target.dataset.pickerMore ?? "").replace("{count}", rest);
+      target.textContent = `${labels.slice(0, SUMMARY_NAMED).join(", ")} ${more}`;
+    }
+  }
+
+  document.addEventListener("change", (event) => {
+    const picker = event.target.closest?.("[data-picker]");
+    if (picker) summarise(picker);
+  });
+
+  /*
+    Keep the product step's name box showing the product the dropdown points at.
+
+    Enhancement only. Without it the box keeps the name it was rendered with, so
+    the screen can disagree with the selection — which is what the box being
+    pinned server-side protects against: a name belonging to a product you moved
+    away from is ignored, never applied to the one you moved to.
+  */
+  document.addEventListener("change", (event) => {
+    const select = event.target.closest?.("[data-product-select]");
+    if (!select) return;
+    const box = document.querySelector("[data-product-name]");
+    if (!box) return;
+    const option = select.selectedOptions[0];
+    box.value = option?.value === select.dataset.productNew
+      ? ""
+      : (option?.textContent.trim() ?? "");
+  });
+
   maskSecrets(document);
   // Boosted swaps bring new markup with them; htmx fires this for every swap.
   document.addEventListener("htmx:afterSwap", (event) =>

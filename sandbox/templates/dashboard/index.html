@@ -51,7 +51,7 @@
                href="{% url 'applications:step_review' external_id=application.external_id %}{{ org_query }}">{% translate "View application" %}</a>
             {% if can_start_new %}
               <a class="ui-btn ui-btn--primary ui-btn--size-sm"
-                 href="{% url 'applications:new' %}{{ org_query }}">{% translate "Start a new application" %}</a>
+                 href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start a new application" %}</a>
             {% endif %}
           </div>
         </div>
@@ -59,7 +59,38 @@
       {% if credentials or provisioning %}
         {% include "dashboard/credentials_panel.html" %}
       {% endif %}
-      {# C8 (V0.4) drops the milestone timeline and exit status here. #}
+      {% if milestones %}
+        <div class="ui-card mb-6">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Milestones" %}</h2>
+            <p class="ui-card-description">
+              {% blocktranslate with declared=milestones.declared total=milestones.total %}{{ declared }} of {{ total }} declared complete{% endblocktranslate %}
+            </p>
+          </div>
+          <div class="ui-card-content">
+            {% if milestones.next %}
+              <p class="text-sm text-muted-foreground">
+                {% translate "Still to declare:" %}
+                {% for title in milestones.next %}
+                  {{ title }}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="text-sm text-muted-foreground">
+                {% translate "Everything is declared. You can request your exit to production." %}
+              </p>
+            {% endif %}
+            <div class="mt-4 flex flex-wrap gap-2">
+              <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+                 href="{% url 'declarations:milestones' %}{{ org_query }}">{% translate "View milestones" %}</a>
+              {% if milestones.declared %}
+                <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+                   href="{% url 'declarations:exit' %}{{ org_query }}">{% translate "Exit to production" %}</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
     {% else %}
       <div class="ui-card">
         <div class="ui-card-header">
@@ -70,7 +101,7 @@
         </div>
         <div class="ui-card-content">
           <a class="ui-btn ui-btn--primary"
-             href="{% url 'applications:new' %}{{ org_query }}">{% translate "Start your sandbox application" %}</a>
+             href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start your sandbox application" %}</a>
         </div>
       </div>
     {% endif %}

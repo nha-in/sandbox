@@ -217,6 +217,16 @@ def transition(
     return record
 
 
+#: states in which an opinion can be recorded. Both halves of the journey have a
+#: review step, and `workflow_review.comment` is the single home for a decision's
+#: text in both (03-database.md) — restricting this to SUBMITTED would leave an
+#: exit rejection with nowhere to say why.
+_REVIEWABLE_STATES = (
+    ApplicationState.SUBMITTED,
+    ApplicationState.EXIT_REVIEW,
+)
+
+
 def request_exit(*, application: Application, actor: User) -> WorkflowTransition:
     """The integrator asks to take their declared milestones to production.
 
@@ -243,7 +253,7 @@ def record_review(
     Re-reviewing within the same round updates that reviewer's row; a send-back
     opens a new round, leaving the previous one readable.
     """
-    if application.state != ApplicationState.SUBMITTED:
+    if application.state not in _REVIEWABLE_STATES:
         message = f"cannot review an application in state {application.state}"
         raise DomainError(message, code="illegal_review")
 

@@ -36,6 +36,7 @@ from django.urls import reverse
 from tests.conftest import ANONYMOUS
 from tests.conftest import DOCUMENT_A
 from tests.conftest import MEMBER_OTHER_ORG
+from tests.conftest import MILESTONE_M1
 from tests.conftest import ORG_MEMBER
 from tests.conftest import STAFF_ACTORS
 
@@ -91,6 +92,10 @@ def _application_id(context: dict) -> dict:
 
 def _document_id(context: dict) -> dict:
     return {"external_id": context[DOCUMENT_A].external_id}
+
+
+def _milestone_key(context: dict) -> dict:
+    return {"key": context[MILESTONE_M1].key}
 
 
 # The matrix. One row per named URL; django-admin is asserted as a group below.
@@ -158,9 +163,17 @@ ROUTES: dict[str, Route] = {
         kwargs=_application_id,
         query=_org_a,
     ),
-    "applications:new": Route(Access.ORG_SCOPED, query=_org_a),
+    "applications:enrolment": Route(Access.ORG_SCOPED, query=_org_a),
     "applications:step_product": Route(
         Access.ORG_SCOPED,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    # The Back button's target. Named by application, so the wrong-org row is
+    # the one that matters: it must not be a way to repoint someone else's draft.
+    "applications:step_product_edit": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
         query=_org_a,
         methods=("GET", "POST"),
     ),
@@ -212,6 +225,26 @@ ROUTES: dict[str, Route] = {
         Access.CONSOLE,
         kwargs=_application_id,
         methods=("POST",),
+    ),
+    # The reviewer's way to a declaration's evidence. Staff hold no membership,
+    # so this is scoped by the review permission instead — and it must stay
+    # unreachable by any integrator, including the file's own owner, who has
+    # their own org-scoped route below.
+    "console:document_download": Route(Access.CONSOLE, kwargs=_document_id),
+    # Milestones and exit (C8). POST rows included because the writes are what
+    # actually matter: a declaration accepted for the wrong tenant would attach
+    # evidence to somebody else's application.
+    "declarations:milestones": Route(Access.ORG_SCOPED, query=_org_a),
+    "declarations:declare_milestone": Route(
+        Access.ORG_SCOPED,
+        kwargs=_milestone_key,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "declarations:exit": Route(
+        Access.ORG_SCOPED,
+        query=_org_a,
+        methods=("GET", "POST"),
     ),
     # Presigned download. Org-scoped: the bucket is private, so this row is the
     # only thing standing between another tenant and the file.

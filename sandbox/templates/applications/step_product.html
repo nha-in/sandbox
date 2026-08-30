@@ -6,22 +6,41 @@
   {% translate "Which product?" %}
 {% endblock step_title %}
 {% block step_description %}
-  {% translate "Sandbox access is granted per product. Products that already have an application in flight are not listed." %}
+  {% if application %}
+    {% blocktranslate with reference=application.reference %}Application {{ reference }}. Change the product this application is for, or leave it as it is.{% endblocktranslate %}
+  {% else %}
+    {% translate "Sandbox access is granted per product. Products that already have an application in flight are not listed." %}
+  {% endif %}
 {% endblock step_description %}
 {% block step_content %}
   <form method="post" class="flex flex-col gap-4">
     {% csrf_token %}
     {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
-    {% if "product" in form.fields %}
-      {# Each field is optional on its own; exactly one of the pair is not. #}
-      <p class="text-sm text-muted-foreground">
-        {% translate "Choose one of your existing products, or name a new one. You need one or the other, not both." %}
-      </p>
-      {% ui_field form.product optional=False %}
-      {% ui_field form.new_product_name optional=False %}
-    {% else %}
-      {% ui_field form.new_product_name %}
-    {% endif %}
+    {% comment %}
+      One name box. On a new application it only makes sense with "New product"
+      chosen, so :has() hides it otherwise — hiding is the enhancement, showing
+      is the default, and a browser without :has() gets the old behaviour.
+
+      When editing, it is the rename box and always shows. It renames only the
+      product it was rendered for; the form pins that server-side, so a name
+      left behind by a change of dropdown cannot land on the wrong product.
+    {% endcomment %}
+    <div class="group flex flex-col gap-4">
+      {% if "product" in form.fields %}{% ui_field form.product %}{% endif %}
+      <div class="{% if not application %}group-has-[option:checked:not([value=new])]:hidden{% endif %}">
+        {# no optional marker: required to create, and meaningful to rename #}
+        <label class="ui-label" for="{{ form.product_name.id_for_label }}">{{ form.product_name.label }}</label>
+        {% ui_widget form.product_name %}
+        {% if application %}
+          <span class="ui-hint">
+            {% translate "Editing this renames the product selected above. Pick a different one to move the application instead." %}
+          </span>
+        {% else %}
+          <span class="ui-hint">{% translate "Only needed when you are adding a new product." %}</span>
+        {% endif %}
+        {% for error in form.product_name.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+      </div>
+    </div>
     <div class="flex justify-end">
       <button type="submit" class="ui-btn ui-btn--primary">{% translate "Continue" %}</button>
     </div>

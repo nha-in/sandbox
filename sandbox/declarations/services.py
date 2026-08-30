@@ -71,7 +71,8 @@ def declaration_storage() -> Storage:
 
 #: you hold credentials and are not currently under exit review. EXIT_REJECTED
 #: is included or A8's re-request loop cannot produce a new declaration.
-_DECLARABLE_STATES = (
+#: Public because the screens gate on it too, and a second copy would drift.
+DECLARABLE_STATES = (
     ApplicationState.PROVISIONED,
     ApplicationState.EXIT_REJECTED,
 )
@@ -81,7 +82,7 @@ _SETTLEABLE_STATES = (DeclarationState.APPROVED, DeclarationState.REJECTED)
 
 
 def _require_declarable(application: Application) -> None:
-    if application.state not in _DECLARABLE_STATES:
+    if application.state not in DECLARABLE_STATES:
         message = f"cannot declare while the application is {application.state}"
         raise DomainError(message, code="illegal_state")
 

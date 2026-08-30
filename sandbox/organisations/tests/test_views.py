@@ -75,7 +75,7 @@ def test_a_user_with_no_organisation_is_offered_one(client):
     assert membership.organisation.name == "Ohc Network"
     # the wizard is entered inside the tenant just created
     assert response["Location"] == (
-        f"{reverse('applications:new')}?org={membership.organisation.external_id}"
+        f"{reverse('applications:step_product')}?org={membership.organisation.external_id}"
     )
     # creating one grants no standing — staff still have to verify it
     assert (
@@ -235,7 +235,7 @@ def test_shell_shows_no_wizard_link_to_a_non_member(client):
     )
 
     assert "is_organisation_member" not in response.context
-    assert reverse("applications:new") not in response.content.decode()
+    assert reverse("applications:enrolment") not in response.content.decode()
 
 
 def test_choose_offers_creating_another_organisation(client):

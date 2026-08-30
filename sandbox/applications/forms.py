@@ -119,23 +119,29 @@ class OrganisationProfileForm(forms.ModelForm):
         return cleaned
 
 
-class ProductStepForm(forms.Form):
-    """Which product is being certified: an existing one, or a new name.
+#: the dropdown value meaning "not one of the listed products". Kept free of
+#: underscores so a Tailwind arbitrary variant can select on it.
+NEW_PRODUCT = "new"
 
-    Products with a live application of this kind are excluded by the queryset,
-    so the partial-unique constraint can never surface as a server error.
+
+class ProductStepForm(forms.Form):
+    """Which product this application certifies, and what it is called.
+
+    One name box, not two. Its meaning is pinned by `current` — the product it
+    was rendered for, which the view reads off the draft and the browser never
+    sends. The box renames that product and nothing else.
+
+    That pin is what makes a single box safe with scripting off. The text stays
+    put when the dropdown moves, so without it, switching from Scooby to
+    another product and pressing Continue would rename the product you had just
+    switched *to*.
     """
 
-    product = forms.ModelChoiceField(
-        queryset=Product.objects.none(),
-        required=False,
-        label=_("Existing product"),
-        empty_label=_("— new product —"),
-    )
-    new_product_name = forms.CharField(
+    product = forms.ChoiceField(label=_("Product"))
+    product_name = forms.CharField(
         required=False,
         max_length=255,
-        label=_("New product name"),
+        label=_("Product name"),
         validators=[validate_name],
     )
 
@@ -143,31 +149,50 @@ class ProductStepForm(forms.Form):
         self,
         *args,
         available_products: QuerySet[Product],
+        current: Product | None = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        if not available_products.exists():
-            # A dropdown whose only entry is its own placeholder asks nothing.
+        self.current = current
+        self.products = {str(product.pk): product for product in available_products}
+        # `project.js` pairs these two so the box follows the dropdown.
+        self.fields["product_name"].widget.attrs["data-product-name"] = ""
+        if not self.products:
+            # A dropdown whose only entry is "a new one" asks nothing.
             del self.fields["product"]
-            self.fields["new_product_name"].required = True
+            self.fields["product_name"].required = True
             return
-        field = cast("forms.ModelChoiceField", self.fields["product"])
-        field.queryset = available_products
+        field = cast("forms.ChoiceField", self.fields["product"])
+        field.choices = [
+            *((key, product.name) for key, product in self.products.items()),
+            (NEW_PRODUCT, _("New product")),
+        ]
+        field.widget.attrs.update(
+            {"data-product-select": "", "data-product-new": NEW_PRODUCT},
+        )
+
+    @property
+    def new_product_value(self) -> str:
+        """So the template knows which option owns the name box."""
+        return NEW_PRODUCT
 
     def clean(self):
         cleaned = super().clean() or {}
-        product = cleaned.get("product")
-        new_name = (cleaned.get("new_product_name") or "").strip()
+        # Absent when the field was dropped above, which means the same thing.
+        choice = cleaned.get("product", NEW_PRODUCT)
+        name = (cleaned.get("product_name") or "").strip()
+        selected = self.products.get(choice)
 
-        if product and new_name:
-            self.add_error(
-                "new_product_name",
-                _("Pick an existing product or name a new one, not both."),
-            )
-        elif not product and not new_name and "product" in self.fields:
-            self.add_error(
-                "product",
-                _("Pick a product, or name a new one."),
-            )
-        cleaned["new_product_name"] = new_name
+        if selected is None and not name:
+            self.add_error("product_name", _("Name the new product."))
+
+        cleaned["product_name"] = name
+        cleaned["selected_product"] = selected
+        cleaned["rename_to"] = self._rename_to(selected, name)
         return cleaned
+
+    def _rename_to(self, selected: Product | None, name: str) -> str:
+        """The new name, or "" when this submission is not a rename."""
+        if self.current is None or selected != self.current:
+            return ""
+        return name if name and name != self.current.name else ""

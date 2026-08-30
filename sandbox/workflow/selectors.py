@@ -82,17 +82,40 @@ def available_actions(
     return tuple(allowed)
 
 
+#: Decisions that hand the application back to the integrator, ending a round.
+#: `REJECT` is absent because it is terminal on the sandbox side; `REJECT_EXIT`
+#: is present because EXIT_REJECTED can request exit again.
+_ROUND_ENDING_ACTIONS = (
+    Action.SEND_BACK,
+    Action.SEND_BACK_EXIT,
+    Action.REJECT_EXIT,
+)
+
+
 def current_round(application: Application) -> int:
-    """Round N = one more than the send-backs so far.
+    """Round N = one more than the bounces so far.
 
     Derived from the append-only transition log rather than stored on the
     application: there is then no counter that can disagree with the history.
     """
-    send_backs = WorkflowTransition.objects.filter(
+    bounces = WorkflowTransition.objects.filter(
         application=application,
-        action=Action.SEND_BACK,
+        action__in=_ROUND_ENDING_ACTIONS,
     ).count()
-    return send_backs + 1
+    return bounces + 1
+
+
+#: The opinion each decision expresses. Exit decisions reuse the same three
+#: values rather than growing `ReviewDecision`: a reject is a reject, and the
+#: transition log already records which half of the journey it happened in.
+REVIEW_DECISION_FOR_ACTION: dict[Action, str] = {
+    Action.APPROVE: ReviewDecision.APPROVE,
+    Action.REJECT: ReviewDecision.REJECT,
+    Action.SEND_BACK: ReviewDecision.SEND_BACK,
+    Action.APPROVE_EXIT: ReviewDecision.APPROVE,
+    Action.REJECT_EXIT: ReviewDecision.REJECT,
+    Action.SEND_BACK_EXIT: ReviewDecision.SEND_BACK,
+}
 
 
 def reviews_for_round(

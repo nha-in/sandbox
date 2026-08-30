@@ -17,6 +17,7 @@ from sandbox.applications.models import ApplicationState
 from sandbox.applications.schemas.sandbox import IntegrationIntent
 from sandbox.applications.schemas.sandbox import SolutionType
 from sandbox.applications.services import create_draft
+from sandbox.organisations.models import Product
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import ProductFactory
 from sandbox.users.tests.factories import UserFactory
@@ -28,6 +29,7 @@ pytestmark = pytest.mark.django_db
 
 HTTP_OK = 200
 HTTP_FOUND = 302
+HTTP_NOT_FOUND = 404
 
 DETAILS_POST = {
     "solution_types": [SolutionType.EUA],
@@ -51,7 +53,7 @@ def test_full_walk_without_javascript(member_client, org_a, org_member):
     """No htmx headers anywhere: every step is a real form post."""
     response = member_client.post(
         reverse("applications:step_product"),
-        {"product": "", "new_product_name": "Care Bridge"},
+        {"product": "", "product_name": "Care Bridge"},
     )
     assert response.status_code == HTTP_FOUND
 
@@ -98,7 +100,7 @@ def test_a_half_finished_draft_survives_the_browser_closing(
     """The whole point of a draft: stop mid-form, come back, answers intact."""
     member_client.post(
         reverse("applications:step_product"),
-        {"product": "", "new_product_name": "Care Bridge"},
+        {"product": "", "product_name": "Care Bridge"},
     )
     application = Application.objects.get(product__organisation=org_a)
     url = reverse(
@@ -126,7 +128,7 @@ def test_an_incomplete_draft_cannot_be_submitted(member_client, org_a, org_membe
     """Validation moved to SUBMIT, so it has to actually bite there."""
     member_client.post(
         reverse("applications:step_product"),
-        {"product": "", "new_product_name": "Care Bridge"},
+        {"product": "", "product_name": "Care Bridge"},
     )
     application = Application.objects.get(product__organisation=org_a)
     review_url = _org_url(
@@ -170,7 +172,13 @@ def test_details_step_reports_payload_errors_as_form_errors(
     )
 
 
-def test_entry_resumes_the_draft_in_flight(member_client, product_a, org_member):
+def test_enrolment_lists_every_application_and_offers_another(
+    member_client,
+    product_a,
+    org_member,
+):
+    """This page replaced a redirect that resumed the newest draft, which left
+    an organisation's other applications with no screen naming them at all."""
     application = create_draft(
         organisation=product_a.organisation,
         product=product_a,
@@ -178,13 +186,219 @@ def test_entry_resumes_the_draft_in_flight(member_client, product_a, org_member)
         kind=ApplicationKind.SANDBOX,
         data=DETAILS_POST,
     )
-    response = member_client.get(reverse("applications:new"))
+    response = member_client.get(
+        _org_url("applications:enrolment", product_a.organisation),
+    )
 
-    assert response["Location"] == _org_url(
-        "applications:step_details",
-        product_a.organisation,
+    assert response.status_code == HTTP_OK
+    assert [row["application"] for row in response.context["rows"]] == [application]
+    body = response.content.decode()
+    assert application.reference in body
+    # a draft is resumable, and a second application is always startable
+    assert (
+        reverse(
+            "applications:step_details",
+            kwargs={"external_id": application.external_id},
+        )
+        in body
+    )
+    assert reverse("applications:step_product") in body
+
+
+# Going back from the details step
+
+
+@pytest.fixture
+def draft(product_a, org_member):
+    """An unsubmitted application. The shared `application` fixture is SUBMITTED,
+    and the product of a submitted application is deliberately fixed."""
+    return create_draft(
+        organisation=product_a.organisation,
+        product=product_a,
+        applicant=org_member,
+        kind=ApplicationKind.SANDBOX,
+        data=DETAILS_POST,
+    )
+
+
+def _product_edit_url(application, organisation) -> str:
+    return _org_url(
+        "applications:step_product_edit",
+        organisation,
         external_id=application.external_id,
     )
+
+
+def test_going_back_shows_the_product_the_draft_already_holds(
+    member_client,
+    draft,
+    org_a,
+):
+    """Its own live application is what makes a product unavailable, so without
+    an exception for the draft being edited the picker came up empty."""
+    response = member_client.get(_product_edit_url(draft, org_a))
+
+    assert response.status_code == HTTP_OK
+    form = response.context["form"]
+    assert draft.product in form.products.values()
+    assert form.initial["product"] == str(draft.product.pk)
+    # the name box is the rename box, so it arrives holding the current name
+    assert form.initial["product_name"] == draft.product.name
+
+
+def test_going_back_and_continuing_does_not_open_a_second_application(
+    member_client,
+    draft,
+    org_a,
+):
+    """The defect: `create_product` uniquifies a repeated name rather than
+    refusing it, so Back-then-Continue used to leave a duplicate product and an
+    abandoned draft behind, with nothing raised anywhere."""
+    before = Application.objects.count()
+
+    response = member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(draft.product.pk), "product_name": draft.product.name},
+    )
+
+    assert response.status_code == HTTP_FOUND
+    assert Application.objects.count() == before
+    assert Product.objects.filter(organisation=org_a).count() == 1
+
+
+def test_going_back_can_repoint_the_draft_at_another_product(
+    member_client,
+    draft,
+    org_a,
+):
+    other = ProductFactory(organisation=org_a)
+
+    member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(other.pk), "product_name": ""},
+    )
+
+    draft.refresh_from_db()
+    assert draft.product == other
+
+
+def test_going_back_refuses_a_product_already_in_flight(
+    member_client,
+    draft,
+    org_a,
+    org_member,
+):
+    """UNIQUE (product, kind) would refuse this at the database; the form says
+    so instead of returning a 500."""
+    taken = ProductFactory(organisation=org_a)
+    create_draft(
+        organisation=org_a,
+        product=taken,
+        applicant=org_member,
+        kind=ApplicationKind.SANDBOX,
+        data={},
+    )
+
+    response = member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(taken.pk), "product_name": ""},
+    )
+
+    assert response.status_code == HTTP_OK
+    assert response.context["form"].errors
+    draft.refresh_from_db()
+    assert draft.product != taken
+
+
+def test_editing_the_name_box_renames_the_product(member_client, draft, org_a):
+    """The box arrives holding the current name; changing it is the rename."""
+    response = member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(draft.product.pk), "product_name": "Care Bridge HMIS"},
+    )
+
+    assert response.status_code == HTTP_FOUND
+    draft.refresh_from_db()
+    assert draft.product.name == "Care Bridge HMIS"
+    assert draft.product.slug == "care-bridge-hmis"
+    assert Product.objects.filter(organisation=org_a).count() == 1
+
+
+def test_switching_product_never_renames_the_one_you_switched_to(
+    member_client,
+    draft,
+    org_a,
+):
+    """The bug this design exists to prevent. With scripting off the box keeps
+    the old product's name when the dropdown moves; the form pins the rename to
+    the product the box was rendered for, so the leftover is ignored."""
+    other = ProductFactory(organisation=org_a, name="Untouched")
+    original = draft.product.name
+
+    member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(other.pk), "product_name": original},
+    )
+
+    other.refresh_from_db()
+    draft.refresh_from_db()
+    assert other.name == "Untouched"
+    assert draft.product == other
+
+
+def test_choosing_new_product_creates_one_and_leaves_the_old_alone(
+    member_client,
+    draft,
+    org_a,
+):
+    original = draft.product
+
+    member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": "new", "product_name": "Second Product"},
+    )
+
+    original.refresh_from_db()
+    draft.refresh_from_db()
+    assert original.name != "Second Product"
+    assert draft.product.name == "Second Product"
+
+
+def test_renaming_to_the_same_name_does_not_suffix_the_slug(
+    member_client,
+    draft,
+    org_a,
+):
+    """The uniqueness scan has to skip the product being renamed, or saving a
+    product under its own name walks into its own slug and appends `-2`."""
+    member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(draft.product.pk), "product_name": draft.product.name},
+    )
+
+    slug = draft.product.slug
+    draft.product.refresh_from_db()
+    assert draft.product.slug == slug
+
+
+def test_a_submitted_application_cannot_rename_its_product(
+    member_client,
+    draft,
+    org_a,
+    org_member,
+):
+    """A reviewer reading about "Care Bridge" must not have it renamed under
+    them mid-review."""
+    original = draft.product.name
+    transition(application=draft, action=Action.SUBMIT, actor=org_member)
+
+    member_client.post(
+        _product_edit_url(draft, org_a),
+        {"product": str(draft.product.pk), "product_name": "Something Else"},
+    )
+
+    draft.product.refresh_from_db()
+    assert draft.product.name == original
 
 
 def test_product_step_hides_products_with_a_live_application(
@@ -198,9 +412,9 @@ def test_product_step_hides_products_with_a_live_application(
 
     response = member_client.get(reverse("applications:step_product"))
 
-    queryset = response.context["form"].fields["product"].queryset
-    assert application.product not in queryset
-    assert free_product in queryset
+    offered = set(response.context["form"].products.values())
+    assert application.product not in offered
+    assert free_product in offered
 
 
 def test_product_step_drops_the_picker_when_nothing_is_selectable(
@@ -213,7 +427,7 @@ def test_product_step_drops_the_picker_when_nothing_is_selectable(
 
     form = response.context["form"]
     assert "product" not in form.fields
-    assert form.fields["new_product_name"].required
+    assert form.fields["product_name"].required
 
 
 def test_sent_back_application_is_editable_again(
@@ -304,3 +518,17 @@ def test_unverified_contact_cannot_reach_the_wizard(client, org_a):
 
     assert response.status_code == HTTP_FOUND
     assert response["Location"] == reverse("users:verify_contacts")
+
+
+def test_the_name_box_and_dropdown_are_paired_for_the_enhancement(
+    member_client,
+    draft,
+    org_a,
+):
+    """`project.js` copies the selected option's label into the box so the
+    screen cannot disagree with the selection. It finds them by these hooks."""
+    body = member_client.get(_product_edit_url(draft, org_a)).content.decode()
+
+    assert "data-product-select" in body
+    assert 'data-product-new="new"' in body
+    assert "data-product-name" in body

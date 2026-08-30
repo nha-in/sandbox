@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from django.db.models import Q
 from django.http import Http404
 from django.utils.translation import gettext_lazy as _
 
@@ -68,15 +69,26 @@ def console_queue(
 def products_available_for(
     organisation: Organisation,
     kind: str,
+    keep: Product | None = None,
 ) -> QuerySet[Product]:
     """C4's product picker: offering a product that already has a live
-    application of this kind would trip the partial-unique constraint."""
+    application of this kind would trip the partial-unique constraint.
+
+    `keep` is the product the draft being edited already holds. Its own
+    application is what makes it unavailable, so without this the applicant
+    stepping back from the details step cannot see the product they just named.
+    """
     taken = (
         Application.objects.filter(kind=kind)
         .exclude(state__in=NON_BLOCKING_STATES)
         .values("product_id")
     )
-    return Product.objects.for_organisation(organisation).exclude(pk__in=taken)
+    available = Product.objects.for_organisation(organisation).exclude(pk__in=taken)
+    if keep is None:
+        return available
+    return Product.objects.for_organisation(organisation).filter(
+        Q(pk__in=available) | Q(pk=keep.pk),
+    )
 
 
 @dataclass(frozen=True, slots=True)

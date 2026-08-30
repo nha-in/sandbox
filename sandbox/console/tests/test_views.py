@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from django.contrib.auth.models import Permission
-from django.test import Client
 from django.urls import reverse
 
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
-from sandbox.users.models import User
-from sandbox.users.tests.factories import UserFactory
 from sandbox.workflow.machine import Action
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
@@ -23,12 +19,6 @@ HTTP_OK = 200
 HTTP_FORBIDDEN = 403
 
 
-def grant(user: User, *codenames: str) -> User:
-    for codename in codenames:
-        user.user_permissions.add(Permission.objects.get(codename=codename))
-    return User.objects.get(pk=user.pk)
-
-
 @pytest.fixture
 def submitted():
     application = ApplicationFactory.create(state=ApplicationState.SUBMITTED)
@@ -37,30 +27,6 @@ def submitted():
         user=application.applicant,
     )
     return application
-
-
-def signed_in(user) -> Client:
-    client = Client()
-    client.force_login(user)
-    return client
-
-
-@pytest.fixture
-def reviewer_client(enable_mfa):
-    user = grant(UserFactory.create(is_staff=True), "review_application")
-    return signed_in(enable_mfa(user))
-
-
-@pytest.fixture
-def admin_client_(enable_mfa):
-    user = grant(
-        UserFactory.create(is_staff=True),
-        "review_application",
-        "approve_application",
-        "reject_application",
-        "send_back_application",
-    )
-    return signed_in(enable_mfa(user))
 
 
 def detail_url(application):
@@ -118,11 +84,8 @@ def test_reviewer_can_opine_but_moves_nothing(reviewer_client, submitted):
 def test_admin_sees_the_decision_buttons(admin_client_, submitted):
     response = admin_client_.get(detail_url(submitted))
 
-    assert set(response.context["decision_actions"]) == {
-        Action.APPROVE,
-        Action.REJECT,
-        Action.SEND_BACK,
-    }
+    offered = {row["value"] for row in response.context["decision_actions"]}
+    assert offered == {Action.APPROVE, Action.REJECT, Action.SEND_BACK}
 
 
 def test_draft_offers_no_decisions(admin_client_):

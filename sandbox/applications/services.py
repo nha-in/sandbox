@@ -8,12 +8,14 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
+from sandbox.applications.models import NON_BLOCKING_STATES
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationReferenceCounter
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.schemas import validate_envelope
 from sandbox.organisations.services import create_product
+from sandbox.organisations.services import rename_product
 from sandbox.utils.errors import DomainError
 
 if TYPE_CHECKING:
@@ -86,6 +88,80 @@ def create_draft_with_new_product(
         kind=kind,
         data=data,
     )
+
+
+@transaction.atomic
+def set_draft_product(*, application: Application, product: Product) -> Application:
+    """Point an unsubmitted draft at a different product.
+
+    C4's Back button needs this. Without it, stepping back from the details
+    step and continuing again ran `create_draft_with_new_product` a second
+    time — and because `create_product` uniquifies the slug rather than
+    refusing a repeat, that silently left the organisation with a duplicate
+    product and an abandoned draft, with nothing raised anywhere.
+    """
+    if application.state not in _EDITABLE_STATES:
+        message = (
+            f"cannot change the product of an application in state {application.state}"
+        )
+        raise DomainError(message, code="illegal_state")
+
+    if product.organisation_id != application.product.organisation_id:
+        message = "product does not belong to this organisation"
+        raise DomainError(message)
+
+    if product.pk == application.product_id:
+        return application
+
+    # The partial-unique index would refuse this anyway; saying so is kinder.
+    taken = (
+        Application.objects.filter(kind=application.kind, product=product)
+        .exclude(state__in=NON_BLOCKING_STATES)
+        .exclude(pk=application.pk)
+        .exists()
+    )
+    if taken:
+        message = "that product already has an application in flight"
+        raise DomainError(message, code="product_taken")
+
+    application.product = product
+    application.save(update_fields=["product", "modified_date"])
+    return application
+
+
+@transaction.atomic
+def set_draft_product_by_name(
+    *,
+    application: Application,
+    product_name: str,
+) -> Application:
+    """`set_draft_product` for a product that does not exist yet.
+
+    Atomic for the same reason `create_draft_with_new_product` is: a refused
+    repoint must not leave the new product behind.
+    """
+    return set_draft_product(
+        application=application,
+        product=create_product(
+            organisation=application.product.organisation,
+            name=product_name,
+        ),
+    )
+
+
+@transaction.atomic
+def rename_draft_product(*, application: Application, name: str) -> Product:
+    """Correct the name a draft's product was opened with.
+
+    Gated on the draft still being editable: once it is with a reviewer, the
+    product they are reading about must not change name underneath them.
+    """
+    if application.state not in _EDITABLE_STATES:
+        message = (
+            f"cannot rename the product of an application in state {application.state}"
+        )
+        raise DomainError(message, code="illegal_state")
+    return rename_product(product=application.product, name=name)
 
 
 @transaction.atomic

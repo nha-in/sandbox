@@ -247,3 +247,79 @@
 @utility ui-code-chip {
   @apply inline-flex items-center rounded border border-border bg-muted-background px-1.5 py-0.5 font-mono text-[11.5px] text-muted-foreground;
 }
+
+/* ── File input ──────────────────────────────────────────────────────────── */
+
+/* careui ships no file control, so one falls back to `.ui-input` and renders as
+   a text box with a browser button loose inside it. This restyles the native
+   input rather than hiding it behind a label: a hidden input needs JavaScript
+   to report the chosen filename, and the declaration forms must post with
+   scripting off. */
+@utility ui-file {
+  @apply w-full min-w-0 rounded-md border border-input bg-transparent p-1.5 text-base shadow-2xs transition-[color,box-shadow] outline-none md:text-sm;
+  @apply focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50;
+  @apply aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+  @apply disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50;
+  @apply dark:bg-input/30 dark:aria-invalid:border-destructive/50;
+  @apply file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-muted-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground;
+  @apply hover:file:bg-muted;
+}
+
+/* ── Attached files ──────────────────────────────────────────────────────── */
+
+/* One row per stored document: a name that downloads and its size. */
+@utility ui-file-list {
+  @apply flex flex-col gap-1.5;
+}
+
+@utility ui-file-item {
+  @apply flex items-center justify-between gap-3 rounded-md border border-border bg-muted-background px-2.5 py-1.5 text-[12.5px] text-muted-foreground;
+}
+
+/* ── Choice group ────────────────────────────────────────────────────────── */
+
+/* A choice group. Two columns from sm up: sixteen solution types in one column
+   is a scroll, and the labels are short enough to pair. */
+@utility ui-choice-list {
+  @apply grid gap-1.5 sm:grid-cols-2;
+}
+
+/* The whole row is the hit target, and a ticked one stops being muted. */
+@utility ui-choice {
+  @apply flex items-start gap-2.5 rounded-md py-1 text-sm leading-snug text-muted-foreground select-none;
+  @apply has-[:checked]:text-foreground;
+}
+
+/* careui ships a checkbox but no radio. */
+@utility ui-radio {
+  @apply size-4 shrink-0 border border-input text-primary accent-[var(--primary)];
+  @apply focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none;
+}
+
+/* ── Picker ──────────────────────────────────────────────────────────────── */
+
+/* A long choice group, collapsed behind a <details>. Native rather than a
+   scripted popup: the summary is a real focusable control, Escape and the
+   keyboard work without us, and with JavaScript off the whole list still opens
+   and submits. `project.js` only keeps the summary text in step with the ticks.
+
+   Sixteen solution types in a <select multiple> was the alternative, and that
+   asks the reader to ctrl-click inside a six-row scroll box. */
+@utility ui-picker {
+  @apply rounded-md border border-input bg-transparent dark:bg-input/30;
+  @apply has-[summary:focus-visible]:border-ring has-[summary:focus-visible]:ring-3 has-[summary:focus-visible]:ring-ring/50;
+}
+
+@utility ui-picker-summary {
+  @apply flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-base md:py-2 md:text-sm;
+  @apply focus-visible:outline-none;
+
+  /* Safari still paints its own triangle unless this is spelled out. */
+  &::-webkit-details-marker {
+    display: none;
+  }
+}
+
+@utility ui-picker-panel {
+  @apply max-h-64 overflow-y-auto border-t border-border px-3 py-2.5;
+}

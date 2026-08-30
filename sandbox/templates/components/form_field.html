@@ -4,46 +4,83 @@
 
   Required fields carry no marker — the design marks none, and on these forms
   nearly everything is required. Optional fields say so instead.
+
+  A multi-choice field is a <fieldset>, not a labelled input: there is no single
+  control for a <label for=> to point at, and a legend is what tells a screen
+  reader which group a checkbox belongs to. Long sets collapse behind a
+  <details> — see the ui-picker note in careui-ext.css for why that rather than
+  a scripted popup.
 {% endcomment %}
 {% load careui i18n %}
 
-<div class="{% if field|is_checkbox %}flex items-start gap-2.5{% endif %}">
-  {% if field|is_checkbox %}
-    {{ field }}
-    <label class="text-sm leading-snug text-muted-foreground select-none"
-           for="{{ field.id_for_label }}">{{ label }}</label>
-  {% elif field|is_checkbox_group %}
-    {# A fieldset, not a label: the group has no single control to point `for` #}
-    {# at, and each option wraps its own label so the whole row is a hit target. #}
-    <fieldset>
-      <legend class="ui-label">
+{% if field|is_checkbox_group %}
+  {# min-w-0: a fieldset's default min-inline-size is min-content, so a long
+     summary would push it past its container rather than being clipped. #}
+  <fieldset class="min-w-0">
+    <legend class="ui-label">
+      {{ label }}
+      {% if is_optional %}<span class="font-normal text-soft-foreground">({% translate "optional" %})</span>{% endif %}
+    </legend>
+    {% if collapse %}
+      <details class="ui-picker group" data-picker>
+        <summary class="ui-picker-summary">
+          <span class="min-w-0 flex-1 truncate text-muted-foreground"
+                data-picker-summary
+                data-picker-empty="{{ picker_empty }}"
+                data-picker-more="{{ picker_more }}">{{ choice_summary }}</span>
+          <svg class="size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-180"
+               viewBox="0 0 24 24"
+               fill="none"
+               stroke="currentColor"
+               stroke-width="2"
+               stroke-linecap="round"
+               stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div class="ui-picker-panel">
+          <div class="ui-choice-list">
+            {% for option in field %}
+              <label class="ui-choice">
+                {{ option.tag }}<span class="min-w-0">{{ option.choice_label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      </details>
+    {% else %}
+      <div class="ui-choice-list mt-1.5">
+        {% for option in field %}
+          <label class="ui-choice">
+            {{ option.tag }}<span class="min-w-0">{{ option.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if help_text %}<span class="ui-hint">{{ help_text }}</span>{% endif %}
+    {% for error in field.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+  </fieldset>
+{% else %}
+  <div class="{% if field|is_checkbox %}flex items-start gap-2.5{% endif %}">
+    {% if field|is_checkbox %}
+      {{ field }}
+      <label class="text-sm leading-snug text-muted-foreground select-none"
+             for="{{ field.id_for_label }}">{{ label }}</label>
+    {% else %}
+      <label class="ui-label" for="{{ field.id_for_label }}">
         {{ label }}
         {% if is_optional %}
           <span class="font-normal text-soft-foreground">({% translate "optional" %})</span>
         {% endif %}
-      </legend>
-      <div class="mt-1.5 grid gap-1.5 sm:grid-cols-2">
-        {% for option in field %}
-          <label class="flex items-start gap-2.5 rounded-md py-1 text-sm leading-snug text-muted-foreground has-[:checked]:text-foreground">
-            {{ option.tag }}
-            <span class="min-w-0">{{ option.choice_label }}</span>
-          </label>
-        {% endfor %}
-      </div>
-    </fieldset>
-  {% else %}
-    <label class="ui-label" for="{{ field.id_for_label }}">
-      {{ label }}
-      {% if is_optional %}
-        <span class="font-normal text-soft-foreground">({% translate "optional" %})</span>
+      </label>
+      {% if field|is_select %}
+        <div class="ui-select-wrapper">{{ field }}</div>
+      {% else %}
+        {{ field }}
       {% endif %}
-    </label>
-    {% if field|is_select %}
-      <div class="ui-select-wrapper">{{ field }}</div>
-    {% else %}
-      {{ field }}
     {% endif %}
-  {% endif %}
-  {% if help_text %}<span class="ui-hint" id="{{ field.auto_id }}_helptext">{{ help_text }}</span>{% endif %}
-  {% for error in field.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
-</div>
+    {% if help_text %}<span class="ui-hint" id="{{ field.auto_id }}_helptext">{{ help_text }}</span>{% endif %}
+    {% for error in field.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+  </div>
+{% endif %}

@@ -7,8 +7,8 @@
     nav_counts   — optional {section_slug: int}. Resolved in the view, never
                    here: a query per badge would put one per sidebar per request.
 
-  Only screens that exist are listed. The mockups show Milestones, Conformance,
-  Reference environment, Agent Skills, Support and a public directory; none of
+  Only screens that exist are listed. The mockups also show Conformance, a
+  reference environment, Agent Skills, Support and a public directory; none of
   them has a backend in v0, and a nav link to a screen that does not exist is a
   defect this repo has already shipped twice (the wizard and the org switcher
   were both unreachable while fully tested). They arrive when their pages do.
@@ -52,8 +52,16 @@
       </a>
       <a id="nav-enrolment"
          class="ui-sidebar-link {% if nav_section == 'enrolment' %}ui-sidebar-link--active{% endif %}"
-         href="{% url 'applications:new' %}{{ org_query }}"
+         href="{% url 'applications:enrolment' %}{{ org_query }}"
          {% if nav_section == 'enrolment' %}aria-current="page"{% endif %}>{% translate "Enrolment" %}</a>
+      <a id="nav-milestones"
+         class="ui-sidebar-link {% if nav_section == 'milestones' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'declarations:milestones' %}{{ org_query }}"
+         {% if nav_section == 'milestones' %}aria-current="page"{% endif %}>{% translate "Milestones" %}</a>
+      <a id="nav-exit"
+         class="ui-sidebar-link {% if nav_section == 'exit' %}ui-sidebar-link--active{% endif %}"
+         href="{% url 'declarations:exit' %}{{ org_query }}"
+         {% if nav_section == 'exit' %}aria-current="page"{% endif %}>{% translate "Exit to production" %}</a>
     </div>
     <div class="ui-sidebar-group">
       <span class="ui-sidebar-label">{% translate "Account" %}</span>

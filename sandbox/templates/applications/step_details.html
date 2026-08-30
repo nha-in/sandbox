@@ -17,7 +17,7 @@
     {% endfor %}
     <div class="flex items-center justify-between gap-3">
       <a class="ui-btn ui-btn--ghost"
-         href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Back" %}</a>
+         href="{% url 'applications:step_product_edit' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
       <div class="flex gap-3">
         {# formnovalidate: a half-finished draft must get past the browser's own required-field check #}
         <button type="submit"

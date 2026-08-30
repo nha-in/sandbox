@@ -3,15 +3,24 @@ from django import forms
 
 from sandbox.theme.templatetags import careui
 
+LONG_CHOICES = [(str(index), f"Option {index}") for index in range(10)]
+
 
 class SampleForm(forms.Form):
     email = forms.EmailField(help_text="Where we send credentials.")
     kind = forms.ChoiceField(choices=[("a", "A")])
     notes = forms.CharField(widget=forms.Textarea, required=False)
     agreed = forms.BooleanField()
+    upload = forms.FileField(required=False)
     tags = forms.MultipleChoiceField(
-        choices=[("a", "A"), ("b", "B")],
+        choices=[("a", "Alpha"), ("b", "Beta")],
         widget=forms.CheckboxSelectMultiple,
+        required=False,
+    )
+    many = forms.MultipleChoiceField(
+        choices=LONG_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
     )
     # No widget named: Django's default for this field is `SelectMultiple`, so
     # this is what anyone gets who adds a multi-choice field without thinking
@@ -30,6 +39,8 @@ def bound(field_name, data=None):
         ("kind", "ui-select"),
         ("notes", "ui-textarea"),
         ("agreed", "ui-checkbox"),
+        ("upload", "ui-file"),
+        # attrs on a choice widget land on each option's input
         ("tags", "ui-checkbox"),
         ("regions", "ui-multiselect"),
     ],
@@ -90,8 +101,52 @@ def test_widget_type_filters():
     assert not careui.is_checkbox(bound("email"))
     assert careui.is_checkbox_group(bound("tags"))
     assert not careui.is_checkbox_group(bound("regions"))
+    assert not careui.is_checkbox_group(bound("agreed"))
     assert careui.is_select(bound("kind"))
     assert not careui.is_select(bound("notes"))
+
+
+# Choice pickers
+
+
+def test_a_short_choice_set_is_shown_in_full():
+    """Opening a two-item list costs more than reading it."""
+    field = bound("tags")
+
+    assert careui.is_checkbox_group(field)
+    assert careui.ui_field(field)["collapse"] is False
+
+
+def test_a_long_choice_set_collapses():
+    context = careui.ui_field(bound("many"))
+
+    assert context["collapse"] is True
+
+
+def test_the_closed_summary_names_what_is_chosen():
+    context = careui.ui_field(bound("tags", data={"tags": ["a", "b"]}))
+
+    assert context["choice_summary"] == "Alpha, Beta"
+
+
+def test_the_closed_summary_counts_the_rest_once_it_is_long():
+    field = bound("many", data={"many": ["0", "1", "2", "3", "4"]})
+
+    assert careui.ui_field(field)["choice_summary"] == (
+        "Option 0, Option 1, Option 2 and 2 more"
+    )
+
+
+def test_the_closed_summary_says_so_when_nothing_is_chosen():
+    assert careui.ui_field(bound("tags"))["choice_summary"] == "Nothing selected"
+
+
+def test_an_unbound_summary_reads_the_initial_values():
+    """Resuming a saved draft renders from initial, not from POST data, and the
+    values there are the choice values rather than strings."""
+    field = SampleForm(initial={"tags": ["b"]})["tags"]
+
+    assert careui.ui_field(field)["choice_summary"] == "Beta"
 
 
 def test_non_field_errors_are_exposed_to_templates():

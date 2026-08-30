@@ -1,0 +1,51 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  One milestone's declaration. Plain multipart POST: no JavaScript is involved
+  in attaching a file, so the form works with scripting off.
+{% endcomment %}
+{% load careui i18n %}
+
+{% block title %}
+  {{ milestone.title }}
+{% endblock title %}
+{% block content %}
+  {% if existing_claim %}
+    <div class="ui-alert mb-6" role="status">
+      <div class="flex-1 space-y-1">
+        <p>
+          {% blocktranslate with when=existing_claim.declaration.created_date|date:"j M Y" trimmed %}
+            You declared this on {{ when }}. Submitting again replaces that declaration.
+          {% endblocktranslate %}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <div class="ui-card">
+      <div class="ui-card-content flex flex-col gap-5">
+        {% include "components/form_errors.html" %}
+        <div class="grid gap-5 sm:grid-cols-2">
+          {% ui_field form.started_on %}
+          {% ui_field form.completed_on %}
+        </div>
+        {% ui_field form.notes %}
+        <div>
+          <label class="ui-label" for="{{ form.documents.id_for_label }}">
+            {{ form.documents.label }}
+            <span class="font-normal text-soft-foreground">({% translate "optional" %})</span>
+          </label>
+          {% ui_widget form.documents %}
+          <span class="ui-hint">{{ form.upload_hint }}</span>
+          {% for error in form.documents.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+        </div>
+      </div>
+      <div class="ui-card-footer flex items-center justify-between gap-3">
+        <a class="text-sm underline"
+           href="{% url 'declarations:milestones' %}{{ org_query }}">{% translate "Back to milestones" %}</a>
+        <button class="ui-btn ui-btn--primary" type="submit">{% translate "Declare complete" %}</button>
+      </div>
+    </div>
+  </form>
+{% endblock content %}

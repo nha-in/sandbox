@@ -10,9 +10,11 @@ Wrong-org lookups 404 rather than 403 — a 403 confirms the record exists (A2).
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from typing import Any
 
 from django.http import Http404
 
+from sandbox.catalog.selectors import active_milestones
 from sandbox.declarations.models import Declaration
 from sandbox.declarations.models import DeclarationDocument
 from sandbox.declarations.models import DeclarationKind
@@ -46,6 +48,23 @@ def milestone_coverage(application: Application) -> QuerySet[DeclarationMileston
     )
 
 
+def declared_milestone_claims(
+    application: Application,
+) -> list[DeclarationMilestone]:
+    """Current claims of kind MILESTONE only.
+
+    `milestone_coverage()` returns exit claims too, and both kinds can stand on
+    the same milestone at once — keyed by milestone in a dict, whichever came
+    last would win and the milestones page would credit a completion to the
+    exit bundle.
+    """
+    return [
+        claim
+        for claim in milestone_coverage(application)
+        if claim.kind == DeclarationKind.MILESTONE
+    ]
+
+
 def declaration_timeline(application: Application) -> QuerySet[Declaration]:
     """Every declaration ever made, newest first.
 
@@ -61,6 +80,19 @@ def declaration_timeline(application: Application) -> QuerySet[Declaration]:
             "documents",
         )
     )
+
+
+def milestone_progress(application: Application) -> dict[str, Any]:
+    """Declared-of-total plus what is still outstanding, for the dashboard."""
+    claimed = {claim.milestone_id for claim in declared_milestone_claims(application)}
+    active = active_milestones()
+    return {
+        "declared": len(claimed),
+        "total": len(active),
+        "next": [
+            milestone.title for milestone in active if milestone.pk not in claimed
+        ][:3],
+    }
 
 
 def declarations_for_organisation(
