@@ -8,7 +8,6 @@ from django.urls import reverse
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
-from sandbox.workflow.machine import Action
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
@@ -85,7 +84,7 @@ def test_admin_sees_the_decision_buttons(admin_client_, submitted):
     response = admin_client_.get(detail_url(submitted))
 
     offered = {row["value"] for row in response.context["decision_actions"]}
-    assert offered == {Action.APPROVE, Action.REJECT, Action.SEND_BACK}
+    assert offered == {"APPROVE", "REJECT", "SEND_BACK"}
 
 
 def test_draft_offers_no_decisions(admin_client_):
@@ -148,7 +147,7 @@ def test_a_forced_illegal_action_is_refused_server_side(admin_client_):
 
     draft.refresh_from_db()
     assert draft.state == ApplicationState.DRAFT
-    assert "not legal" in response.content.decode()
+    assert "not available" in response.content.decode()
 
 
 def test_a_reviewer_forcing_approve_is_refused(reviewer_client, submitted):
@@ -202,7 +201,11 @@ def test_payload_is_rendered_as_labels_not_json(reviewer_client, submitted):
     body = reviewer_client.get(detail_url(submitted)).content.decode()
 
     assert "schema_version" not in body
-    assert "Solution types" in body
+    # headings come from the form the applicant filled in...
+    assert "Solution type" in body
+    # ...and codes are resolved: `ABHA_M1` is not an answer a reviewer can read
+    assert "ABHA Creation/Verification - M1" in body
+    assert "ABHA_M1" not in body
 
 
 def test_state_badges_show_their_own_count(reviewer_client, submitted):

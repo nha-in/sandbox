@@ -15,46 +15,56 @@ from django.views.generic import DetailView
 from django.views.generic import ListView
 from django.views.generic import View
 
+from sandbox.applications.documents import download_url
 from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationState
 from sandbox.console.forms import DecisionForm
 from sandbox.console.forms import ReviewForm
 from sandbox.console.mixins import ConsoleMixin
 from sandbox.console.selectors import PAGE_SIZE
-from sandbox.console.selectors import exit_bundle
+from sandbox.console.selectors import exit_review
 from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
+from sandbox.console.selectors import registered_solution_types
 from sandbox.console.selectors import state_counts
-from sandbox.declarations.models import DeclarationDocument
-from sandbox.declarations.services import download_url
 from sandbox.integrations.selectors import CREDENTIAL_STATES
 from sandbox.integrations.selectors import provisioning_progress
 from sandbox.integrations.services import retry_provisioning
+from sandbox.programmes.abdm import ExitDecisionForm
 from sandbox.utils.errors import DomainError
-from sandbox.workflow.machine import Action
-from sandbox.workflow.selectors import REVIEW_DECISION_FOR_ACTION
-from sandbox.workflow.selectors import available_actions
+from sandbox.workflow import engine
+from sandbox.workflow.models import ReviewDecision
+from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.selectors import current_round
+from sandbox.workflow.selectors import decidable_actions
 from sandbox.workflow.selectors import history_for
 from sandbox.workflow.selectors import review_tally
 from sandbox.workflow.selectors import reviews_for_round
 from sandbox.workflow.services import record_review
-from sandbox.workflow.services import transition
 
-#: actions the detail page offers. Exit decisions sit on the same form as the
-#: sandbox ones because `available_actions()` already keeps them apart by state.
-DECISION_ACTIONS = (
-    Action.APPROVE,
-    Action.REJECT,
-    Action.SEND_BACK,
-    Action.START_EXIT_REVIEW,
-    Action.APPROVE_EXIT,
-    Action.REJECT_EXIT,
-    Action.SEND_BACK_EXIT,
+#: actions the detail page offers as a decision button. Everything else a
+#: workflow allows (WITHDRAW, the provisioning chain) is not the console's.
+DECISION_ACTIONS = frozenset(
+    {
+        "APPROVE",
+        "REJECT",
+        "SEND_BACK",
+        "START_REVIEW",
+    },
 )
 
 #: actions rendered in the destructive style
-_DESTRUCTIVE_ACTIONS = frozenset({Action.REJECT, Action.REJECT_EXIT})
+_DESTRUCTIVE_ACTIONS = frozenset({"REJECT"})
+
+EXIT_WORKFLOW = "ABDM_EXIT"
+
+#: the opinion each decision expresses, shared by both workflows
+REVIEW_DECISION_FOR_ACTION = {
+    "APPROVE": ReviewDecision.APPROVE,
+    "REJECT": ReviewDecision.REJECT,
+    "SEND_BACK": ReviewDecision.SEND_BACK,
+}
 
 
 class QueueView(ConsoleMixin, ListView):
@@ -100,8 +110,9 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         application = self.object
+        is_exit = application.workflow_key == EXIT_WORKFLOW
         # ConsoleMixin has already refused anonymous, so this is a real user.
-        allowed = available_actions(application, self.request.user)  # type: ignore[arg-type]
+        allowed = decidable_actions(application, self.request.user)  # type: ignore[arg-type]
         context.update(
             {
                 "page_title": application.reference,
@@ -109,8 +120,9 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                     {"label": "Queue", "url": reverse("console:queue")},
                     {"label": application.reference},
                 ],
-                "payload_groups": payload_groups(application),
-                "exit_bundle": exit_bundle(application),
+                "is_exit": is_exit,
+                "exit_review": exit_review(application) if is_exit else None,
+                "payload_groups": [] if is_exit else payload_groups(application),
                 "history": history_for(application),
                 "reviews": reviews_for_round(application),
                 "tally": review_tally(application),
@@ -121,8 +133,8 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                         "value": action,
                         "is_destructive": action in _DESTRUCTIVE_ACTIONS,
                     }
-                    for action in DECISION_ACTIONS
-                    if action in allowed
+                    for action in allowed
+                    if action in DECISION_ACTIONS
                 ],
                 "can_review": self.request.user.has_perm("workflow.review_application"),
                 # Status only. There is no reveal route on this surface, and no
@@ -132,7 +144,7 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                     if application.state in CREDENTIAL_STATES
                     else []
                 ),
-                "can_retry_provisioning": Action.RETRY_PROVISIONING in allowed,
+                "can_retry_provisioning": "RETRY_PROVISIONING" in allowed,
             },
         )
         return context
@@ -183,7 +195,7 @@ class DecideView(ApplicationActionView):
 
     A supplied comment is recorded as the actor's review row first, because A5
     refuses a comment on a review-driven transition — the review row is the
-    single home for that text. `START_EXIT_REVIEW` expresses no opinion, so its
+    single home for that text. `START_REVIEW` expresses no opinion, so its
     comment rides on the transition instead, which is the other home the schema
     allows ("only when no review behind it").
     """
@@ -195,27 +207,13 @@ class DecideView(ApplicationActionView):
             messages.error(request, form.errors.as_text())
             return self.back_to(application)
 
-        action = Action(form.cleaned_data["action"])
-        comment = form.cleaned_data["comment"]
-        decision = REVIEW_DECISION_FOR_ACTION.get(action)
-
         try:
-            if decision is None:
-                transition(
-                    application=application,
-                    action=action,
-                    actor=request.user,
-                    comment=comment,
-                )
-            else:
-                if comment:
-                    record_review(
-                        application=application,
-                        reviewer=request.user,
-                        decision=decision,
-                        comment=comment,
-                    )
-                transition(application=application, action=action, actor=request.user)
+            self._decide(
+                request,
+                application,
+                form.cleaned_data["action"],
+                form.cleaned_data["comment"],
+            )
         except DomainError as error:
             messages.error(request, error.message)
         else:
@@ -224,6 +222,42 @@ class DecideView(ApplicationActionView):
                 f"{application.reference} moved to {application.state}.",
             )
         return self.back_to(application)
+
+    def _decide(self, request, application, action: str, comment: str) -> None:
+        workflow = get_workflow(application.workflow_key)
+        spec = workflow.transitions.get((application.state, action))
+        if spec is None:
+            message = f"{action} is not available from {application.state}"
+            raise DomainError(message, code="illegal_transition")
+
+        decision = REVIEW_DECISION_FOR_ACTION.get(action)
+        if decision is not None and comment:
+            record_review(
+                application=application,
+                reviewer=request.user,
+                decision=decision,
+                comment=comment,
+            )
+
+        decision_data = None
+        if spec.decision_form_key:
+            decision_form = ExitDecisionForm(
+                request.POST,
+                registered_choices=registered_solution_types(application),
+            )
+            if not decision_form.is_valid():
+                messages.error(request, decision_form.errors.as_text())
+                return
+            decision_data = decision_form.cleaned_data
+
+        engine.transition(
+            application=application,
+            action=action,
+            actor=request.user,
+            # a review-driven move's text lives on the review row, not here
+            comment="" if spec.review_driven else comment,
+            decision_data=decision_data,
+        )
 
 
 class RetryProvisioningView(ApplicationActionView):
@@ -247,7 +281,7 @@ class RetryProvisioningView(ApplicationActionView):
 class DocumentDownloadView(ConsoleMixin, View):
     """A reviewer's way to the evidence — deliberately not the integrator's.
 
-    `declarations:document_download` scopes by organisation membership, which a
+    `applications:document_download` scopes by organisation membership, which a
     reviewer does not have. Rather than teach that view a second authorization
     rule, this one looks the document up across every organisation and leans on
     `ConsoleMixin`. Two audiences, two rules, two routes.
@@ -258,5 +292,5 @@ class DocumentDownloadView(ConsoleMixin, View):
     """
 
     def get(self, request, external_id):
-        document = get_object_or_404(DeclarationDocument, external_id=external_id)
+        document = get_object_or_404(ApplicationDocument, external_id=external_id)
         return redirect(download_url(document))
