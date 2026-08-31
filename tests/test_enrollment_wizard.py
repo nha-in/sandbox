@@ -12,18 +12,18 @@ import pytest
 from django.urls import reverse
 
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas.sandbox import IntegrationIntent
-from sandbox.applications.schemas.sandbox import SolutionType
+from sandbox.applications.selectors import current_form_data
 from sandbox.applications.services import create_draft
 from sandbox.organisations.models import Product
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import ProductFactory
+from sandbox.programmes.abdm import IntegrationIntent
+from sandbox.programmes.abdm import RegistrationSolutionType
 from sandbox.users.tests.factories import UserFactory
-from sandbox.workflow.machine import Action
+from sandbox.workflow import engine
+from sandbox.workflow.engine import transition
 from sandbox.workflow.services import record_review
-from sandbox.workflow.services import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -32,7 +32,7 @@ HTTP_FOUND = 302
 HTTP_NOT_FOUND = 404
 
 DETAILS_POST = {
-    "solution_types": [SolutionType.EUA],
+    "solution_types": [RegistrationSolutionType.EUA],
     "integration_intents": [IntegrationIntent.values[0]],
     "use_case_narrative": "Linking care records for a district hospital.",
 }
@@ -49,6 +49,23 @@ def _org_url(name: str, organisation, **kwargs) -> str:
     return f"{reverse(name, kwargs=kwargs)}?org={organisation.external_id}"
 
 
+def _draft_with_details(product, applicant, data=None):
+    """A draft whose registration form has been filled in, as the wizard leaves it."""
+    application = create_draft(
+        organisation=product.organisation,
+        product=product,
+        applicant=applicant,
+        workflow_key="ABDM",
+    )
+    engine.submit_form(
+        application=application,
+        form_key="REGISTRATION",
+        cleaned_data=dict(DETAILS_POST if data is None else data),
+        user=applicant,
+    )
+    return application
+
+
 def test_full_walk_without_javascript(member_client, org_a, org_member):
     """No htmx headers anywhere: every step is a real form post."""
     response = member_client.post(
@@ -59,7 +76,8 @@ def test_full_walk_without_javascript(member_client, org_a, org_member):
 
     application = Application.objects.get(product__organisation=org_a)
     assert application.state == ApplicationState.DRAFT
-    assert application.payload == {"schema_version": 1, "data": {}}
+    # a draft starts empty: the answers arrive at the details step
+    assert not application.submissions.exists()
     assert response["Location"] == _org_url(
         "applications:step_details",
         org_a,
@@ -77,11 +95,8 @@ def test_full_walk_without_javascript(member_client, org_a, org_member):
     assert response["Location"] == review_url
 
     application.refresh_from_db()
-    assert application.payload["schema_version"] == 1
-    assert (
-        application.payload["data"]["use_case_narrative"]
-        == (DETAILS_POST["use_case_narrative"])
-    )
+    registration = current_form_data(application, "REGISTRATION")
+    assert registration["use_case_narrative"] == DETAILS_POST["use_case_narrative"]
 
     assert member_client.get(review_url).status_code == HTTP_OK
 
@@ -114,10 +129,8 @@ def test_a_half_finished_draft_survives_the_browser_closing(
 
     application.refresh_from_db()
     assert application.state == ApplicationState.DRAFT
-    assert (
-        application.payload["data"]["use_case_narrative"]
-        == (partial["use_case_narrative"])
-    )
+    saved = current_form_data(application, "REGISTRATION")
+    assert saved["use_case_narrative"] == partial["use_case_narrative"]
 
     # ...and it comes back pre-filled
     form = member_client.get(url).context["form"]
@@ -140,7 +153,10 @@ def test_an_incomplete_draft_cannot_be_submitted(member_client, org_a, org_membe
     response = member_client.post(review_url, follow=True)
 
     assert response.status_code == HTTP_OK
-    assert any("required" in str(m).lower() for m in response.context["messages"])
+    assert any(
+        "complete the registration form" in str(m).lower()
+        for m in response.context["messages"]
+    )
     application.refresh_from_db()
     assert application.state == ApplicationState.DRAFT
 
@@ -150,13 +166,7 @@ def test_details_step_reports_payload_errors_as_form_errors(
     product_a,
     org_member,
 ):
-    application = create_draft(
-        organisation=product_a.organisation,
-        product=product_a,
-        applicant=org_member,
-        kind=ApplicationKind.SANDBOX,
-        data=DETAILS_POST,
-    )
+    application = _draft_with_details(product_a, org_member)
     url = reverse(
         "applications:step_details",
         kwargs={"external_id": application.external_id},
@@ -166,10 +176,8 @@ def test_details_step_reports_payload_errors_as_form_errors(
     assert response.status_code == HTTP_OK
     assert response.context["form"].errors
     application.refresh_from_db()
-    assert (
-        application.payload["data"]["use_case_narrative"]
-        == (DETAILS_POST["use_case_narrative"])
-    )
+    saved = current_form_data(application, "REGISTRATION")
+    assert saved["use_case_narrative"] == DETAILS_POST["use_case_narrative"]
 
 
 def test_the_index_lists_every_application_and_offers_another(
@@ -180,13 +188,7 @@ def test_the_index_lists_every_application_and_offers_another(
     """The integrator's home is a list, not a narration of one application.
     An organisation holds one per product, and the screen this replaced showed
     whichever was newest — a draft, the moment a second one is started."""
-    application = create_draft(
-        organisation=product_a.organisation,
-        product=product_a,
-        applicant=org_member,
-        kind=ApplicationKind.SANDBOX,
-        data=DETAILS_POST,
-    )
+    application = _draft_with_details(product_a, org_member)
     response = member_client.get(
         _org_url("applications:index", product_a.organisation),
     )
@@ -220,13 +222,7 @@ def test_the_index_lists_every_application_and_offers_another(
 def draft(product_a, org_member):
     """An unsubmitted application. The shared `application` fixture is SUBMITTED,
     and the product of a submitted application is deliberately fixed."""
-    return create_draft(
-        organisation=product_a.organisation,
-        product=product_a,
-        applicant=org_member,
-        kind=ApplicationKind.SANDBOX,
-        data=DETAILS_POST,
-    )
+    return _draft_with_details(product_a, org_member)
 
 
 def _product_edit_url(application, organisation) -> str:
@@ -296,15 +292,14 @@ def test_going_back_refuses_a_product_already_in_flight(
     org_a,
     org_member,
 ):
-    """UNIQUE (product, kind) would refuse this at the database; the form says
-    so instead of returning a 500."""
+    """UNIQUE (product, workflow_key) would refuse this at the database; the
+    form says so instead of returning a 500."""
     taken = ProductFactory(organisation=org_a)
     create_draft(
         organisation=org_a,
         product=taken,
         applicant=org_member,
-        kind=ApplicationKind.SANDBOX,
-        data={},
+        workflow_key="ABDM",
     )
 
     response = member_client.post(
@@ -398,7 +393,7 @@ def test_a_submitted_application_cannot_rename_its_product(
     """A reviewer reading about "Care Bridge" must not have it renamed under
     them mid-review."""
     original = draft.product.name
-    transition(application=draft, action=Action.SUBMIT, actor=org_member)
+    engine.transition(application=draft, action="SUBMIT", actor=org_member)
 
     member_client.post(
         _product_edit_url(draft, org_a),
@@ -447,12 +442,12 @@ def test_sent_back_application_is_editable_again(
     record_review(
         application=application,
         reviewer=staff_user,
-        decision=Action.SEND_BACK,
+        decision="SEND_BACK",
         comment="Narrative is too thin.",
     )
     transition(
         application=application,
-        action=Action.SEND_BACK,
+        action="SEND_BACK",
         actor=staff_user,
     )
 
@@ -494,14 +489,14 @@ def test_a_refused_save_never_reports_success(
     application,
     org_a,
 ):
-    """`update_draft` always refused this write, but the save path ignored the
-    refusal and flashed "Draft saved." over a payload it had not touched."""
+    """The engine always refused this write, but the save path ignored the
+    refusal and flashed "Draft saved." over answers it had not touched."""
     url = _org_url(
         "applications:step_details",
         org_a,
         external_id=application.external_id,
     )
-    before = dict(application.payload["data"])
+    before = current_form_data(application, "REGISTRATION")
 
     response = member_client.post(
         url,
@@ -511,7 +506,7 @@ def test_a_refused_save_never_reports_success(
 
     assert "Draft saved" not in response.content.decode()
     application.refresh_from_db()
-    assert application.payload["data"] == before
+    assert current_form_data(application, "REGISTRATION") == before
 
 
 def test_unverified_contact_cannot_reach_the_wizard(client, org_a):

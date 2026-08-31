@@ -84,10 +84,10 @@
           {% endif %}
           <div class="mt-4 flex flex-wrap gap-2">
             <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-               href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "View milestones" %}</a>
+               href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "View milestones" %}</a>
             {% if milestones.declared %}
               <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-                 href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Exit to production" %}</a>
+                 href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Exit to production" %}</a>
             {% endif %}
           </div>
         </div>

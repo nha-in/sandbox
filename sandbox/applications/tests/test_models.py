@@ -24,29 +24,24 @@ def test_reference_unique_only_among_non_deleted():
     assert Application.objects.filter(reference="SBX-2026-00001").count() == 1
 
 
-def test_kind_check_constraint_rejects_invalid_value():
-    # build() with an unsaved related FK raises ValueError before ever
-    # reaching the DB, so product/applicant are pre-created here (A2 gotcha).
+@pytest.mark.parametrize("field", ["state", "workflow_key"])
+def test_the_database_no_longer_polices_the_enums(field):
+    # Deliberate: states and kinds are defined by the workflow in code, so a
+    # CHECK constraint here would mean a migration for every new state. The
+    # column is a plain char field; the engine is what refuses a bad value.
     application = ApplicationFactory.build(
-        kind="NOT_A_REAL_KIND",
+        **{field: "NOT_A_REAL_VALUE"},
         product=ProductFactory.create(),
         applicant=UserFactory.create(),
     )
-    with transaction.atomic(), pytest.raises(IntegrityError):
-        application.save()
+
+    application.save()
+
+    application.refresh_from_db()
+    assert getattr(application, field) == "NOT_A_REAL_VALUE"
 
 
-def test_state_check_constraint_rejects_invalid_value():
-    application = ApplicationFactory.build(
-        state="NOT_A_REAL_STATE",
-        product=ProductFactory.create(),
-        applicant=UserFactory.create(),
-    )
-    with transaction.atomic(), pytest.raises(IntegrityError):
-        application.save()
-
-
-def test_duplicate_live_application_for_same_product_and_kind_rejected():
+def test_duplicate_in_flight_application_for_same_product_and_workflow_rejected():
     product = ProductFactory.create()
     ApplicationFactory.create(product=product, state=ApplicationState.DRAFT)
     duplicate = ApplicationFactory.build(
@@ -57,6 +52,21 @@ def test_duplicate_live_application_for_same_product_and_kind_rejected():
 
     with transaction.atomic(), pytest.raises(IntegrityError):
         duplicate.save()
+
+
+def test_an_exit_may_run_alongside_the_application_it_exits():
+    # Same product, different workflow: the slot is per (product, workflow_key),
+    # which is what lets an exit be in review while the ABDM app stays live.
+    product = ProductFactory.create()
+    ApplicationFactory.create(product=product, state=ApplicationState.DRAFT)
+
+    exit_application = ApplicationFactory.create(
+        product=product,
+        workflow_key="ABDM_EXIT",
+        state=ApplicationState.DRAFT,
+    )
+
+    assert exit_application.pk is not None
 
 
 @pytest.mark.parametrize(

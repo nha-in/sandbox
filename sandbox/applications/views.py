@@ -29,24 +29,21 @@ from django.views.generic import TemplateView
 from django.views.generic.base import ContextMixin
 
 from sandbox.applications.forms import ProductStepForm
-from sandbox.applications.models import NON_BLOCKING_STATES
+from sandbox.applications.models import RESTING_STATES
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas import payload_form
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
 from sandbox.applications.selectors import applications_for_organisation
+from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import journey_for
+from sandbox.applications.selectors import milestone_progress
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
 from sandbox.applications.services import rename_draft_product
 from sandbox.applications.services import set_draft_product
 from sandbox.applications.services import set_draft_product_by_name
-from sandbox.applications.services import update_draft
-from sandbox.declarations.selectors import milestone_progress
-from sandbox.declarations.services import DECLARABLE_STATES
 from sandbox.integrations.credentials import rotate_credentials
 from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.selectors import CREDENTIAL_STATES
@@ -56,10 +53,9 @@ from sandbox.organisations.mixins import OrganisationMixin
 from sandbox.organisations.mixins import url_for
 from sandbox.organisations.selectors import is_owner
 from sandbox.utils.errors import DomainError
-from sandbox.workflow.machine import Action
-from sandbox.workflow.selectors import current_round
+from sandbox.workflow import engine
+from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.selectors import reviews_for_round
-from sandbox.workflow.services import transition
 
 if TYPE_CHECKING:
     from django.forms import Form
@@ -68,9 +64,18 @@ if TYPE_CHECKING:
 
     from sandbox.users.models import User
 
-SCHEMA_VERSION = 1
-#: states whose payload the applicant may still edit (mirrors A3's services)
-EDITABLE_STATES = (ApplicationState.DRAFT, ApplicationState.SENT_BACK)
+#: the one owner-facing form the wizard fills in
+REGISTRATION = "REGISTRATION"
+
+
+def _registration(application: Application):
+    """The workflow's own definition of this form — states, class, version."""
+    return get_workflow(application.workflow_key).form(REGISTRATION)
+
+
+def _is_editable(application: Application) -> bool:
+    return application.state in _registration(application).editable_states
+
 
 STEPS = (
     ("product", "Product"),
@@ -80,12 +85,10 @@ STEPS = (
 
 #: States in which an application has milestones worth counting. Everything
 #: before PROVISIONED has no sandbox to build against yet.
-_HAS_MILESTONES = (
-    *DECLARABLE_STATES,
-    ApplicationState.EXIT_REQUESTED,
-    ApplicationState.EXIT_REVIEW,
-    ApplicationState.PRODUCTION_APPROVED,
-)
+#: you hold credentials, so you have something to build against and declare
+DECLARABLE_STATES = (ApplicationState.PROVISIONED,)
+
+_HAS_MILESTONES = DECLARABLE_STATES
 
 
 def _summary_rows(form: Form) -> list[tuple[str, str]]:
@@ -151,7 +154,7 @@ class ProductStepView(WizardMixin, FormView):
             **super().get_form_kwargs(),
             "available_products": products_available_for(
                 self.organisation,
-                ApplicationKind.SANDBOX,
+                "ABDM",
                 keep=draft.product if draft else None,
             ),
             # The product the name box is rendered for, read here rather than
@@ -201,15 +204,13 @@ class ProductStepView(WizardMixin, FormView):
                     organisation=self.organisation,
                     product=product,
                     applicant=self.applicant,
-                    kind=ApplicationKind.SANDBOX,
-                    data={},
+                    workflow_key="ABDM",
                 )
             return create_draft_with_new_product(
                 organisation=self.organisation,
                 product_name=name,
                 applicant=self.applicant,
-                kind=ApplicationKind.SANDBOX,
-                data={},
+                workflow_key="ABDM",
             )
 
         if form.cleaned_data["rename_to"]:
@@ -240,7 +241,7 @@ class ApplicationStepMixin(WizardMixin):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["application"] = self.application
-        context["editable"] = self.application.state in EDITABLE_STATES
+        context["editable"] = _is_editable(self.application)
         return context
 
 
@@ -260,7 +261,7 @@ class DetailsStepView(ApplicationStepMixin, FormView):
         Checked per handler rather than in `dispatch`, because the application
         cannot be resolved until `OrganisationMixin.dispatch` has run.
         """
-        if self.application.state in EDITABLE_STATES:
+        if _is_editable(self.application):
             return None
         messages.info(
             self.request,
@@ -278,10 +279,10 @@ class DetailsStepView(ApplicationStepMixin, FormView):
         return self._refuse_if_locked() or super().get(request, *args, **kwargs)
 
     def get_form_class(self):
-        return payload_form(self.application.kind, SCHEMA_VERSION)
+        return _registration(self.application).form_class
 
     def get_initial(self):
-        return dict(self.application.payload.get("data", {}))
+        return dict(current_form_data(self.application, REGISTRATION))
 
     def post(self, request, *args, **kwargs):
         # "Save and finish later" keeps whatever has been typed, however
@@ -306,7 +307,12 @@ class DetailsStepView(ApplicationStepMixin, FormView):
 
     def _save(self, form) -> bool:
         try:
-            update_draft(application=self.application, data=form.cleaned_data)
+            engine.submit_form(
+                application=self.application,
+                form_key=REGISTRATION,
+                cleaned_data=form.cleaned_data,
+                user=self.applicant,
+            )
         except DomainError as error:
             form.add_error(None, error.message)
             return False
@@ -330,25 +336,20 @@ class ReviewStepView(ApplicationStepMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        data = self.application.payload.get("data", {})
-        form = payload_form(self.application.kind, SCHEMA_VERSION)(initial=data)
+        data = current_form_data(self.application, REGISTRATION)
+        form = _registration(self.application).form_class(initial=data)
         context["summary"] = _summary_rows(form)
-        # After a send-back the round has already advanced, so the comments the
-        # applicant has to act on are the closed round's, not the open one's.
-        previous_round = current_round(self.application) - 1
-        context["reviews"] = (
-            reviews_for_round(self.application, previous_round)
-            if previous_round >= 1
-            else reviews_for_round(self.application)
-        )
+        # The round only advances on resubmission, so a sent-back application is
+        # still on the round whose comments it has to answer.
+        context["reviews"] = reviews_for_round(self.application)
         return context
 
     def post(self, request, *args, **kwargs):
         try:
-            transition(
+            engine.transition(
                 application=self.application,
-                action=Action.SUBMIT,
-                actor=request.user,
+                action="SUBMIT",
+                actor=cast("User", request.user),
             )
         except DomainError as error:
             messages.error(request, error.message)
@@ -388,7 +389,7 @@ class ApplicationIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
         context["rows"] = [
             {
                 "application": application,
-                "is_editable": application.state in EDITABLE_STATES,
+                "is_editable": _is_editable(application),
                 "milestones": (
                     milestone_progress(application)
                     if application.state in _HAS_MILESTONES
@@ -446,30 +447,11 @@ _HINTS: dict[str, tuple[StrOrPromise, StrOrPromise]] = {
             "milestone when it is complete.",
         ),
     ),
-    ApplicationState.EXIT_REQUESTED: (
-        _("Exit requested"),
-        _("Your exit declaration is with the review team."),
-    ),
-    ApplicationState.EXIT_REVIEW: (
-        _("Exit under review"),
-        _("A reviewer is checking your declared milestones and evidence."),
-    ),
-    ApplicationState.PRODUCTION_APPROVED: (
-        _("Approved for production"),
-        _("You have completed the sandbox journey."),
-    ),
     ApplicationState.REJECTED: (
         _("Application rejected"),
         _(
             "Read the reviewer's comments. You can start a new application for this "
             "product.",
-        ),
-    ),
-    ApplicationState.EXIT_REJECTED: (
-        _("Exit rejected"),
-        _(
-            "Read the reviewer's comments and address them before requesting exit "
-            "again.",
         ),
     ),
     ApplicationState.WITHDRAWN: (
@@ -493,7 +475,7 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         application = self.application
         context["page_title"] = application.reference
-        context["can_start_new"] = application.state in NON_BLOCKING_STATES
+        context["can_start_new"] = application.state in RESTING_STATES
         # Only once there is a sandbox to build against; before that the panel
         # would count zero of six at someone who cannot yet declare any of them.
         context["milestones"] = (
@@ -589,7 +571,7 @@ class RevealCredentialsView(ApplicationStepMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["organisation"] = self.organisation
-        context["can_start_new"] = self.application.state in NON_BLOCKING_STATES
+        context["can_start_new"] = self.application.state in RESTING_STATES
         context.update(_status_context(self.application))
         context.update(_credentials_context(self.application, self.request.user))
         return context
