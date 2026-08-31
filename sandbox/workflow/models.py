@@ -3,6 +3,10 @@
 No `modified_date`, no `deleted`, and the migration revokes UPDATE/DELETE from
 the application's database role: the history of who moved an application and
 when is evidence, and evidence you can edit is not evidence.
+
+`from_state` / `to_state` / `action` are plain char columns — their legal
+values come from the workflow class in code (plan/09-redesign.md §2), and the
+registry-sanity test asserts every persisted value is known there.
 """
 
 from __future__ import annotations
@@ -12,9 +16,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationState
 from sandbox.utils.models import BaseModel
-from sandbox.workflow.machine import Action
 
 
 class WorkflowTransition(models.Model):
@@ -23,9 +25,9 @@ class WorkflowTransition(models.Model):
         on_delete=models.PROTECT,
         related_name="transitions",
     )
-    from_state = models.CharField(max_length=30, choices=ApplicationState.choices)
-    to_state = models.CharField(max_length=30, choices=ApplicationState.choices)
-    action = models.CharField(max_length=30, choices=[(a, a) for a in Action])
+    from_state = models.CharField(max_length=40)
+    to_state = models.CharField(max_length=40)
+    action = models.CharField(max_length=40)
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -43,20 +45,6 @@ class WorkflowTransition(models.Model):
             models.Index(
                 fields=["application", "-created_date"],
                 name="workflow_transition_app_idx",
-            ),
-        ]
-        constraints = [
-            models.CheckConstraint(
-                condition=models.Q(from_state__in=ApplicationState.values),
-                name="workflow_transition_from_state_valid",
-            ),
-            models.CheckConstraint(
-                condition=models.Q(to_state__in=ApplicationState.values),
-                name="workflow_transition_to_state_valid",
-            ),
-            models.CheckConstraint(
-                condition=models.Q(action__in=[a.value for a in Action]),
-                name="workflow_transition_action_valid",
             ),
         ]
         permissions = [
