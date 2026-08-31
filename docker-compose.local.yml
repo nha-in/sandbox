@@ -117,7 +117,7 @@ services:
   # for it; the suite that needs it skips when it is not there (and CI sets
   # WIREMOCK_REQUIRED so "skipped" cannot pass for "green").
   wiremock:
-    image: wiremock/wiremock:3.13.1
+    image: wiremock/wiremock:3.13.2-3
     container_name: sandbox_local_wiremock
     profiles: ['wiremock']
     command: ['--disable-banner', '--local-response-templating']
