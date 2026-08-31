@@ -26,12 +26,6 @@ urlpatterns = [
         include("sandbox.applications.urls", namespace="applications"),
     ),
     path("console/", include("sandbox.console.urls", namespace="console")),
-    # Root-mounted: its screens hang off an application's URL, so the prefixes
-    # are spelled inside the module. See the note there.
-    path(
-        "",
-        include("sandbox.declarations.urls", namespace="declarations"),
-    ),
     path("accounts/", include("allauth.urls")),
     # The component gallery. Routed unconditionally so `{% url %}` and the route
     # tests always resolve; the view itself 404s unless DEBUG and staff.

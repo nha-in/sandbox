@@ -13,7 +13,7 @@
 {% block page_actions %}
   {% if declared_count %}
     <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
-       href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Request exit" %}</a>
+       href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Request exit" %}</a>
   {% endif %}
 {% endblock page_actions %}
 {% block content %}
@@ -47,22 +47,28 @@
                 {% else %}
                   <span class="ui-dot ui-dot--idle"></span>
                 {% endif %}
-                {{ row.milestone.title }}
+                {{ row.title }}
               </span>
             </dt>
             <dd class="ui-kv-value flex items-center justify-between gap-3">
               {% if row.claim %}
                 <span class="text-soft-foreground">
-                  {% blocktranslate with when=row.claim.declaration.created_date|date:"j M Y" who=row.claim.declaration.declared_by trimmed %}
+                  {% blocktranslate with when=row.claim.created_date|date:"j M Y" who=row.claim.submitted_by trimmed %}
                     Declared {{ when }} by {{ who }}
+                  {% endblocktranslate %}
+                </span>
+              {% elif not row.unlocked %}
+                <span class="text-soft-foreground">
+                  {% blocktranslate with blockers=row.blocked_by|join:", " trimmed %}
+                    Declare {{ blockers }} first
                   {% endblocktranslate %}
                 </span>
               {% else %}
                 <span class="text-soft-foreground">{% translate "Not declared" %}</span>
               {% endif %}
-              {% if can_declare %}
+              {% if can_declare and row.unlocked %}
                 <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
-                   href="{% url 'declarations:declare_milestone' external_id=application.external_id key=row.milestone.key %}{{ org_query }}">
+                   href="{% url 'applications:declare_milestone' external_id=application.external_id key=row.key %}{{ org_query }}">
                   {% if row.claim %}
                     {% translate "Re-declare" %}
                   {% else %}
@@ -96,7 +102,7 @@
                 {% for document in declaration.documents.all %}
                   <li>
                     <a class="ui-code-chip no-underline"
-                       href="{% url 'declarations:document_download' external_id=document.external_id %}{{ org_query }}">
+                       href="{% url 'applications:document_download' external_id=document.external_id %}{{ org_query }}">
                       {{ document.filename }}</a>
                   </li>
                 {% endfor %}

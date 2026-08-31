@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from sandbox.declarations.tests.conftest import CSV
-from sandbox.declarations.tests.conftest import PDF
-from sandbox.declarations.tests.conftest import XLS
-from sandbox.declarations.tests.conftest import XLSX
-from sandbox.declarations.validators import validate_upload
-from sandbox.declarations.validators import validate_upload_set
+from sandbox.applications.tests.conftest import CSV
+from sandbox.applications.tests.conftest import PDF
+from sandbox.applications.tests.conftest import XLS
+from sandbox.applications.tests.conftest import XLSX
+from sandbox.applications.validators import validate_upload
+from sandbox.applications.validators import validate_upload_set
 from sandbox.utils.errors import DomainError
 
 WINDOWS_EXECUTABLE = b"MZ\x90\x00\x03\x00\x00\x00" + b"\x00" * 40

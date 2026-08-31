@@ -1,4 +1,4 @@
-"""Shared fixtures for the declarations suite.
+"""Shared fixtures for anything that uploads evidence.
 
 `mock_s3` gives every test a real S3 conversation against `moto`, so presigning
 and object storage are exercised rather than stubbed — the bucket is created
@@ -10,10 +10,9 @@ from __future__ import annotations
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from sandbox.applications import documents
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
-from sandbox.catalog.tests.factories import MilestoneFactory
-from sandbox.declarations import services
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
@@ -27,9 +26,9 @@ CSV = b"milestone,status\nm1,complete\n"
 
 @pytest.fixture(autouse=True)
 def _no_scanners():
-    services.clear_scanners()
+    documents.clear_scanners()
     yield
-    services.clear_scanners()
+    documents.clear_scanners()
 
 
 @pytest.fixture
@@ -54,13 +53,9 @@ def application(organisation, member):
 
 
 @pytest.fixture
-def milestone(db):
-    return MilestoneFactory.create(key="m1")
-
-
-@pytest.fixture
-def other_milestone(db):
-    return MilestoneFactory.create(key="m2")
+def milestone():
+    """The URL segment for M1 — milestones are defined by the workflow now."""
+    return "m1"
 
 
 def upload(name: str = "evidence.pdf", content: bytes = PDF) -> SimpleUploadedFile:
