@@ -2,7 +2,7 @@
 
 `state_choices`/`districts_for_state` are the stable contract P4's `LgdLookup`
 adapter takes over (06-integrations.md §5); callers must not reach past them
-into the dataset file or the Milestone queryset directly.
+into the dataset file directly.
 """
 
 from __future__ import annotations
@@ -11,8 +11,6 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from typing import TypedDict
-
-from sandbox.catalog.models import Milestone
 
 LGD_DATASET_PATH = (
     Path(__file__).resolve().parent / "data" / "lgd_states_districts.json"
@@ -55,8 +53,3 @@ def is_valid_state_code(state_code: str) -> bool:
 
 def is_valid_district_code(state_code: str, district_code: str) -> bool:
     return any(code == district_code for code, _ in districts_for_state(state_code))
-
-
-def active_milestones() -> list[Milestone]:
-    """Milestones page / A7 declarations: active, in display order."""
-    return list(Milestone.objects.filter(is_active=True))

@@ -48,7 +48,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # ------------------------------------------------------------------------------
 # `api_names_for` refuses to guess, and the real names are still outstanding from
 # NHA (B4). The chain needs *some* set to subscribe to, so tests pin one.
-WSO2_API_NAMES = {"SANDBOX": ("HealthIdAPI", "GatewayAPI")}
+WSO2_API_NAMES = {"ABDM": ("HealthIdAPI", "GatewayAPI")}
 
 # DEBUGGING FOR TEMPLATES
 # ------------------------------------------------------------------------------
@@ -64,7 +64,7 @@ MEDIA_URL = "http://media.testserver/"
 # The declarations bucket stays an S3 backend so presigning is exercised for
 # real; `moto` stands in for the service (see declarations/tests/conftest.py).
 # Credentials are deliberately fake so a misconfigured run cannot reach AWS.
-STORAGES["declarations"]["OPTIONS"] |= {  # type: ignore[index]
+STORAGES["evidence"]["OPTIONS"] |= {  # type: ignore[index]
     "endpoint_url": None,  # standard AWS URLs, which moto intercepts
     "access_key": "testing",
     "secret_key": "testing",

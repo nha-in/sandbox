@@ -11,6 +11,7 @@ from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.audit.models import AuditEvent
+from sandbox.catalog.management.commands.seed_sandbox_demo import EXIT_PATHS
 from sandbox.organisations.models import Organisation
 from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
@@ -18,6 +19,15 @@ from sandbox.workflow.models import WorkflowTransition
 pytestmark = pytest.mark.django_db
 
 SEED_PASSWORD = "seed-test-password"  # noqa: S105
+
+
+def _states_by_workflow(**filters) -> dict[str, set[str]]:
+    """Seeded states, split by workflow — the two have different vocabularies."""
+    states: dict[str, set[str]] = {}
+    rows = Application.objects.filter(**filters).values_list("workflow_key", "state")
+    for workflow_key, state in rows:
+        states.setdefault(workflow_key, set()).add(state)
+    return states
 
 
 @pytest.fixture(autouse=True)
@@ -42,9 +52,11 @@ def test_seed_covers_every_application_state(settings):
     settings.DEBUG = True
     seed()
 
-    seeded = set(Application.objects.values_list("state", flat=True))
+    seeded = _states_by_workflow()
 
-    assert seeded == set(ApplicationState.values)
+    assert seeded["ABDM"] == set(ApplicationState.values)
+    # exits are their own applications, with their own states to demonstrate
+    assert seeded["ABDM_EXIT"] == set(EXIT_PATHS)
 
 
 def test_running_twice_creates_no_duplicates(settings):
@@ -103,7 +115,9 @@ def test_fresh_retires_only_seeded_rows(settings):
     """A hand-made application must survive --fresh."""
     settings.DEBUG = True
     seed()
-    manual = ApplicationFactory.create()
+    # an out-of-range reference: the factory's sequence and the seed's DB
+    # counter both mint SBX-<this year>-0000N and would otherwise collide
+    manual = ApplicationFactory.create(reference="SBX-1999-00001")
 
     seed(fresh=True)
 
@@ -117,10 +131,9 @@ def test_fresh_then_reseed_restores_every_state(settings):
 
     seed(fresh=True)
 
-    live = set(
-        Application.objects.filter(deleted=False).values_list("state", flat=True),
-    )
-    assert live == set(ApplicationState.values)
+    live = _states_by_workflow(deleted=False)
+    assert live["ABDM"] == set(ApplicationState.values)
+    assert live["ABDM_EXIT"] == set(EXIT_PATHS)
 
 
 def test_seeding_outside_debug_is_refused(settings):

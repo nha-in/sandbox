@@ -11,22 +11,21 @@ from sandbox.applications.models import Application
 class ApplicationAdmin(admin.ModelAdmin):
     list_display = [
         "reference",
-        "kind",
+        "workflow_key",
         "state",
         "product",
         "applicant",
         "created_date",
     ]
-    list_filter = ["kind", "state"]
+    list_filter = ["workflow_key", "state"]
     search_fields = ["reference", "product__name", "applicant__email"]
     readonly_fields = [
         "external_id",
         "reference",
-        "kind",
+        "workflow_key",
         "product",
         "applicant",
         "state",
-        "payload",
         "submitted_at",
         "created_date",
         "modified_date",
