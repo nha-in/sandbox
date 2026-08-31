@@ -31,6 +31,8 @@ NAV_SECTIONS: dict[str, str] = {
     "applications:milestones": "milestones",
     "applications:declare_milestone": "milestones",
     "applications:exit": "exit",
+    # DHIS is what an approved exit unlocks, so it belongs to the same section
+    "applications:dhis": "exit",
     "organisations:profile": "settings",
     "organisations:choose": "organisations",
     "organisations:create": "organisation_create",

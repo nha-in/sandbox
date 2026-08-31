@@ -88,7 +88,33 @@
             {% if milestones.declared %}
               <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
                  href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Exit to production" %}</a>
+              <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+                 href="{% url 'applications:dhis' external_id=application.external_id %}{{ org_query }}">{% translate "Register on DHIS" %}</a>
             {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+    {% if editable %}
+      <div class="ui-card mb-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "Integration profile" %}</h2>
+          <p class="ui-card-description">
+            {% translate "What you told us you are building. Widening this grants nothing until your next exit is reviewed." %}
+          </p>
+        </div>
+        <div class="ui-card-content">
+          <dl>
+            {% for label, value in profile %}
+              <div class="ui-kv">
+                <dt class="ui-kv-key">{{ label }}</dt>
+                <dd class="ui-kv-value">{{ value|default:"—" }}</dd>
+              </div>
+            {% endfor %}
+          </dl>
+          <div class="mt-4">
+            <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
+               href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Edit integration profile" %}</a>
           </div>
         </div>
       </div>

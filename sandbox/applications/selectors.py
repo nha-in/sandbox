@@ -19,6 +19,7 @@ from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
 from sandbox.organisations.models import Product
+from sandbox.programmes import abdm
 from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
@@ -125,6 +126,45 @@ def exit_in_flight(product: Product) -> Application | None:
         .exclude(state__in=RESTING_STATES)
         .first()
     )
+
+
+def exit_grants(product: Product) -> list[abdm.ExitGrant]:
+    """What this product's approved exits granted, as they stood when decided.
+
+    Never a live claim and never an in-flight exit: a second exit under review
+    grants nothing until its decision lands, and an approved exit's grant is
+    not revoked by anything that happens afterwards.
+    """
+    approved = Application.objects.filter(
+        product=product,
+        workflow_key="ABDM_EXIT",
+        state="APPROVED",
+        deleted=False,
+    ).prefetch_related("submissions")
+
+    grants = []
+    for application in approved:
+        current = {
+            submission.form_key: submission.data
+            for submission in application.submissions.all()
+            if submission.is_current
+        }
+        grants.append(
+            abdm.ExitGrant(
+                covers=frozenset(
+                    abdm.Milestone(value)
+                    for value in current.get("EXIT_CLAIM", {}).get("covers", [])
+                ),
+                approved_types=frozenset(
+                    abdm.SolutionType(value)
+                    for value in current.get("EXIT_DECISION", {}).get(
+                        "approved_solution_types",
+                        [],
+                    )
+                ),
+            ),
+        )
+    return grants
 
 
 def exit_documents(application: Application | None) -> dict[str, list]:

@@ -483,6 +483,11 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
             if application.state in DECLARABLE_STATES
             else None
         )
+        # the answers as they stand, so "edit" is a correction not a rewrite
+        form = _registration(application).form_class(
+            initial=current_form_data(application, REGISTRATION),
+        )
+        context["profile"] = _summary_rows(form)
         context.update(_status_context(application))
         return context
 

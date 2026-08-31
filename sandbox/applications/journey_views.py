@@ -37,6 +37,7 @@ from sandbox.applications.models import Application
 from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import document_detail
 from sandbox.applications.selectors import exit_documents
+from sandbox.applications.selectors import exit_grants
 from sandbox.applications.selectors import exit_in_flight
 from sandbox.applications.selectors import milestone_rows
 from sandbox.applications.services import open_exit
@@ -101,6 +102,13 @@ class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
             external_id=self.application.external_id,
         )
 
+    def dhis_url(self) -> str:
+        return url_for(
+            "applications:dhis",
+            self.organisation,
+            external_id=self.application.external_id,
+        )
+
     def base_context(self) -> dict:
         return {
             "application": self.application,
@@ -108,6 +116,7 @@ class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
             "can_declare": self.application.state in DECLARABLE_STATES,
             "milestones_url": self.milestones_url(),
             "exit_url": self.exit_url(),
+            "dhis_url": self.dhis_url(),
         }
 
 
@@ -310,6 +319,61 @@ class ExitView(ApplicationScopedMixin, TemplateView):
         )
         messages.success(request, _("Exit requested. NHA will review it."))
         return redirect(self.exit_url())
+
+
+class DhisView(ApplicationScopedMixin, TemplateView):
+    """Which solution types may be registered on DHIS, and recording that you did.
+
+    The sandbox records a claim and blocks nothing: DHIS itself enforces
+    claim-once, so a button disabled here on the strength of our own record
+    would be us guessing at another system's state.
+    """
+
+    template_name = "journey/dhis.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        grants = exit_grants(self.application.product)
+        claimed = {
+            submission.data.get("solution_type")
+            for submission in self.application.submissions.filter(
+                form_key="DHIS_CLAIM",
+            )
+        }
+        context.update(
+            {
+                **self.base_context(),
+                "page_title": _("Register on DHIS"),
+                "rows": [
+                    {
+                        "value": solution_type.value,
+                        "label": solution_type.value,
+                        "enabled": abdm.dhis_enabled(grants, solution_type),
+                        "required": sorted(
+                            abdm.SOLUTION_TYPE_MILESTONES[solution_type],
+                        ),
+                        "claimed": solution_type.value in claimed,
+                    }
+                    for solution_type in abdm.SolutionType
+                ],
+                "covered": sorted(abdm.covered(grants)),
+            },
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        try:
+            engine.submit_form(
+                application=self.application,
+                form_key="DHIS_CLAIM",
+                cleaned_data={"solution_type": request.POST.get("solution_type", "")},
+                user=self.actor,
+            )
+        except DomainError as error:
+            messages.error(request, error.message)
+        else:
+            messages.success(request, _("Recorded. Complete the handoff on DHIS."))
+        return redirect(self.dhis_url())
 
 
 class DocumentDownloadView(LoginRequiredMixin, OrganisationMixin, View):

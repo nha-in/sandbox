@@ -1,0 +1,76 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  Enablement is read from approved exits, never from a live claim: a second
+  exit under review grants nothing until its decision lands.
+
+  Recording a claim blocks nothing. DHIS enforces claim-once itself, so a
+  button disabled here on the strength of our own record would be us guessing
+  at another system's state.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% translate "Register on DHIS" %}
+{% endblock title %}
+{% block content %}
+  <div class="ui-card mb-6">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Register on DHIS" %}</h2>
+      <p class="ui-card-description">
+        {% if covered %}
+          {% blocktranslate with milestones=covered|join:", " trimmed %}
+            Approved for production: {{ milestones }}
+          {% endblocktranslate %}
+        {% else %}
+          {% translate "Nothing is approved for production yet. Complete an exit first." %}
+        {% endif %}
+      </p>
+    </div>
+    <div class="ui-card-content">
+      <dl>
+        {% for row in rows %}
+          <div class="ui-kv">
+            <dt class="ui-kv-key">
+              <span class="flex items-center gap-2">
+                {% if row.enabled %}
+                  <span class="ui-dot ui-dot--ok"></span>
+                {% else %}
+                  <span class="ui-dot ui-dot--idle"></span>
+                {% endif %}
+                {{ row.label }}
+              </span>
+            </dt>
+            <dd class="ui-kv-value flex items-center justify-between gap-3">
+              {% if row.enabled %}
+                <span class="text-soft-foreground">
+                  {% if row.claimed %}
+                    {% translate "Already recorded" %}
+                  {% else %}
+                    {% translate "Ready to register" %}
+                  {% endif %}
+                </span>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="solution_type" value="{{ row.value }}" />
+                  <button class="ui-btn ui-btn--ghost ui-btn--size-sm" type="submit">
+                    {% translate "Record DHIS registration" %}
+                  </button>
+                </form>
+              {% else %}
+                <span class="text-soft-foreground">
+                  {% blocktranslate with needs=row.required|join:", " trimmed %}
+                    Needs {{ needs }} approved at exit
+                  {% endblocktranslate %}
+                </span>
+              {% endif %}
+            </dd>
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+    <div class="ui-card-footer">
+      <a class="text-sm underline" href="{{ milestones_url }}">{% translate "Back to milestones" %}</a>
+    </div>
+  </div>
+{% endblock content %}

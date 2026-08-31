@@ -263,6 +263,14 @@ ROUTES: dict[str, Route] = {
         query=_org_a,
         methods=("GET", "POST"),
     ),
+    # Recording a DHIS handoff writes to the application, so it is scoped like
+    # any other write on it.
+    "applications:dhis": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
     # Presigned download. Org-scoped: the bucket is private, so this row is the
     # only thing standing between another tenant and the file.
     "applications:document_download": Route(
