@@ -97,7 +97,7 @@ def _document_id(context: dict) -> dict:
 def _application_and_milestone(context: dict) -> dict:
     return {
         "external_id": context["application"].external_id,
-        "key": context[MILESTONE_M1].key,
+        "key": context[MILESTONE_M1],
     }
 
 
@@ -246,18 +246,18 @@ ROUTES: dict[str, Route] = {
     # Milestones and exit (C8). POST rows included because the writes are what
     # actually matter: a declaration accepted for the wrong tenant would attach
     # evidence to somebody else's application.
-    "declarations:milestones": Route(
+    "applications:milestones": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
     ),
-    "declarations:declare_milestone": Route(
+    "applications:declare_milestone": Route(
         Access.ORG_SCOPED,
         kwargs=_application_and_milestone,
         query=_org_a,
         methods=("GET", "POST"),
     ),
-    "declarations:exit": Route(
+    "applications:exit": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
@@ -265,7 +265,7 @@ ROUTES: dict[str, Route] = {
     ),
     # Presigned download. Org-scoped: the bucket is private, so this row is the
     # only thing standing between another tenant and the file.
-    "declarations:document_download": Route(
+    "applications:document_download": Route(
         Access.ORG_SCOPED,
         kwargs=_document_id,
         query=_org_a,

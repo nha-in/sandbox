@@ -17,9 +17,8 @@ from sandbox.audit.services import emit
 from sandbox.integrations.tasks import enqueue_chain
 from sandbox.integrations.tasks import enqueue_teardown
 from sandbox.utils.errors import DomainError
-from sandbox.workflow.machine import PERM_RETRY_PROVISIONING
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow.definitions import PERM_RETRY_PROVISIONING
+from sandbox.workflow.engine import transition
 
 if TYPE_CHECKING:
     from sandbox.applications.models import Application
@@ -48,7 +47,7 @@ def retry_provisioning(
     """
     return transition(
         application=application,
-        action=Action.RETRY_PROVISIONING,
+        action="RETRY_PROVISIONING",
         actor=actor,
     )
 

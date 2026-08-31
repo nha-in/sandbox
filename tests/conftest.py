@@ -14,12 +14,10 @@ from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
 from django.test import Client
 
+from sandbox.applications.models import ApplicationDocument
+from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
-from sandbox.catalog.tests.factories import MilestoneFactory
-from sandbox.declarations.models import Declaration
-from sandbox.declarations.models import DeclarationDocument
-from sandbox.declarations.models import DeclarationKind
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
@@ -112,27 +110,31 @@ def application(product_a, org_member):
 
 @pytest.fixture
 def document_a(org_a, org_member):
-    """A declaration document owned by org A, for the org-scoped download row.
+    """An evidence document owned by org A, for the org-scoped download row.
 
     Built through the ORM rather than the service: presigning needs no network,
     so the matrix stays offline and does not depend on a mocked S3.
 
-    Its own product, because `UNIQUE (product, kind)` allows only one live
-    application per product and `application` above already holds product_a.
+    Its own product, because the in-flight constraint allows only one live
+    application per (product, workflow) and `application` above holds product_a.
     """
     application = ApplicationFactory(
         product=ProductFactory(organisation=org_a),
         applicant=org_member,
         state=ApplicationState.PROVISIONED,
     )
-    declaration = Declaration.objects.create(
+    submission = ApplicationFormSubmission.objects.create(
         application=application,
-        kind=DeclarationKind.MILESTONE,
-        declared_by=org_member,
+        form_key="MILESTONE_M1",
+        round=application.round,
+        data={},
+        is_current=True,
+        submitted_by=org_member,
     )
-    return DeclarationDocument.objects.create(
-        declaration=declaration,
-        storage_key=f"declarations/{declaration.external_id}/{uuid.uuid4()}",
+    return ApplicationDocument.objects.create(
+        submission=submission,
+        kind="FUNCTIONAL_TEST_REPORT",
+        storage_key=f"applications/{submission.external_id}/{uuid.uuid4()}",
         filename="evidence.pdf",
         content_type="application/pdf",
         size=1024,
@@ -142,10 +144,10 @@ def document_a(org_a, org_member):
 
 
 @pytest.fixture
-def milestone_m1(db):
-    """The catalog is seeded by a management command, not a migration, so a
-    milestone URL has nothing to name unless a test makes one."""
-    return MilestoneFactory(key="m1")
+def milestone_m1():
+    """The key a milestone URL names. Milestones come from the workflow, so
+    there is no row to create — only the segment the route needs."""
+    return "m1"
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from sandbox.integrations.services import start_deprovisioning
 from sandbox.integrations.services import start_provisioning
-from sandbox.workflow.services import register_hook
+from sandbox.workflow.engine import register_hook
 
 if TYPE_CHECKING:
     from sandbox.applications.models import Application

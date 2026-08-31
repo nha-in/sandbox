@@ -5,13 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationState
-from sandbox.workflow.machine import TRANSITIONS
-from sandbox.workflow.machine import Action
-from sandbox.workflow.machine import ActorKind
+from sandbox.workflow.definitions import ActorKind as EngineActor
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
+from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
     from django.db.models import QuerySet
@@ -35,10 +33,7 @@ def queue_by_state(state: str) -> QuerySet[Application]:
 
 
 #: everything sitting in the exit half of the journey, for C5's queue filter
-EXIT_QUEUE_STATES = (
-    ApplicationState.EXIT_REQUESTED,
-    ApplicationState.EXIT_REVIEW,
-)
+EXIT_QUEUE_STATES = ()
 
 
 def exit_queue() -> QuerySet[Application]:
@@ -54,67 +49,52 @@ def exit_queue() -> QuerySet[Application]:
     )
 
 
-def available_actions(
+def decidable_actions(
     application: Application,
     actor: User | None,
-) -> tuple[Action, ...]:
+) -> tuple[str, ...]:
     """Which buttons this actor may actually press — the console renders these.
 
-    Deriving the buttons from the same table `transition()` enforces means a
-    screen cannot offer a move the service will refuse.
+    Read from the same workflow the engine enforces, so a screen cannot offer a
+    move the write path will refuse.
     """
+    if actor is None:
+        return ()
+    workflow = get_workflow(application.workflow_key)
     allowed = []
-    for (from_state, action), spec in TRANSITIONS.items():
-        if from_state != application.state or spec.actor_kind is ActorKind.SYSTEM:
-            continue
-        if actor is None:
+    for (from_state, action), spec in workflow.transitions.items():
+        if from_state != application.state or spec.actor_kind is EngineActor.SYSTEM:
             continue
         if spec.permission and not actor.has_perm(spec.permission):
             continue
         if (
-            spec.actor_kind is ActorKind.OWNER
+            spec.actor_kind is EngineActor.OWNER
             and not actor.memberships.filter(
                 organisation_id=application.product.organisation_id,
             ).exists()
         ):
             continue
         allowed.append(action)
-    return tuple(allowed)
-
-
-#: Decisions that hand the application back to the integrator, ending a round.
-#: `REJECT` is absent because it is terminal on the sandbox side; `REJECT_EXIT`
-#: is present because EXIT_REJECTED can request exit again.
-_ROUND_ENDING_ACTIONS = (
-    Action.SEND_BACK,
-    Action.SEND_BACK_EXIT,
-    Action.REJECT_EXIT,
-)
+    return tuple(sorted(allowed))
 
 
 def current_round(application: Application) -> int:
-    """Round N = one more than the bounces so far.
+    """Round N = the applicant's Nth attempt.
 
-    Derived from the append-only transition log rather than stored on the
-    application: there is then no counter that can disagree with the history.
+    A round starts when the applicant submits and ends when a decision lands on
+    it, so a reviewer's verdict is filed with the work it judged. The counter
+    therefore advances on resubmission, not on the send-back: between the two
+    the application is still on the round whose comments it has to answer.
     """
-    bounces = WorkflowTransition.objects.filter(
-        application=application,
-        action__in=_ROUND_ENDING_ACTIONS,
-    ).count()
-    return bounces + 1
+    return application.round
 
 
-#: The opinion each decision expresses. Exit decisions reuse the same three
-#: values rather than growing `ReviewDecision`: a reject is a reject, and the
-#: transition log already records which half of the journey it happened in.
-REVIEW_DECISION_FOR_ACTION: dict[Action, str] = {
-    Action.APPROVE: ReviewDecision.APPROVE,
-    Action.REJECT: ReviewDecision.REJECT,
-    Action.SEND_BACK: ReviewDecision.SEND_BACK,
-    Action.APPROVE_EXIT: ReviewDecision.APPROVE,
-    Action.REJECT_EXIT: ReviewDecision.REJECT,
-    Action.SEND_BACK_EXIT: ReviewDecision.SEND_BACK,
+#: The opinion each decision expresses. Both workflows use the same three
+#: action names; the transition log records which one it happened on.
+REVIEW_DECISION_FOR_ACTION: dict[str, str] = {
+    "APPROVE": ReviewDecision.APPROVE,
+    "REJECT": ReviewDecision.REJECT,
+    "SEND_BACK": ReviewDecision.SEND_BACK,
 }
 
 

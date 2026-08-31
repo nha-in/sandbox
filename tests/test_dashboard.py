@@ -58,7 +58,7 @@ def test_every_state_has_a_place_on_the_track(state):
 
 
 def test_steps_before_the_current_one_are_done():
-    steps = journey_for(ApplicationState.PRODUCTION_APPROVED)
+    steps = journey_for(ApplicationState.PROVISIONED)
 
     assert [step.status for step in steps[:-1]] == ["done"] * (len(steps) - 1)
     assert steps[-1].status == "current"
@@ -146,7 +146,7 @@ def test_pending_states_poll(member_client, product_a, org_member, state):
 
 @pytest.mark.parametrize(
     "state",
-    [ApplicationState.PROVISIONED, ApplicationState.PRODUCTION_APPROVED],
+    [ApplicationState.PROVISIONED, ApplicationState.SANDBOX_APPROVED],
 )
 def test_settled_states_stop_polling(member_client, product_a, org_member, state):
     """Left running, every finished application would hammer the server forever."""

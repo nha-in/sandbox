@@ -22,13 +22,12 @@ from sandbox.notifications import hooks as notification_hooks
 from sandbox.notifications.models import Message
 from sandbox.notifications.models import TemplateKey
 from sandbox.organisations.tests.factories import MembershipFactory
+from sandbox.programmes.abdm import ABDMWorkflow
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
 from sandbox.utils.errors import DomainError
-from sandbox.workflow import services as workflow_services
-from sandbox.workflow.machine import TRANSITIONS
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -37,11 +36,11 @@ ALL_SYSTEMS = set(ProvisionedSystem.values)
 
 @pytest.fixture(autouse=True)
 def _hooks():
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
     register_workflow_hooks()
     notification_hooks.register_workflow_hooks()
     yield
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -65,11 +64,11 @@ def _staff(*codenames: str) -> User:
 
 
 def _provision(application, owner, callbacks) -> None:
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     with callbacks(execute=True):
         transition(
             application=application,
-            action=Action.APPROVE,
+            action="APPROVE",
             actor=_staff("approve_application"),
         )
     application.refresh_from_db()
@@ -87,7 +86,7 @@ def test_every_transition_that_can_strand_the_ledger_deprovisions():
     states into a terminal one has to tear them down."""
     stranding = {
         (from_state, action)
-        for (from_state, action), spec in TRANSITIONS.items()
+        for (from_state, action), spec in ABDMWorkflow.transitions.items()
         if from_state
         in {
             ApplicationState.PROVISIONING_FAILED,
@@ -96,7 +95,7 @@ def test_every_transition_that_can_strand_the_ledger_deprovisions():
         and spec.to_state == ApplicationState.WITHDRAWN
     }
     for key in stranding:
-        assert "deprovisioning_chain" in TRANSITIONS[key].hooks
+        assert "deprovisioning_chain" in ABDMWorkflow.transitions[key].hooks
 
 
 # Happy path
@@ -111,7 +110,7 @@ def test_withdrawal_after_provisioning_disables_all_three(
     assert application.state == ApplicationState.PROVISIONED
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
 
     assert set(_states(application).values()) == {ProvisionedResourceState.DISABLED}
     client = ProvisionedResource.objects.get(
@@ -136,7 +135,7 @@ def test_the_bridge_and_the_subscription_go_too(
     )
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
 
     record = fakes.FakeApiGateway().get_application(wso2.external_ref)
     assert record is not None
@@ -155,12 +154,12 @@ def test_rejecting_an_unprovisioned_application_is_a_no_op(
     django_capture_on_commit_callbacks,
 ):
     """REJECT is only legal from SUBMITTED, where nothing has been created yet."""
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
 
     with django_capture_on_commit_callbacks(execute=True):
         transition(
             application=application,
-            action=Action.REJECT,
+            action="REJECT",
             actor=_staff("reject_application"),
         )
 
@@ -183,7 +182,7 @@ def test_a_permanently_failed_application_can_be_withdrawn_and_cleaned_up(
     assert application.state == ApplicationState.PROVISIONING_FAILED
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
 
     application.refresh_from_db()
     assert application.state == ApplicationState.WITHDRAWN
@@ -205,7 +204,7 @@ def test_re_running_the_teardown_is_harmless(
 
     _provision(application, owner, django_capture_on_commit_callbacks)
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
 
     deprovision_keycloak.delay(application.pk, "cid")
 
@@ -223,7 +222,7 @@ def test_one_failed_step_does_not_strand_the_others(
     always_fail(ExternalSystem.KEYCLOAK, code="REALM_DOWN", retryable=True)
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
 
     assert _states(application) == {
         ProvisionedSystem.KEYCLOAK: ProvisionedResourceState.FAILED,
@@ -241,7 +240,7 @@ def test_a_failed_teardown_is_retryable_from_the_console(
     _provision(application, owner, django_capture_on_commit_callbacks)
     always_fail(ExternalSystem.KEYCLOAK, code="REALM_DOWN", retryable=True)
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.WITHDRAW, actor=owner)
+        transition(application=application, action="WITHDRAW", actor=owner)
     fakes.clear_failures(ExternalSystem.KEYCLOAK)
 
     with django_capture_on_commit_callbacks(execute=True):

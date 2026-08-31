@@ -14,11 +14,11 @@ from sandbox.notifications.services import SECRET_KEY_FRAGMENTS
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
+from sandbox.workflow import engine as workflow_engine
 from sandbox.workflow import services
-from sandbox.workflow.machine import TRANSITIONS
-from sandbox.workflow.machine import Action
+from sandbox.workflow.engine import transition
 from sandbox.workflow.models import ReviewDecision
-from sandbox.workflow.services import transition
+from sandbox.workflow.registry import WORKFLOWS
 
 pytestmark = pytest.mark.django_db
 
@@ -26,10 +26,10 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(autouse=True)
 def _hooks():
     """Other suites call `clear_hooks()`, which wipes what `ready()` registered."""
-    services.clear_hooks()
+    workflow_engine.clear_hooks()
     register_workflow_hooks()
     yield
-    services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -53,10 +53,16 @@ def _staff(*codenames: str) -> User:
 
 
 def test_every_declared_notify_hook_has_a_template() -> None:
-    """A name only in `machine.py` would be an email nobody ever sends."""
+    """A hook name with no template is an email nobody ever sends.
+
+    Every registered workflow, not just the sandbox one: an unregistered hook
+    is a silent no-op in the engine, so a missing exit template would never
+    announce itself.
+    """
     declared = {
         hook
-        for spec in TRANSITIONS.values()
+        for workflow in WORKFLOWS.values()
+        for spec in workflow.transitions.values()
         for hook in spec.hooks
         if hook.startswith("notify_")
     }
@@ -69,10 +75,10 @@ def test_rejection_emails_the_applicant(
     django_capture_on_commit_callbacks,
 ):
     reviewer = _staff("reject_application")
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.REJECT, actor=reviewer)
+        transition(application=application, action="REJECT", actor=reviewer)
 
     message = Message.objects.get()
     assert message.template_key == TemplateKey.SANDBOX_REJECTED
@@ -88,7 +94,7 @@ def test_a_rejection_quotes_the_reviewers_note(
 ):
     """The text lives on A6's review row, so the hook has to go and find it."""
     reviewer = _staff("review_application", "reject_application")
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     services.record_review(
         application=application,
         reviewer=reviewer,
@@ -97,7 +103,7 @@ def test_a_rejection_quotes_the_reviewers_note(
     )
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.REJECT, actor=reviewer)
+        transition(application=application, action="REJECT", actor=reviewer)
 
     assert Message.objects.get().params["comment"] == (
         "Your HIP callback is not reachable."
@@ -110,12 +116,12 @@ def test_provisioned_emails_a_link_and_never_a_credential(
     django_capture_on_commit_callbacks,
 ):
     approver = _staff("approve_application")
-    transition(application=application, action=Action.SUBMIT, actor=owner)
-    transition(application=application, action=Action.APPROVE, actor=approver)
-    transition(application=application, action=Action.START_PROVISIONING)
+    transition(application=application, action="SUBMIT", actor=owner)
+    transition(application=application, action="APPROVE", actor=approver)
+    transition(application=application, action="START_PROVISIONING")
 
     with django_capture_on_commit_callbacks(execute=True):
-        transition(application=application, action=Action.COMPLETE_PROVISIONING)
+        transition(application=application, action="COMPLETE_PROVISIONING")
 
     message = Message.objects.get(template_key=TemplateKey.SANDBOX_APPROVED)
     assert str(application.external_id) in message.params["panel_url"]

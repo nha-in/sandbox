@@ -1,4 +1,4 @@
-"""Which realm roles each application kind's client gets.
+"""Which realm roles each workflow's client gets.
 
 Names, never ids: legacy pinned realm role **UUIDs and containerIds** in YAML,
 which tied the deployment to one Keycloak instance and silently broke whenever
@@ -17,7 +17,7 @@ def role_names_for(kind: str) -> tuple[str, ...]:
         return tuple(settings.KEYCLOAK_ROLE_NAMES[kind])
     except KeyError as exc:
         msg = (
-            f"No Keycloak role set configured for application kind {kind!r}. "
+            f"No Keycloak role set configured for workflow {kind!r}. "
             f"Add it to settings.KEYCLOAK_ROLE_NAMES."
         )
         raise ImproperlyConfigured(msg) from exc

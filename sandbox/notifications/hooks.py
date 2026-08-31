@@ -20,7 +20,7 @@ from django.urls import reverse
 
 from sandbox.notifications.models import TemplateKey
 from sandbox.notifications.services import enqueue
-from sandbox.workflow.services import register_hook
+from sandbox.workflow.engine import register_hook
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,11 +28,11 @@ if TYPE_CHECKING:
     from sandbox.applications.models import Application
     from sandbox.workflow.models import WorkflowTransition
 
-#: hook name (machine.py) -> the template it sends
+#: hook name (a workflow's TransitionSpec) -> the template it sends
 HOOK_TEMPLATES: dict[str, TemplateKey] = {
     "notify_rejected": TemplateKey.SANDBOX_REJECTED,
     "notify_provisioned": TemplateKey.SANDBOX_APPROVED,
-    "notify_production_approved": TemplateKey.PRODUCTION_APPROVED,
+    "notify_exit_approved": TemplateKey.PRODUCTION_APPROVED,
     "notify_exit_rejected": TemplateKey.EXIT_REJECTED,
     "notify_exit_sent_back": TemplateKey.EXIT_SENT_BACK,
 }
