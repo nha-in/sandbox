@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='application',
-            index=models.Index(fields=['workflow_key', 'state'], name='applications_workflow_state_idx'),
+            index=models.Index(fields=['workflow_key', 'state'], name='applications_wf_state_idx'),
         ),
         migrations.RemoveField(
             model_name='application',

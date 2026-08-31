@@ -95,7 +95,7 @@ class Application(BaseModel):
         indexes = [
             models.Index(
                 fields=["workflow_key", "state"],
-                name="applications_workflow_state_idx",
+                name="applications_wf_state_idx",
             ),
         ]
 

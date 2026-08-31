@@ -43,7 +43,8 @@ check:
     @docker compose run --rm django ruff format --check sandbox config tests
     @docker compose run --rm django mypy sandbox config tests
     @docker compose run --rm django lint-imports
-    @docker compose run --rm django python manage.py check
+    # --database: without it the DB-level checks (index name length, etc) are skipped.
+    @docker compose run --rm django python manage.py check --database default
     @docker compose run --rm django python manage.py makemigrations --check --dry-run
     @docker compose run --rm django pytest --cov --cov-fail-under=85
 
