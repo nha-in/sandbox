@@ -13,6 +13,20 @@
  * (plan/design/README.md), so no chart library is implied and none is added.
  */
 
+/* ── Warning button ──────────────────────────────────────────────────────── */
+
+/* careui ships `ui-badge--warning` and `ui-alert--warning` but no button in
+   that key. Send back needs one: it is not destructive — nothing is lost, the
+   work simply comes back — but styling it as the plain forward action reads as
+   approval. Built from `ui-btn--destructive`'s shape with the orange family the
+   other warning primitives already use, so the three verbs stay one family. */
+@utility ui-btn--warning {
+  @apply border-orange-500/70 bg-orange-100/75 text-orange-800 shadow-md;
+  @apply hover:bg-orange-500/20 focus-visible:outline-orange-500;
+  @apply active:bg-orange-500/25 active:inset-shadow-sm active:inset-shadow-orange-400/40 active:shadow-none;
+  @apply dark:bg-orange-500/5 dark:text-orange-300 dark:hover:border-orange-500/75 dark:hover:bg-orange-500/10;
+}
+
 /* ── Multi-select ────────────────────────────────────────────────────────── */
 
 /* A `<select multiple>` is a list box, not a dropdown, and careui's `ui-select`

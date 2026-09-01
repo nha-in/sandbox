@@ -116,6 +116,21 @@ def test_a_sandbox_decision_carries_no_extra_fields(admin_client_, submitted):
     assert 'id="approve-fields"' not in response.content.decode()
 
 
+def test_send_back_is_not_dressed_as_a_rejection(admin_client_, submitted):
+    """Nothing is lost when work goes back, so it is not destructive — but the
+    plain forward style would read as approval."""
+    response = admin_client_.get(detail_url(submitted))
+
+    variants = {
+        row["value"]: row["variant"] for row in response.context["decision_choices"]
+    }
+    assert variants == {
+        "APPROVE": "default",
+        "SEND_BACK": "warning",
+        "REJECT": "destructive",
+    }
+
+
 def test_the_decisions_read_as_words(admin_client_, submitted):
     """`value="SEND_BACK"` is the wire; the label is what a person reads."""
     body = admin_client_.get(detail_url(submitted)).content.decode()

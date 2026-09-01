@@ -77,8 +77,9 @@ ACTION_LABELS = {
     START_REVIEW: "Start review",
 }
 
-#: actions rendered in the destructive style
-_DESTRUCTIVE_ACTIONS = frozenset({"REJECT"})
+#: the button style each decision carries. Send back is not destructive — the
+#: work comes back — but it is not the plain forward move either.
+_ACTION_VARIANTS = {"REJECT": "destructive", "SEND_BACK": "warning"}
 
 EXIT_WORKFLOW = "ABDM_EXIT"
 
@@ -173,7 +174,7 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                     {
                         "value": action,
                         "label": ACTION_LABELS[action],
-                        "is_destructive": action in _DESTRUCTIVE_ACTIONS,
+                        "variant": _ACTION_VARIANTS.get(action, "default"),
                     }
                     for action in decisions
                 ],
@@ -190,7 +191,8 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                         get_workflow(application.workflow_key).review_permission,
                     )
                     and is_reviewable(application)
-                ),                # Status only. There is no reveal route on this surface, and no
+                ),
+                # Status only. There is no reveal route on this surface, and no
                 # staff-facing path to a secret anywhere in the system.
                 "provisioning": (
                     provisioning_progress(application)

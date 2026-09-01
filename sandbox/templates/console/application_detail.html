@@ -216,7 +216,7 @@
                     <option value="">{% translate "Choose an action…" %}</option>
                     {% for choice in decision_choices %}
                       <option value="{{ choice.value }}"
-                              data-destructive="{{ choice.is_destructive|yesno:"1," }}">
+                              data-variant="{{ choice.variant }}">
                         {{ choice.label }}
                       </option>
                     {% endfor %}
@@ -296,6 +296,7 @@
       const submit = document.getElementById("decide-submit");
       const hint = document.getElementById("decide-hint");
       const blocked = fields ? fields.dataset.blocked === "1" : false;
+      const variants = ["ui-btn--default", "ui-btn--destructive", "ui-btn--warning"];
 
       const sync = () => {
         const approving = action.value === "APPROVE";
@@ -308,7 +309,9 @@
           });
         }
         submit.disabled = approving && blocked;
-        submit.classList.toggle("ui-btn--destructive", action.selectedOptions[0]?.dataset.destructive === "1");
+        const variant = action.selectedOptions[0]?.dataset.variant || "default";
+        submit.classList.remove(...variants);
+        submit.classList.add(`ui-btn--${variant}`);
         hint.textContent = approving && !blocked
           ? "{% translate 'Records your comment above and grants production access.' %}"
           : "";
