@@ -194,17 +194,16 @@ def test_the_index_lists_every_application_and_offers_another(
     )
 
     assert response.status_code == HTTP_OK
-    assert [row["application"] for row in response.context["rows"]] == [application]
+    listed = [
+        entry["row"].application
+        for group in response.context["groups"]
+        for entry in group["rows"]
+    ]
+    assert listed == [application]
     body = response.content.decode()
     assert application.reference in body
-    # the way in, the way to resume, and the way to start another
-    assert (
-        reverse(
-            "applications:overview",
-            kwargs={"external_id": application.external_id},
-        )
-        in body
-    )
+    # One destination per row, and for a draft it is where the work is — the
+    # row's own button says "Continue", so anywhere else would surprise.
     assert (
         reverse(
             "applications:step_details",

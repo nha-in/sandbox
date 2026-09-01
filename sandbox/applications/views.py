@@ -36,6 +36,7 @@ from sandbox.applications.selectors import DECLARABLE_STATES
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
 from sandbox.applications.selectors import activity
+from sandbox.applications.selectors import application_groups
 from sandbox.applications.selectors import applications_for_organisation
 from sandbox.applications.selectors import coverage
 from sandbox.applications.selectors import current_form_data
@@ -409,20 +410,40 @@ class ApplicationIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["organisation"] = self.organisation
         context["page_title"] = _("Applications")
-        context["rows"] = [
+        groups = application_groups(self.organisation)
+        context["groups"] = [
             {
-                "application": application,
-                "is_editable": _is_editable(application),
-                "next_action": next_action(application),
-                "milestones": (
-                    milestone_progress(application)
-                    if application.state in _HAS_MILESTONES
-                    else None
-                ),
+                "title": group.title,
+                "subhead": group.subhead,
+                "rows": [{"row": row, "url": self._row_url(row)} for row in group.rows],
             }
-            for application in applications_for_organisation(self.organisation)
+            for group in groups
         ]
+        context["total"] = sum(len(group.rows) for group in groups)
+        context["needing_you"] = sum(
+            len(group.rows)
+            for group in groups
+            if group.rows and group.rows[0].is_blocking
+        )
         return context
+
+    def _row_url(self, row) -> str:
+        """A blocking row opens where the work is; everything else opens home.
+
+        The button says "Continue" on the first and "Open" on the second, so
+        the destination is what the verb promised.
+        """
+        if row.is_blocking and row.next_action is not None:
+            return url_for(
+                row.next_action.route,
+                self.organisation,
+                **row.next_action.route_kwargs,
+            )
+        return url_for(
+            "applications:overview",
+            self.organisation,
+            external_id=row.application.external_id,
+        )
 
 
 #: Static per state, not computed: v0 has no next-action engine (deferred to P5),

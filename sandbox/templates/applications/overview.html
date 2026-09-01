@@ -36,7 +36,7 @@
           <p class="ui-card-description">{{ next_action.reason }}</p>
         </div>
         <div class="ui-card-footer">
-          <a class="ui-btn ui-btn--primary ui-btn--size-sm no-underline"
+          <a class="ui-btn ui-btn--default ui-btn--size-sm no-underline"
              href="{{ next_action.url }}">{{ next_action.action_label }}</a>
         </div>
       </div>
@@ -70,7 +70,7 @@
           <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
              href="{% url 'applications:step_review' external_id=application.external_id %}{{ org_query }}">{% translate "View application" %}</a>
           {% if can_start_new %}
-            <a class="ui-btn ui-btn--primary ui-btn--size-sm"
+            <a class="ui-btn ui-btn--default ui-btn--size-sm"
                href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start a new application" %}</a>
           {% endif %}
         </div>

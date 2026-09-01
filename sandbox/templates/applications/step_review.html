@@ -74,10 +74,10 @@
     {% if can_submit %}
       <form method="post">
         {% csrf_token %}
-        <button type="submit" class="ui-btn ui-btn--primary">{% translate "Submit for review" %}</button>
+        <button type="submit" class="ui-btn ui-btn--default">{% translate "Submit for review" %}</button>
       </form>
     {% elif editable %}
-      <a class="ui-btn ui-btn--primary no-underline"
+      <a class="ui-btn ui-btn--default no-underline"
          href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}">{% translate "Back to overview" %}</a>
     {% else %}
       <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>

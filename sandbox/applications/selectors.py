@@ -12,6 +12,7 @@ from typing import Any
 from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.translation import gettext_lazy as _
 
 from sandbox.applications.models import RESTING_STATES
@@ -321,7 +322,7 @@ def _milestone_reason(application: Application, row: MilestoneRow) -> StrOrPromi
     return _("Declaring it opens whatever depends on it.")
 
 
-def _sandbox_action(application: Application) -> NextAction | None:
+def _sandbox_action(application: Application, *, explain: bool) -> NextAction | None:
     """What is left once there is a sandbox to build against."""
     exit_application = exit_in_flight(application.product)
     if exit_application is not None:
@@ -342,7 +343,7 @@ def _sandbox_action(application: Application) -> NextAction | None:
         row = undeclared[0]
         return NextAction(
             title=_("Declare %(milestone)s complete") % {"milestone": row.title},
-            reason=_milestone_reason(application, row),
+            reason=_milestone_reason(application, row) if explain else "",
             action_label=_("Declare"),
             route="applications:declare_milestone",
             route_kwargs={"external_id": application.external_id, "key": row.key},
@@ -358,12 +359,15 @@ def _sandbox_action(application: Application) -> NextAction | None:
     return None
 
 
-def next_action(application: Application) -> NextAction | None:
+def next_action(application: Application, *, explain: bool = True) -> NextAction | None:
     """What to do next, or None when the answer is honestly "wait".
 
     Derived, never stored. A screen that told someone to act while their
     application sat with a reviewer would be inventing work for them, so the
     states where nothing is theirs to do return None and the screen says so.
+
+    `explain=False` skips the coverage query behind the reason, for the list
+    screen, which shows seventeen titles and no reasons.
     """
     if application.state == ApplicationState.DRAFT:
         return NextAction(
@@ -383,7 +387,7 @@ def next_action(application: Application) -> NextAction | None:
         )
     if application.state not in DECLARABLE_STATES:
         return None
-    return _sandbox_action(application)
+    return _sandbox_action(application, explain=explain)
 
 
 def document_detail(
@@ -733,3 +737,189 @@ def exit_history(product: Product) -> list[ExitAttempt]:
             ),
         )
     return attempts
+
+
+#: The four things an application can be doing, in the order the list shows them.
+PHASE_YOUR_MOVE = "your_move"
+PHASE_BUILDING = "building"
+PHASE_WITH_NHA = "with_nha"
+PHASE_CLOSED = "closed"
+
+_PHASE_HEADINGS: dict[str, tuple[StrOrPromise, StrOrPromise]] = {
+    PHASE_YOUR_MOVE: (
+        _("Your move"),
+        _("Stalled until someone here acts."),
+    ),
+    PHASE_BUILDING: (
+        _("Building in the sandbox"),
+        _("Live credentials. Declare milestones as you finish them."),
+    ),
+    PHASE_WITH_NHA: (
+        _("With NHA"),
+        _("Nothing to do while it is being reviewed."),
+    ),
+    PHASE_CLOSED: (
+        _("Closed"),
+        _("Kept for the record. Start a new application to try again."),
+    ),
+}
+
+_CLOSED_STATES = frozenset(
+    {
+        ApplicationState.REJECTED,
+        ApplicationState.WITHDRAWN,
+        ApplicationState.PROVISIONING_FAILED,
+    },
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationRow:
+    """One application as the list draws it."""
+
+    application: Application
+    phase: str
+    badge_label: StrOrPromise
+    #: a real workflow state, used only to pick the badge colour
+    badge_state: str
+    meta: StrOrPromise
+    next_action: NextAction | None
+    #: one per milestone the programme defines, True where it is declared
+    ticks: tuple[bool, ...]
+
+    @property
+    def is_blocking(self) -> bool:
+        """Whether the row's own button should be the filled one."""
+        return self.phase == PHASE_YOUR_MOVE
+
+    @property
+    def ticks_title(self) -> StrOrPromise:
+        return _("%(declared)s of %(total)s milestones declared") % {
+            "declared": sum(self.ticks),
+            "total": len(self.ticks),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationGroup:
+    title: StrOrPromise
+    subhead: StrOrPromise
+    rows: list[ApplicationRow]
+
+
+#: The line under a row's name, per state. One table so the phrasing of the
+#: whole list can be read in one place.
+_ROW_META: dict[str, StrOrPromise] = {
+    ApplicationState.DRAFT: _("Started %(when)s · not submitted"),
+    ApplicationState.SENT_BACK: _("Round %(round)s · sent back"),
+    ApplicationState.PROVISIONING_FAILED: _(
+        "NHA has been notified — no action needed from you",
+    ),
+    ApplicationState.REJECTED: _("%(state)s %(when)s"),
+    ApplicationState.WITHDRAWN: _("%(state)s %(when)s"),
+    ApplicationState.SUBMITTED: _("Submitted %(when)s"),
+}
+
+
+def _state_meta(application: Application, started: str) -> StrOrPromise:
+    if application.state == ApplicationState.SUBMITTED and application.round > 1:
+        return _("Round %(round)s · resent") % {"round": application.round}
+    template = _ROW_META.get(application.state)
+    if template is None:
+        return ""
+    return template % {
+        "when": started,
+        "round": application.round,
+        "state": application.get_state_display(),
+    }
+
+
+def _row_meta(
+    application: Application,
+    exit_application: Application | None,
+) -> StrOrPromise:
+    """The line under the name: the date that matters, in this state's terms."""
+    if exit_application is not None and exit_application.state == "SENT_BACK":
+        return _("Exit round %(round)s is with you") % {"round": exit_application.round}
+    # otherwise the row shows a live sandbox and no next action, and the reason
+    # for the silence — an exit already under review — is the missing fact
+    if exit_application is not None and exit_application.state not in {
+        "DRAFT",
+        *RESTING_STATES,
+    }:
+        return _("Exit %(reference)s is with NHA") % {
+            "reference": exit_application.reference,
+        }
+    started = date_format(timezone.localtime(application.created_date), "j M")
+    return _state_meta(application, started)
+
+
+def _milestone_ticks(application: Application) -> tuple[bool, ...]:
+    return tuple(row.declared for row in milestone_rows(application))
+
+
+def _row_phase(application: Application, exit_application: Application | None) -> str:
+    if application.state in {ApplicationState.DRAFT, ApplicationState.SENT_BACK}:
+        return PHASE_YOUR_MOVE
+    if application.state in _CLOSED_STATES:
+        return PHASE_CLOSED
+    if application.state in DECLARABLE_STATES:
+        if exit_application is not None and exit_application.state == "SENT_BACK":
+            return PHASE_YOUR_MOVE
+        return PHASE_BUILDING
+    return PHASE_WITH_NHA
+
+
+def application_groups(organisation: Organisation) -> list[ApplicationGroup]:
+    """Every application this organisation holds, grouped by whose move it is.
+
+    Seventeen rows in one flat list are seventeen rows of equal weight, and the
+    two that are stalled on the reader look exactly like the fifteen that are
+    not. The grouping is an ordering of the same query, never a filter: nothing
+    is hidden, it is only ranked.
+    """
+    buckets: dict[str, list[ApplicationRow]] = {key: [] for key in _PHASE_HEADINGS}
+
+    for application in applications_for_organisation(organisation):
+        exit_application = (
+            exit_in_flight(application.product)
+            if application.state in DECLARABLE_STATES
+            else None
+        )
+        phase = _row_phase(application, exit_application)
+        exit_sent_back = (
+            exit_application is not None and exit_application.state == "SENT_BACK"
+        )
+        buckets[phase].append(
+            ApplicationRow(
+                application=application,
+                phase=phase,
+                badge_label=(
+                    _("Exit sent back")
+                    if exit_sent_back
+                    else application.get_state_display()
+                ),
+                # a provisioned application whose exit is stalled reads as
+                # "Provisioned", which hides the only fact that matters about it
+                badge_state=("SENT_BACK" if exit_sent_back else application.state),
+                meta=_row_meta(application, exit_application),
+                next_action=next_action(application, explain=False),
+                # empty before PROVISIONED: a draft showing 0 of 5 reads exactly
+                # like a live product that has genuinely declared none
+                ticks=(
+                    _milestone_ticks(application)
+                    if application.state in DECLARABLE_STATES
+                    else ()
+                ),
+            ),
+        )
+
+    return [
+        ApplicationGroup(
+            title=_PHASE_HEADINGS[key][0],
+            subhead=_PHASE_HEADINGS[key][1],
+            rows=rows,
+        )
+        for key, rows in buckets.items()
+        if rows
+    ]

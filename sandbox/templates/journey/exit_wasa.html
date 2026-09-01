@@ -38,7 +38,7 @@
     <div class="ui-card-footer flex items-center justify-between gap-3">
       <a class="ui-btn ui-btn--ghost no-underline"
          href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
-      <button class="ui-btn ui-btn--primary" type="submit">{% translate "Save and continue" %}</button>
+      <button class="ui-btn ui-btn--default" type="submit">{% translate "Save and continue" %}</button>
     </div>
   </form>
 {% endblock step_body %}

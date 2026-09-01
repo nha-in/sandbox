@@ -1,76 +1,52 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  The integrator's home: every application this organisation holds.
+  The integrator's home: every application this organisation holds, grouped by
+  whose move it is.
 
-  Deliberately minimal. It exists so you can say which application you mean —
-  sandbox access is granted per product, so an organisation with three products
-  has three of them. The detail is one click away, in that application's
-  Overview. The screen this replaced narrated whichever was newest, which is a
-  draft the moment someone starts a second one beside a live sandbox.
+  Grouping rather than filtering — nothing is hidden, it is only ranked. A flat
+  list gave the two applications stalled on the reader the same weight as the
+  fifteen that were waiting on somebody else.
 {% endcomment %}
 {% load i18n %}
-{% load careui %}
 
 {% block title %}
   {% translate "Applications" %}
 {% endblock title %}
 {% block page_actions %}
-  <a class="ui-btn ui-btn--primary ui-btn--size-sm no-underline"
+  <a class="ui-btn ui-btn--default ui-btn--size-sm no-underline"
      href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start new application" %}</a>
 {% endblock page_actions %}
 {% block content %}
-  {% if rows %}
-    <div class="ui-card">
-      <div class="ui-card-content">
-        <dl>
-          {% for row in rows %}
-            <div class="ui-kv">
-              <dt class="ui-kv-key min-w-0">
-                <span class="block truncate text-foreground">{{ row.application.product.name }}</span>
-                <span class="ui-code-chip mt-1">{{ row.application.reference }}</span>
-              </dt>
-              <dd class="ui-kv-value flex flex-wrap items-center justify-between gap-3">
-                <span class="flex items-center gap-2">
-                  <span class="ui-badge ui-badge--{{ row.application.state|state_variant }} ui-badge--size-sm">{{ row.application.get_state_display }}</span>
-                  {% if row.milestones %}
-                    <span class="text-soft-foreground">
-                      {% blocktranslate with declared=row.milestones.declared total=row.milestones.total %}{{ declared }} of {{ total }} milestones{% endblocktranslate %}
-                    </span>
-                  {% else %}
-                    <span class="text-soft-foreground">
-                      {% blocktranslate with when=row.application.created_date|date:"j M Y" %}Started {{ when }}{% endblocktranslate %}
-                    </span>
-                  {% endif %}
-                </span>
-                <span class="flex flex-wrap gap-2">
-                  {% if row.is_editable %}
-                    <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
-                       href="{% url 'applications:step_details' external_id=row.application.external_id %}{{ org_query }}">{% translate "Continue" %}</a>
-                  {% endif %}
-                  <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
-                     href="{% url 'applications:overview' external_id=row.application.external_id %}{{ org_query }}">{% translate "Open" %}</a>
-                </span>
-              </dd>
-              {% if row.next_action %}
-                <dd class="ui-meta mt-1 sm:col-start-2">
-                  {% blocktranslate with what=row.next_action.title trimmed %}
-                    Next: {{ what }}
-                  {% endblocktranslate %}
-                </dd>
-              {% endif %}
-            </div>
+  {% if groups %}
+    <p class="ui-meta mb-5">
+      {% blocktranslate count counter=total trimmed %}
+        {{ counter }} application
+      {% plural %}
+        {{ counter }} applications
+      {% endblocktranslate %}
+      {% if needing_you %}
+        · {% blocktranslate with count=needing_you trimmed %}{{ count }} need you{% endblocktranslate %}
+      {% endif %}
+    </p>
+    {% for group in groups %}
+      <section class="mb-6">
+        <h2 class="ui-section-title">{{ group.title }}</h2>
+        <p class="ui-meta mt-0.5 mb-2">{{ group.subhead }}</p>
+        <div class="ui-card overflow-hidden">
+          {% for entry in group.rows %}
+            {% include "applications/partials/application_row.html" with row=entry.row url=entry.url %}
           {% endfor %}
-        </dl>
-      </div>
-    </div>
+        </div>
+      </section>
+    {% endfor %}
   {% else %}
     <div class="ui-empty">
       <span class="font-medium text-muted-foreground">{% translate "No applications yet" %}</span>
       <span>
         {% blocktranslate with name=organisation.name %}{{ name }} has not applied for sandbox access. Access is granted per product, so you can apply more than once.{% endblocktranslate %}
       </span>
-      <a class="ui-btn ui-btn--primary ui-btn--size-sm mt-3 no-underline"
+      <a class="ui-btn ui-btn--default ui-btn--size-sm mt-3 no-underline"
          href="{% url 'applications:step_product' %}{{ org_query }}">{% translate "Start your sandbox application" %}</a>
     </div>
   {% endif %}

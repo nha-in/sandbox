@@ -32,7 +32,7 @@
     </p>
   </div>
   {% if can_declare and row.unlocked %}
-    <a class="ui-btn {% if row.declared %}ui-btn--ghost{% else %}ui-btn--primary{% endif %} ui-btn--size-sm shrink-0 no-underline"
+    <a class="ui-btn {% if row.declared %}ui-btn--ghost{% else %}ui-btn--default{% endif %} ui-btn--size-sm shrink-0 no-underline"
        href="{% url 'applications:declare_milestone' external_id=application.external_id key=row.key %}{{ org_query }}">
       {% if row.declared %}
         {% translate "Re-declare" %}

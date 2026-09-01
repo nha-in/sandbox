@@ -1,0 +1,39 @@
+{% comment %}
+  One application in the list. The whole row is the link; the button is a
+  visual affordance inside it, filled only where the reader is the one
+  holding things up.
+
+  Four tracks, fixed across every row, so the badge and the action land at the
+  same x whatever the row says.
+{% endcomment %}
+{% load i18n careui %}
+
+<a class="ui-app-row" href="{{ url }}">
+  <span class="min-w-0 flex-1">
+    <span class="flex flex-wrap items-baseline gap-2">
+      <span class="text-[13.5px] font-semibold text-foreground">{{ row.application.product.name }}</span>
+      <span class="ui-code-chip">{{ row.application.reference }}</span>
+    </span>
+    {% if row.next_action %}
+      <span class="mt-0.5 block text-[12.5px] text-muted-foreground">→ {{ row.next_action.title }}</span>
+    {% endif %}
+    {% if row.meta %}<span class="ui-meta mt-0.5 block">{{ row.meta }}</span>{% endif %}
+  </span>
+  <span class="ui-badge ui-badge--{{ row.badge_state|state_variant }} ui-badge--size-sm justify-self-start">{{ row.badge_label }}</span>
+  <span class="flex items-center gap-[3px]">
+    {% if row.ticks %}
+      <span class="flex items-center gap-[3px]" title="{{ row.ticks_title }}">
+        {% for tick in row.ticks %}
+          <span class="ui-tick {% if tick %}ui-tick--on{% endif %}"></span>
+        {% endfor %}
+      </span>
+    {% endif %}
+  </span>
+  <span class="ui-btn ui-btn--size-sm {% if row.is_blocking %}ui-btn--default{% else %}ui-btn--secondary{% endif %}">
+    {% if row.is_blocking %}
+      {% translate "Continue" %}
+    {% else %}
+      {% translate "Open" %}
+    {% endif %}
+  </span>
+</a>

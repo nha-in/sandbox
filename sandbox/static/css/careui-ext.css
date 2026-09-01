@@ -358,3 +358,30 @@
 @utility ui-step-number--done {
   @apply border-transparent bg-primary text-primary-foreground;
 }
+
+/* ── Application list row ────────────────────────────────────────────────── */
+
+/* Fixed tracks so the badge, the progress ticks and the action land at the
+   same x on every row. `justify-between` per row put them wherever the name
+   happened to end. Tracks only once there is room for them: below `sm` the
+   name column would be narrower than the badge beside it. */
+@utility ui-app-row {
+  @apply flex flex-wrap items-center gap-3 px-4 py-3 text-left no-underline;
+  @apply border-b border-soft-border last:border-b-0 hover:bg-soft-background;
+
+  @variant sm {
+    @apply grid gap-[18px] px-[18px] py-[13px];
+
+    grid-template-columns: minmax(0, 1fr) 126px 92px auto;
+  }
+}
+
+/* One milestone. A bar rather than a number: five of them read as progress at
+   a glance, where "2 of 5" has to be parsed. */
+@utility ui-tick {
+  @apply h-[5px] w-[13px] rounded-[2px] bg-muted-background;
+}
+
+@utility ui-tick--on {
+  @apply bg-primary;
+}

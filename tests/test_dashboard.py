@@ -90,7 +90,7 @@ def test_no_application_offers_the_wizard(member_client):
     response = member_client.get(reverse("applications:index"))
 
     assert response.status_code == HTTP_OK
-    assert response.context["rows"] == []
+    assert response.context["groups"] == []
     assert reverse("applications:step_product") in response.content.decode()
 
 
@@ -113,7 +113,12 @@ def test_the_list_ignores_exits(member_client, product_a, org_member):
     response = member_client.get(reverse("applications:index"))
 
     assert response.status_code == HTTP_OK
-    assert [row["application"] for row in response.context["rows"]] == [enrollment]
+    listed = [
+        entry["row"].application
+        for group in response.context["groups"]
+        for entry in group["rows"]
+    ]
+    assert listed == [enrollment]
 
 
 def test_a_rejected_application_lets_you_start_again(
