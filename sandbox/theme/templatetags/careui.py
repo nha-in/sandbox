@@ -86,6 +86,16 @@ STATE_VARIANTS: dict[str, str] = {
 }
 _DEFAULT_STATE_VARIANT = "neutral"
 
+# Labels for the states `ApplicationState` does not enumerate. That enum covers
+# the ABDM workflow, so `get_state_display` on an exit falls through to the
+# stored value and a badge reads UNDER_REVIEW while its neighbours read
+# "Provisioned". Only the exit-only names need to be here; the shared ones
+# already have labels on the enum.
+EXIT_STATE_LABELS = {
+    "UNDER_REVIEW": _("Under review"),
+    "APPROVED": _("Approved"),
+}
+
 
 def _control_class(widget: forms.Widget) -> str:
     for widget_type, css_class in _CONTROL_CLASSES:
@@ -218,3 +228,16 @@ def state_variant(state: str) -> str:
     the variant must not be.
     """
     return STATE_VARIANTS.get(state, _DEFAULT_STATE_VARIANT)
+
+
+@register.filter
+def state_label(application) -> str:
+    """What to print in a state badge, for either workflow.
+
+    `str()` resolves the lazy label here rather than at import, which is when
+    the active locale is actually known.
+    """
+    state = application.state
+    if state in EXIT_STATE_LABELS:
+        return str(EXIT_STATE_LABELS[state])
+    return application.get_state_display()

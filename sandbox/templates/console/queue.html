@@ -53,7 +53,7 @@
             <td>{{ application.product.organisation.name }}</td>
             <td>{{ application.product.name }}</td>
             <td>
-              <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-xs">{{ application.get_state_display }}</span>
+              <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-xs">{{ application|state_label }}</span>
             </td>
           </tr>
         {% empty %}
