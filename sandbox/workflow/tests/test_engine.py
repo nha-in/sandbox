@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth.models import Permission
+from django.utils import timezone
 
 from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationFormSubmission
@@ -228,7 +230,10 @@ def test_submit_runs_the_registration_guard(application, owner):
     assert application.state == "SUBMITTED"
 
 
-def test_send_back_then_resubmit_advances_the_round(application, owner):
+def test_sending_back_opens_the_next_round(application, owner):
+    """The round turns when the work goes back, so everything the applicant
+    then supplies is stamped with the round it answers. Bumping on the
+    resubmission instead left the first send-back sharing round 1."""
     reviewer = UserFactory.create(is_staff=True)
     reviewer.user_permissions.add(
         Permission.objects.get(codename="send_back_abdm"),
@@ -240,13 +245,15 @@ def test_send_back_then_resubmit_advances_the_round(application, owner):
         user=owner,
     )
     engine.transition(application=application, action="SUBMIT", actor=owner)
-    engine.transition(application=application, action="SEND_BACK", actor=reviewer)
     application.refresh_from_db()
     assert application.round == 1
 
+    engine.transition(application=application, action="SEND_BACK", actor=reviewer)
+    application.refresh_from_db()
+    assert application.round == SECOND
+
     engine.transition(application=application, action="SUBMIT", actor=owner)
     application.refresh_from_db()
-    # a re-review needs its own round, else reviews-unique-per-round blocks it
     assert application.round == SECOND
     assert application.state == "SUBMITTED"
 
@@ -390,7 +397,7 @@ def test_a_non_deciding_move_refuses_decision_data(exit_application, approver):
         )
 
 
-def test_reject_then_resubmit_advances_the_round(exit_application, approver, owner):
+def test_rejecting_opens_the_next_round(exit_application, approver, owner):
     engine.transition(
         application=exit_application,
         action="REJECT",
@@ -398,7 +405,8 @@ def test_reject_then_resubmit_advances_the_round(exit_application, approver, own
     )
     exit_application.refresh_from_db()
     assert exit_application.state == "REJECTED"
-    assert exit_application.round == 1
+    # the rejected attempt's WASA now belongs to a round that is over
+    assert exit_application.round == SECOND
 
     engine.transition(
         application=exit_application,
@@ -407,7 +415,6 @@ def test_reject_then_resubmit_advances_the_round(exit_application, approver, own
     )
     exit_application.refresh_from_db()
     assert exit_application.state == "DRAFT"
-    # a fresh round: the rejected attempt's WASA no longer satisfies the gate
     assert exit_application.round == SECOND
 
 
@@ -438,38 +445,82 @@ def test_the_exit_gate_reads_milestones_from_the_sibling_application(
         )
 
 
-def test_the_exit_gate_refuses_a_wasa_from_an_earlier_round(
+def test_a_carried_over_wasa_must_be_reaffirmed(
     exit_application,
     owner,
     approver,
 ):
-    exit_application.state = "DRAFT"
+    """Unexpired, so not re-uploaded — but somebody has to say it still holds."""
+    claim, wasa = _claim_the_first_milestone(exit_application, owner)
+    _evidence(claim, wasa, owner)
+    exit_application.state = "UNDER_REVIEW"
     exit_application.save(update_fields=["state"])
-    engine.submit_form(
-        application=exit_application,
-        form_key="EXIT_CLAIM",
-        cleaned_data={"covers": [Milestone.M1.value], "summary": "ABHA done."},
-        user=owner,
-    )
+    engine.transition(application=exit_application, action="REJECT", actor=approver)
+    engine.transition(application=exit_application, action="RESUBMIT", actor=owner)
+
+    with pytest.raises(DomainError, match="still stands"):
+        engine.transition(
+            application=exit_application,
+            action="SUBMIT",
+            actor=owner,
+        )
+
+    # restating it for this round is the affirmation; the certificate itself
+    # carries forward, which is the point of not demanding a new upload
     engine.submit_form(
         application=exit_application,
         form_key="WASA",
         cleaned_data={"start": "2026-01-01", "valid_upto": "2027-01-01"},
         user=owner,
     )
-    exit_application.state = "REJECTED"
-    exit_application.save(update_fields=["state"])
-    engine.transition(
+    engine.transition(application=exit_application, action="SUBMIT", actor=owner)
+
+    exit_application.refresh_from_db()
+    assert exit_application.state == "SUBMITTED"
+
+
+def test_an_expired_wasa_cannot_be_reaffirmed(exit_application, owner):
+    """Validity is the rule the round only approximates: restating it in this
+    round does not renew a lapsed audit."""
+    claim, _wasa = _claim_the_first_milestone(exit_application, owner)
+    yesterday = timezone.localdate() - timedelta(days=1)
+    wasa = engine.submit_form(
         application=exit_application,
-        action="RESUBMIT",
-        actor=owner,
+        form_key="WASA",
+        cleaned_data={
+            "start": "2020-01-01",
+            "valid_upto": yesterday.isoformat(),
+        },
+        user=owner,
     )
-    with pytest.raises(DomainError, match="WASA statement for this round"):
+    _evidence(claim, wasa, owner)
+
+    with pytest.raises(DomainError, match="expired"):
         engine.transition(
             application=exit_application,
             action="SUBMIT",
             actor=owner,
         )
+
+
+def test_a_wasa_valid_through_today_still_counts(exit_application, owner):
+    """The boundary: a statement expires the day after it stops being valid."""
+    claim, _wasa = _claim_the_first_milestone(exit_application, owner)
+    wasa = engine.submit_form(
+        application=exit_application,
+        form_key="WASA",
+        cleaned_data={
+            "start": "2020-01-01",
+            "valid_upto": timezone.localdate().isoformat(),
+        },
+        user=owner,
+    )
+    _evidence(claim, wasa, owner)
+
+    engine.transition(application=exit_application, action="SUBMIT", actor=owner)
+
+    exit_application.refresh_from_db()
+    assert exit_application.state == "SUBMITTED"
 
 
 def _claim_the_first_milestone(exit_application, owner):
@@ -504,6 +555,14 @@ def _attach(submission, kind, owner):
     )
 
 
+def _evidence(claim, wasa, owner):
+    """Every document the exit gate demands, so a test can fail on its own rule."""
+    for kind in ABDMExitWorkflow.form("EXIT_CLAIM").requires_document:
+        _attach(claim, kind, owner)
+    for kind in ABDMExitWorkflow.form("WASA").requires_document:
+        _attach(wasa, kind, owner)
+
+
 def test_the_exit_gate_names_the_evidence_that_is_missing(exit_application, owner):
     claim, _wasa = _claim_the_first_milestone(exit_application, owner)
     _attach(claim, DocumentKind.FUNCTIONAL_TEST_REPORT, owner)
@@ -518,10 +577,7 @@ def test_the_exit_gate_names_the_evidence_that_is_missing(exit_application, owne
 
 def test_a_fully_evidenced_exit_reaches_review(exit_application, owner):
     claim, wasa = _claim_the_first_milestone(exit_application, owner)
-    for kind in ABDMExitWorkflow.form("EXIT_CLAIM").requires_document:
-        _attach(claim, kind, owner)
-    for kind in ABDMExitWorkflow.form("WASA").requires_document:
-        _attach(wasa, kind, owner)
+    _evidence(claim, wasa, owner)
 
     engine.transition(
         application=exit_application,

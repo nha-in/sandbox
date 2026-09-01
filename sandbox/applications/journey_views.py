@@ -18,6 +18,7 @@ back next month to declare M3 is the designed path, not a new application.
 
 from __future__ import annotations
 
+from datetime import date
 from functools import cached_property
 from typing import TYPE_CHECKING
 from typing import cast
@@ -26,6 +27,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import Http404
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView
 from django.views.generic import TemplateView
@@ -282,6 +284,21 @@ class ExitJourneyMixin(ApplicationScopedMixin):
             initial=self._current("EXIT_CLAIM"),
         )
 
+    def wasa_needs_reaffirming(self) -> bool:
+        """A statement carried over from an earlier round is reused, not restated."""
+        exit_application = self.exit_application
+        if exit_application is None:
+            return False
+        submission = engine.ApplicationContext(exit_application).current("WASA")
+        return submission is not None and submission.round != exit_application.round
+
+    def wasa_has_expired(self) -> bool:
+        """No tick renews a lapsed audit, so the screen must not offer one."""
+        valid_upto = self._current("WASA").get("valid_upto")
+        if not valid_upto:
+            return False
+        return date.fromisoformat(str(valid_upto)) < timezone.localdate()
+
     def wasa_form(self, data=None):
         return abdm.WasaForm(data, initial=self._current("WASA"))
 
@@ -462,18 +479,26 @@ class ExitReviewStepView(ExitStepMixin, TemplateView):
         exit_application = self.exit_application
         claim = self._current("EXIT_CLAIM")
         covers = dict(self.declared_covers())
+        expired = self.wasa_has_expired()
         context.update(
             {
                 "page_title": _("Review and request exit"),
                 "covers": [covers.get(key, key) for key in claim.get("covers", [])],
                 "summary": claim.get("summary", ""),
                 "wasa": self._current("WASA"),
+                "wasa_expired": expired,
                 "evidence": exit_evidence(exit_application),
                 # a sent-back exit is answering comments it has to be able to read
                 "reviews": reviews_for_round(exit_application)
                 if exit_application
                 else [],
             },
+        )
+        context.setdefault(
+            "affirmation_form",
+            abdm.WasaAffirmationForm()
+            if self.wasa_needs_reaffirming() and not expired
+            else None,
         )
         return context
 
@@ -484,6 +509,13 @@ class ExitReviewStepView(ExitStepMixin, TemplateView):
         exit_application = self.exit_application
         if exit_application is None:
             return redirect(self.exit_step_url("claim"))
+        if self.wasa_needs_reaffirming() and not self.wasa_has_expired():
+            form = abdm.WasaAffirmationForm(request.POST)
+            if not form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(affirmation_form=form),
+                )
+            self._reaffirm_wasa(exit_application)
         try:
             engine.transition(
                 application=exit_application,
@@ -495,6 +527,16 @@ class ExitReviewStepView(ExitStepMixin, TemplateView):
             return redirect(self.exit_step_url("review"))
         messages.success(request, _("Exit requested. NHA will review it."))
         return redirect(self.exit_url())
+
+    def _reaffirm_wasa(self, exit_application: Application) -> None:
+        # Restating the certificate stamps it with this round, which is the
+        # affirmation the gate reads; nothing about the statement changes.
+        engine.submit_form(
+            application=exit_application,
+            form_key="WASA",
+            cleaned_data=dict(self._current("WASA")),
+            user=self.actor,
+        )
 
 
 class DhisView(ApplicationScopedMixin, TemplateView):

@@ -7,7 +7,10 @@ the DAG and the four predicates are pure code, which is the point.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 
 from sandbox.programmes.abdm import MILESTONE_PREREQS
 from sandbox.programmes.abdm import SOLUTION_TYPE_MILESTONES
@@ -168,16 +171,27 @@ def test_the_dag_phr_and_m1_have_no_prerequisites():
     assert milestone_unlocked(ctx, M.PHR)
 
 
-def _exit_ctx(covers, *, declared=(), wasa_at_round=True):
+def _exit_ctx(covers, *, declared=(), wasa_at_round=True, wasa_valid_upto=None):
+    valid_upto = wasa_valid_upto or (timezone.localdate() + timedelta(days=30))
     return StubContext(
         at_round={"WASA"} if wasa_at_round else set(),
         product={("ABDM", milestone_form_key(m)) for m in declared},
-        data={"EXIT_CLAIM": {"covers": list(covers)}},
+        data={
+            "EXIT_CLAIM": {"covers": list(covers)},
+            "WASA": {"valid_upto": valid_upto.isoformat()},
+        },
     )
 
 
 def test_exit_gate_passes_when_covers_are_declared_and_wasa_is_current():
     assert exit_gate(_exit_ctx([M.M1, M.M2], declared=[M.M1, M.M2]))
+
+
+def test_exit_gate_refuses_an_expired_wasa():
+    """Validity, not the round, is what the gate is really asking about."""
+    expired = timezone.localdate() - timedelta(days=1)
+    ctx = _exit_ctx([M.M1], declared=[M.M1], wasa_valid_upto=expired)
+    assert not exit_gate(ctx)
 
 
 def test_exit_gate_refuses_an_undeclared_milestone():

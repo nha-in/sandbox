@@ -12,12 +12,15 @@ that is the path that has to keep working.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import pytest
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
+from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import exit_in_flight
 from sandbox.applications.tests.conftest import upload
@@ -426,6 +429,65 @@ def test_the_upload_is_required_until_something_is_attached(
     }
     assert carried[DocumentKind.FUNCTIONAL_TEST_REPORT]
     assert "is already attached" in again.content.decode()
+
+
+def test_a_carried_over_certificate_is_reaffirmed_where_it_is_submitted(
+    mock_s3,
+    client_,
+    application,
+):
+    """On the certificate step a returning applicant could reach Request exit
+    without ever opening it. The box belongs with the button it gates."""
+    _declare_m1(application)
+    _save_claim(client_, application)
+    _save_wasa(client_, application)
+    url = _url("applications:exit_review", application)
+
+    assert client_.get(url).context["affirmation_form"] is None
+
+    exit_application = Application.objects.get(workflow_key="ABDM_EXIT")
+    exit_application.round += 1
+    exit_application.save(update_fields=["round"])
+
+    carried = client_.get(url)
+    assert carried.context["affirmation_form"] is not None
+    assert "still stands" in carried.content.decode()
+
+    # unticked, the exit does not go anywhere
+    refused = client_.post(url, {})
+    assert refused.status_code == HTTP_OK
+    exit_application.refresh_from_db()
+    assert exit_application.state == ApplicationState.DRAFT
+
+    client_.post(url, {"still_valid": "on"})
+
+    exit_application.refresh_from_db()
+    assert exit_application.state == ApplicationState.SUBMITTED
+
+
+def test_an_expired_certificate_is_named_instead_of_offered_a_tick(
+    mock_s3,
+    client_,
+    application,
+):
+    """No affirmation renews a lapsed audit, so the screen must not offer one."""
+    _declare_m1(application)
+    _save_claim(client_, application)
+    yesterday = timezone.localdate() - timedelta(days=1)
+    client_.post(
+        _url("applications:exit_wasa", application),
+        {
+            "start": "2020-01-01",
+            "valid_upto": yesterday.isoformat(),
+            DocumentKind.AUDIT_CERTIFICATE: upload(),
+        },
+    )
+
+    response = client_.get(_url("applications:exit_review", application))
+
+    assert response.context["wasa_expired"] is True
+    assert response.context["affirmation_form"] is None
+    assert "A new audit is needed" in response.content.decode()
 
 
 def test_an_exit_cannot_cover_a_milestone_that_was_never_declared(

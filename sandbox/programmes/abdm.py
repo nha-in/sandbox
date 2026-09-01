@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING
 
 from django import forms
@@ -189,6 +190,20 @@ def milestone_unlocked(ctx: Context, milestone: Milestone) -> bool:
     )
 
 
+def wasa_stands(ctx: Context) -> bool:
+    """Unexpired, and affirmed for the round being submitted.
+
+    Kept beside the guard's copy of the rule so the screen that offers Submit
+    and the engine that accepts it cannot disagree about why.
+    """
+    valid_upto = ctx.form_data("WASA").get("valid_upto")
+    if not valid_upto:
+        return False
+    if date.fromisoformat(str(valid_upto)) < timezone.localdate():
+        return False
+    return ctx.has_current_at_round("WASA")
+
+
 def exit_gate(ctx: Context) -> bool:
     """May this exit be submitted? Not the same predicate as compliance."""
     covers = ctx.form_data("EXIT_CLAIM").get("covers", [])
@@ -196,7 +211,7 @@ def exit_gate(ctx: Context) -> bool:
         bool(covers)
         # milestone claims live on the sibling ABDM application, not the exit
         and all(ctx.product_has_current("ABDM", milestone_form_key(m)) for m in covers)
-        and ctx.has_current_at_round("WASA")
+        and wasa_stands(ctx)
     )
 
 
@@ -367,6 +382,18 @@ class WasaForm(forms.Form):
         return cleaned_data
 
 
+class WasaAffirmationForm(forms.Form):
+    """Standing behind a carried-over certificate, asked where the exit is sent.
+
+    Separate from `WasaForm` because it states nothing new: it restates an
+    unexpired certificate for the round now being submitted.
+    """
+
+    still_valid = forms.BooleanField(
+        label=_("This Safe-to-Host statement still stands for this submission."),
+    )
+
+
 class ExitDecisionForm(forms.Form):
     """The admin's verdict. Written only by the engine inside APPROVE."""
 
@@ -510,8 +537,6 @@ class ABDMWorkflow(Workflow):
             "SUBMITTED",
             ActorKind.OWNER,
             guards=(GUARD_REGISTRATION_COMPLETE,),
-            # reviews are unique per round; re-review needs a new cycle
-            advances_round=True,
         ),
         ("DRAFT", "WITHDRAW"): TransitionSpec("WITHDRAWN", ActorKind.OWNER),
         ("SUBMITTED", "WITHDRAW"): TransitionSpec("WITHDRAWN", ActorKind.OWNER),
@@ -535,6 +560,9 @@ class ABDMWorkflow(Workflow):
             ActorKind.STAFF,
             PERM_SEND_BACK,
             review_driven=True,
+            # the cycle ends when the work goes back, so the next one starts
+            # here: what the applicant then supplies belongs to the new round
+            advances_round=True,
         ),
         # Provisioning (B7). The chain owns these; a person never drives them.
         ("SANDBOX_APPROVED", "START_PROVISIONING"): TransitionSpec(
@@ -601,7 +629,6 @@ class ABDMExitWorkflow(Workflow):
             "SUBMITTED",
             ActorKind.OWNER,
             guards=(GUARD_EXIT_GATE,),
-            advances_round=True,
         ),
         # picking an exit up is not deciding it, so whoever may review may do it
         ("SUBMITTED", "START_REVIEW"): TransitionSpec(
@@ -624,6 +651,7 @@ class ABDMExitWorkflow(Workflow):
             PERM_REJECT,
             hooks=("notify_exit_rejected",),
             review_driven=True,
+            advances_round=True,
         ),
         ("UNDER_REVIEW", "SEND_BACK"): TransitionSpec(
             "SENT_BACK",
@@ -631,13 +659,16 @@ class ABDMExitWorkflow(Workflow):
             PERM_SEND_BACK,
             hooks=("notify_exit_sent_back",),
             review_driven=True,
+            # a new round begins the moment the work goes back, so the WASA
+            # the applicant then affirms is stamped with the round it answers
+            advances_round=True,
         ),
-        # a rejected attempt's resubmission is a new round: fresh WASA statement,
-        # reviews and decisions distinguishable from the rejected cycle's
+        # a rejected attempt's resubmission continues the round the rejection
+        # opened: fresh WASA affirmation, reviews and decisions distinguishable
+        # from the rejected cycle's
         ("REJECTED", "RESUBMIT"): TransitionSpec(
             "DRAFT",
             ActorKind.OWNER,
-            advances_round=True,
         ),
         ("DRAFT", "WITHDRAW"): TransitionSpec("WITHDRAWN", ActorKind.OWNER),
         ("SUBMITTED", "WITHDRAW"): TransitionSpec("WITHDRAWN", ActorKind.OWNER),

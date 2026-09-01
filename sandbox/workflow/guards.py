@@ -7,7 +7,10 @@ way. The engine fails closed on unregistered names.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING
+
+from django.utils import timezone
 
 from sandbox.programmes import abdm
 from sandbox.utils.errors import DomainError
@@ -47,12 +50,33 @@ def exit_gate(application: Application, context: ApplicationContext) -> None:
         message = f"declare {keys} complete before exiting them to production"
         raise DomainError(message, code="milestone_not_declared")
 
-    if not context.has_current_at_round("WASA"):
-        message = "a WASA statement for this round is required before submitting"
-        raise DomainError(message, code="wasa_required")
-
+    _require_wasa(context)
     _require_documents(context, "EXIT_CLAIM")
     _require_documents(context, "WASA")
+
+
+def _require_wasa(context: ApplicationContext) -> None:
+    """Validity is the real rule; the round only asks who still stands behind it.
+
+    A statement that has not expired is safe to reuse across a send-back, so
+    the applicant reaffirms it rather than re-uploading the certificate.
+    """
+    submission = context.current("WASA")
+    if submission is None:
+        message = "submit a Safe-to-Host statement before requesting exit"
+        raise DomainError(message, code="wasa_missing")
+
+    valid_upto = date.fromisoformat(str(submission.data["valid_upto"]))
+    if valid_upto < timezone.localdate():
+        message = (
+            f"the Safe-to-Host statement expired on {valid_upto:%d %b %Y}; "
+            f"attach a current one"
+        )
+        raise DomainError(message, code="wasa_expired")
+
+    if submission.round != context.application.round:
+        message = "confirm the Safe-to-Host statement still stands before resubmitting"
+        raise DomainError(message, code="wasa_unconfirmed")
 
 
 def _require_documents(context: ApplicationContext, form_key: str) -> None:

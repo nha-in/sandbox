@@ -80,12 +80,39 @@
       </dl>
     </div>
   </div>
+  {% if wasa_expired %}
+    <div class="ui-card-content pt-0">
+      <div class="ui-alert ui-alert--destructive" role="alert">
+        <div class="flex-1 space-y-1">
+          <p>
+            {% blocktranslate with expired_on=wasa.valid_upto %}Your Safe-to-Host certificate expired on {{ expired_on }}. A new audit is needed before this exit can be requested.{% endblocktranslate %}
+          </p>
+          <a class="text-sm underline"
+             href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Upload a current certificate" %}</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
   <div class="ui-card-footer flex items-center justify-between gap-3">
     <a class="ui-btn ui-btn--ghost no-underline"
        href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
-    <form method="post">
+    <form method="post" class="flex flex-col items-end gap-3">
       {% csrf_token %}
-      <button class="ui-btn ui-btn--primary" type="submit">{% translate "Request exit" %}</button>
+      {% comment %}
+        The affirmation sits with the button it gates: on the certificate step
+        a returning applicant could reach Request exit without ever seeing it.
+      {% endcomment %}
+      {% if affirmation_form %}
+        <div>
+          <label class="flex items-start gap-2.5 text-sm leading-snug font-semibold text-foreground select-none">
+            {{ affirmation_form.still_valid }}{{ affirmation_form.still_valid.label }}
+          </label>
+          {% for error in affirmation_form.still_valid.errors %}<p class="ui-error mt-1">{{ error }}</p>{% endfor %}
+        </div>
+      {% endif %}
+      <button class="ui-btn ui-btn--primary"
+              type="submit"
+              {% if wasa_expired %}disabled{% endif %}>{% translate "Request exit" %}</button>
     </form>
   </div>
 {% endblock step_body %}
