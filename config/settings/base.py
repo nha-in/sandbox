@@ -616,6 +616,10 @@ UPLOAD_DOWNLOAD_URL_TTL_SECONDS = env.int(
 # Declaration documents live in their own private bucket, never `default`:
 # nothing in the portal may serve them by URL, only the presigned-download view.
 AWS_S3_ENDPOINT_URL = env.str("AWS_S3_ENDPOINT_URL", default="http://minio:9000")
+#: where the *browser* reaches storage. SigV4 signs the Host header, so a URL
+#: signed for the compose-internal name cannot be rewritten for the browser —
+#: it has to be signed against this one. Empty means the two are the same.
+AWS_S3_PUBLIC_ENDPOINT_URL = env.str("AWS_S3_PUBLIC_ENDPOINT_URL", default="")
 AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", default="sandbox")
 AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", default="sandbox-secret")
 AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", default="sandbox-uploads")

@@ -75,7 +75,10 @@
               {% for kind, documents in exit_review.documents.items %}
                 {% for document in documents %}
                   <li class="ui-file-item">
+                    {# new tab: a PDF opens in the viewer, and the review it belongs to stays open behind it #}
                     <a class="truncate"
+                       target="_blank"
+                       rel="noopener"
                        href="{% url 'console:document_download' document.external_id %}">{{ kind }} — {{ document.filename }}</a>
                     <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
                   </li>

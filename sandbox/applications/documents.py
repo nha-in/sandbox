@@ -15,10 +15,14 @@ from __future__ import annotations
 import hashlib
 import uuid
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import cast
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import storages
 from django.db import transaction
+from storages.backends.s3 import S3Storage
 
 from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.validators import validate_upload
@@ -110,6 +114,42 @@ def attach_documents(
     return ApplicationDocument.objects.bulk_create(stored)
 
 
+#: rendered in the browser rather than downloaded. Deliberately a small
+#: allowlist: the other accepted kinds are spreadsheets no browser renders, and
+#: `inline` on anything script-bearing would be a stored-XSS route.
+VIEWABLE_INLINE = frozenset({"application/pdf"})
+
+
+def _download_storage() -> S3Storage:
+    """Storage bound to the endpoint the *browser* can reach.
+
+    SigV4 covers the Host header, so a URL signed against the compose-internal
+    `minio:9000` is not merely inconvenient — rewriting its host invalidates the
+    signature. It has to be signed against the public name to begin with.
+    """
+    public = settings.AWS_S3_PUBLIC_ENDPOINT_URL
+    if not public or public == settings.AWS_S3_ENDPOINT_URL:
+        return cast("S3Storage", document_storage())
+    configured = cast("dict[str, dict[str, Any]]", settings.STORAGES)
+    return S3Storage(**dict(configured["evidence"]["OPTIONS"], endpoint_url=public))
+
+
 def download_url(document: ApplicationDocument) -> str:
-    """A short-lived presigned GET; the bucket itself is private."""
-    return document_storage().url(document.storage_key)
+    """A short-lived presigned GET; the bucket itself is private.
+
+    A PDF opens in the browser's viewer, anything else downloads. Both the
+    type and the filename are ours: `content_type` is derived from the magic
+    bytes at upload, never from what the client claimed, and the filename has
+    already been through a regex that keeps quotes and separators out of this
+    header.
+    """
+    disposition = "inline" if document.content_type in VIEWABLE_INLINE else "attachment"
+    return _download_storage().url(
+        document.storage_key,
+        parameters={
+            "ResponseContentDisposition": (
+                f'{disposition}; filename="{document.filename}"'
+            ),
+            "ResponseContentType": document.content_type,
+        },
+    )

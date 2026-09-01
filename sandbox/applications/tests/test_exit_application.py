@@ -8,10 +8,13 @@ block the next one.
 
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from sandbox.applications.documents import attach_documents
+from sandbox.applications.documents import download_url
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.services import open_exit
 from sandbox.applications.tests.factories import ApplicationFactory
@@ -25,6 +28,7 @@ from sandbox.workflow import engine
 pytestmark = pytest.mark.django_db
 
 PDF = b"%PDF-1.4 minimal"
+CSV = "text/csv"
 
 
 def _upload(name: str = "audit.pdf") -> SimpleUploadedFile:
@@ -116,6 +120,70 @@ def test_evidence_is_attached_to_the_revision_it_evidences(mock_s3, provisioned)
     assert stored[0].sha256
     # the key reveals nothing about any other document
     assert stored[0].storage_key.startswith(f"applications/{submission.external_id}/")
+
+
+def test_a_pdf_opens_in_the_browser_and_a_spreadsheet_downloads(
+    mock_s3,
+    provisioned,
+):
+    """A reviewer reads certificates all day; making each one a download and a
+    trip to the file manager is the difference between reviewing and filing.
+    `inline` is a short allowlist on purpose — serving anything script-bearing
+    that way is a stored-XSS route."""
+    exit_application = open_exit(
+        product=provisioned.product,
+        applicant=provisioned.applicant,
+    )
+    submission = engine.submit_form(
+        application=exit_application,
+        form_key="EXIT_CLAIM",
+        cleaned_data={"covers": ["M1"], "summary": "ABHA verified."},
+        user=provisioned.applicant,
+    )
+    pdf = attach_documents(
+        submission=submission,
+        uploads=[_upload()],
+        kind=DocumentKind.AUDIT_CERTIFICATE,
+        actor=provisioned.applicant,
+    )[0]
+    sheet = attach_documents(
+        submission=submission,
+        uploads=[SimpleUploadedFile("ledger.csv", b"a,b\n1,2\n", content_type=CSV)],
+        kind=DocumentKind.SUPPORTING,
+        actor=provisioned.applicant,
+    )[0]
+
+    assert "inline" in unquote(download_url(pdf))
+    assert "attachment" in unquote(download_url(sheet))
+
+
+def test_the_download_link_is_signed_for_the_host_a_browser_can_reach(
+    mock_s3,
+    provisioned,
+    settings,
+):
+    """SigV4 covers the Host header, so a URL signed against the compose-internal
+    name cannot be rewritten later — it has to be signed against the public one.
+    Getting this wrong sends every reviewer to `http://minio:9000`."""
+    settings.AWS_S3_PUBLIC_ENDPOINT_URL = "http://localhost:9000"
+    exit_application = open_exit(
+        product=provisioned.product,
+        applicant=provisioned.applicant,
+    )
+    submission = engine.submit_form(
+        application=exit_application,
+        form_key="EXIT_CLAIM",
+        cleaned_data={"covers": ["M1"], "summary": "ABHA verified."},
+        user=provisioned.applicant,
+    )
+    document = attach_documents(
+        submission=submission,
+        uploads=[_upload()],
+        kind=DocumentKind.AUDIT_CERTIFICATE,
+        actor=provisioned.applicant,
+    )[0]
+
+    assert download_url(document).startswith("http://localhost:9000/")
 
 
 def test_re_uploading_the_same_kind_replaces_it(mock_s3, provisioned):
