@@ -1,0 +1,44 @@
+{% load i18n %}
+
+{% comment %}
+  One milestone in the dependency graph. Tinted when declared, plain when it is
+  open, muted when something still blocks it — so the shape of what is left to
+  do is readable without reading a word.
+{% endcomment %}
+<div class="flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 {% if row.declared %}border-green-600/40 bg-green-600/5{% elif row.unlocked %}border-border bg-card{% else %}border-border bg-muted-background{% endif %}">
+  <div class="min-w-0">
+    <p class="flex items-center gap-2 text-[13px] font-medium text-foreground">
+      {% if row.declared %}
+        <span class="ui-dot ui-dot--ok"></span>
+      {% elif row.unlocked %}
+        <span class="ui-dot"></span>
+      {% else %}
+        <span class="ui-dot ui-dot--idle"></span>
+      {% endif %}
+      <span>{{ row.title }}</span>
+    </p>
+    <p class="ui-meta mt-0.5">
+      {% if row.declared %}
+        {% blocktranslate with when=row.claim.created_date|date:"j M" trimmed %}
+          Declared {{ when }}
+        {% endblocktranslate %}
+      {% elif row.blocked_by %}
+        {% blocktranslate with blockers=row.blocked_by|join:", " trimmed %}
+          Declare {{ blockers }} first
+        {% endblocktranslate %}
+      {% else %}
+        {% translate "Open — not declared" %}
+      {% endif %}
+    </p>
+  </div>
+  {% if can_declare and row.unlocked %}
+    <a class="ui-btn {% if row.declared %}ui-btn--ghost{% else %}ui-btn--primary{% endif %} ui-btn--size-sm shrink-0 no-underline"
+       href="{% url 'applications:declare_milestone' external_id=application.external_id key=row.key %}{{ org_query }}">
+      {% if row.declared %}
+        {% translate "Re-declare" %}
+      {% else %}
+        {% translate "Declare" %}
+      {% endif %}
+    </a>
+  {% endif %}
+</div>

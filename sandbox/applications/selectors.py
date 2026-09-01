@@ -54,6 +54,7 @@ class MilestoneRow:
     claim: ApplicationFormSubmission | None
     unlocked: bool
     blocked_by: tuple[StrOrPromise, ...]
+    depends_on: tuple[str, ...] = ()
 
     @property
     def declared(self) -> bool:
@@ -93,9 +94,32 @@ def milestone_rows(application: Application) -> list[MilestoneRow]:
                 claim=submissions.get(definition.key),
                 unlocked=definition.is_unlocked(context),
                 blocked_by=blocked_by,
+                depends_on=tuple(definition.depends_on),
             ),
         )
     return rows
+
+
+def milestone_graph(application: Application) -> list[dict]:
+    """The prerequisite DAG, as columns the screen can draw.
+
+    One entry per milestone that depends on nothing, with the milestones that
+    name it. The rules are the product — "M3 does not need M2" is the kind of
+    thing an integrator gets wrong and pays for at exit — and a flat list of
+    five rows says nothing about them.
+
+    Two levels only, which is what the ABDM graph is. A third would need a
+    different drawing, and inventing one for a shape nobody has is guesswork.
+    """
+    rows = milestone_rows(application)
+    return [
+        {
+            "root": root,
+            "dependents": [row for row in rows if root.form_key in row.depends_on],
+        }
+        for root in rows
+        if not root.depends_on
+    ]
 
 
 def milestone_progress(application: Application) -> dict[str, Any]:

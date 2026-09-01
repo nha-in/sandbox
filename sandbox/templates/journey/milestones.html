@@ -1,9 +1,14 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  Every active milestone, declared or not. No test counts, no certificates and
-  no locking: v0 is self-declaration reviewed by a person at exit, so "declared
-  on a date by someone" is the whole of what we know.
+  Every milestone the programme defines, drawn as the graph it is.
+
+  The dependency rules are the product — "M3 does not need M2" is the thing an
+  integrator gets wrong and pays for at exit, and a flat list of five rows never
+  said it. Prerequisites sit on the left, what they unlock on the right.
+
+  Declared and live are different facts and are kept apart: a milestone is
+  declared the moment you say so, and live only once an approved exit covers it.
 {% endcomment %}
 {% load i18n %}
 
@@ -18,11 +23,7 @@
 {% endblock page_actions %}
 {% block content %}
   <p class="ui-page-subtitle mb-6">
-    {% blocktranslate count counter=rows|length trimmed %}
-      {{ declared_count }} of {{ counter }} milestone declared for {{ application }}.
-    {% plural %}
-      {{ declared_count }} of {{ counter }} milestones declared for {{ application }}.
-    {% endblocktranslate %}
+    {% translate "Declare what you have built. Which milestones you need depends on the solution types you registered." %}
   </p>
   {% if not can_declare %}
     <div class="ui-alert mb-6" role="status">
@@ -36,88 +37,78 @@
     </div>
   {% endif %}
   <div class="ui-card mb-8">
-    <div class="ui-card-content">
-      <dl>
-        {% for row in rows %}
-          <div class="ui-kv">
-            <dt class="ui-kv-key">
-              <span class="flex items-center gap-2">
-                {% if row.claim %}
-                  <span class="ui-dot ui-dot--ok"></span>
-                {% else %}
-                  <span class="ui-dot ui-dot--idle"></span>
-                {% endif %}
-                {{ row.title }}
-              </span>
-            </dt>
-            <dd class="ui-kv-value flex items-center justify-between gap-3">
-              {% if row.claim %}
-                <span class="text-soft-foreground">
-                  {% blocktranslate with when=row.claim.created_date|date:"j M Y" who=row.claim.submitted_by trimmed %}
-                    Declared {{ when }} by {{ who }}
-                  {% endblocktranslate %}
-                </span>
-              {% elif not row.unlocked %}
-                <span class="text-soft-foreground">
-                  {% blocktranslate with blockers=row.blocked_by|join:", " trimmed %}
-                    Declare {{ blockers }} first
-                  {% endblocktranslate %}
-                </span>
-              {% else %}
-                <span class="text-soft-foreground">{% translate "Not declared" %}</span>
-              {% endif %}
-              {% if can_declare and row.unlocked %}
-                <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
-                   href="{% url 'applications:declare_milestone' external_id=application.external_id key=row.key %}{{ org_query }}">
-                  {% if row.claim %}
-                    {% translate "Re-declare" %}
-                  {% else %}
-                    {% translate "Declare complete" %}
-                  {% endif %}
-                </a>
-              {% endif %}
-            </dd>
-          </div>
-        {% endfor %}
-      </dl>
+    <div class="ui-card-header">
+      <h2 class="ui-section-title">{% translate "Dependencies" %}</h2>
+      <p class="ui-card-description">{% translate "A milestone opens once the ones it names are declared." %}</p>
+    </div>
+    <div class="ui-card-content flex flex-col gap-4">
+      {% for branch in graph %}
+        <div class="flex flex-col gap-2 md:flex-row md:items-start">
+          <div class="md:w-80 md:shrink-0">{% include "journey/partials/milestone_node.html" with row=branch.root %}</div>
+          {% if branch.dependents %}
+            <div class="flex flex-1 flex-col gap-2 md:border-l md:border-border md:pl-4">
+              {% for dependent in branch.dependents %}
+                {% include "journey/partials/milestone_node.html" with row=dependent %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
     </div>
   </div>
-  <h2 class="mb-3 text-sm font-semibold tracking-tight">{% translate "History" %}</h2>
-  {% if timeline %}
-    <ol class="ui-timeline">
-      {% for declaration in timeline %}
-        <li class="ui-timeline-item">
-          <span class="ui-dot ui-dot--ok mt-1.5"></span>
-          <div class="min-w-0">
-            <p>
-              {% for claim in declaration.milestones.all %}
-                {{ claim.milestone.title }}{% if not forloop.last %},{% endif %}
-              {% empty %}
-                {% translate "Declaration" %}
-              {% endfor %}
-              <span class="text-soft-foreground">{{ declaration.created_date|date:"j M Y" }}</span>
-            </p>
-            {% if declaration.documents.all %}
-              <ul class="mt-1 flex flex-wrap gap-2">
-                {% for document in declaration.documents.all %}
-                  <li>
+  <h2 class="ui-section-title mb-3">{% translate "Declarations" %}</h2>
+  <div class="ui-card">
+    <table class="ui-table">
+      <thead>
+        <tr>
+          <th>{% translate "Milestone" %}</th>
+          <th>{% translate "Declared" %}</th>
+          <th>{% translate "By" %}</th>
+          <th>{% translate "Exit status" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>
+              {{ row.title }}
+              {% if row.claim %}
+                <span class="mt-1 flex flex-wrap gap-1.5">
+                  {% for document in row.claim.documents.all %}
                     <a class="ui-code-chip no-underline"
                        target="_blank"
                        rel="noopener"
-                       href="{% url 'applications:document_download' external_id=document.external_id %}{{ org_query }}">
-                      {{ document.filename }}</a>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-          </div>
-        </li>
-      {% endfor %}
-    </ol>
-  {% else %}
-    <div class="ui-empty">
-      <span class="font-medium text-muted-foreground">{% translate "Nothing declared yet" %}</span>
-      <span>{% translate "Declared milestones and the files you attach will appear here." %}</span>
-    </div>
-  {% endif %}
+                       href="{% url 'applications:document_download' external_id=document.external_id %}{{ org_query }}">{{ document.filename }}</a>
+                  {% endfor %}
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.claim %}
+                {{ row.claim.created_date|date:"j M Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if row.claim %}
+                {{ row.claim.submitted_by }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if row.form_key in covered %}
+                <span class="ui-badge ui-badge--success ui-badge--size-xs">{% translate "Live in production" %}</span>
+              {% elif row.claim %}
+                <span class="ui-badge ui-badge--neutral ui-badge--size-xs">{% translate "Declared, not yet exited" %}</span>
+              {% else %}
+                <span class="ui-badge ui-badge--neutral ui-badge--size-xs">{% translate "Not declared" %}</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock content %}

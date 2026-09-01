@@ -41,6 +41,7 @@ from sandbox.applications.selectors import document_detail
 from sandbox.applications.selectors import exit_documents
 from sandbox.applications.selectors import exit_grants
 from sandbox.applications.selectors import exit_in_flight
+from sandbox.applications.selectors import milestone_graph
 from sandbox.applications.selectors import milestone_rows
 from sandbox.applications.services import open_exit
 from sandbox.applications.views import DECLARABLE_STATES
@@ -174,11 +175,17 @@ class MilestonesView(ApplicationScopedMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         rows = milestone_rows(self.application)
+        covered = frozenset().union(
+            *(grant.covers for grant in exit_grants(self.application.product)),
+        )
         context.update(
             {
                 **self.base_context(),
                 "page_title": _("Milestones"),
                 "rows": rows,
+                "graph": milestone_graph(self.application),
+                # a declared milestone is not a live one until an exit covers it
+                "covered": {f"MILESTONE_{value}" for value in covered},
                 "declared_count": sum(1 for row in rows if row.declared),
             },
         )

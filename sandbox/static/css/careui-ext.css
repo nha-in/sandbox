@@ -37,6 +37,11 @@
   @apply text-[14.5px] font-semibold text-foreground;
 }
 
+/* The line under a thing that qualifies it: a date, a blocker, a count. */
+@utility ui-meta {
+  @apply text-[12px] text-soft-foreground;
+}
+
 /* ── Multi-select ────────────────────────────────────────────────────────── */
 
 /* A `<select multiple>` is a list box, not a dropdown, and careui's `ui-select`
