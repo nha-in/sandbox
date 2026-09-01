@@ -35,7 +35,6 @@ from django.urls import reverse
 
 from tests.conftest import ANONYMOUS
 from tests.conftest import DOCUMENT_A
-from tests.conftest import EXIT_APPLICATION
 from tests.conftest import MEMBER_OTHER_ORG
 from tests.conftest import MILESTONE_M1
 from tests.conftest import ORG_MEMBER
@@ -114,14 +113,6 @@ def _application_and_milestone(context: dict) -> dict:
     return {
         "external_id": context["application"].external_id,
         "key": context[MILESTONE_M1],
-    }
-
-
-def _application_and_attempt(context: dict) -> dict:
-    return {
-        "external_id": context["application"].external_id,
-        "exit_id": context[EXIT_APPLICATION].external_id,
-        "ordinal": 1,
     }
 
 
@@ -301,13 +292,6 @@ ROUTES: dict[str, Route] = {
     "applications:exit": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
-        query=_org_a,
-    ),
-    # Settled history, read-only. Org-scoped all the same: an attempt names the
-    # milestones a competitor took to production and the audit that cleared it.
-    "applications:exit_attempt": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_and_attempt,
         query=_org_a,
     ),
     # The exit wizard writes to the exit application, so each step is scoped
