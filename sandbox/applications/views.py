@@ -35,6 +35,7 @@ from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
 from sandbox.applications.selectors import applications_for_organisation
+from sandbox.applications.selectors import coverage
 from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import journey_for
 from sandbox.applications.selectors import milestone_progress
@@ -501,6 +502,10 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
             milestone_progress(application)
             if application.state in DECLARABLE_STATES
             else None
+        )
+        # Reporting only: it names what is short of production, never gates it.
+        context["coverage"] = (
+            coverage(application) if application.state in DECLARABLE_STATES else []
         )
         # the answers as they stand, so "edit" is a correction not a rewrite
         form = _registration(application).form_class(

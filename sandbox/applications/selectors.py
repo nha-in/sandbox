@@ -209,6 +209,85 @@ def exit_documents(application: Application | None) -> dict[str, list]:
     return documents
 
 
+#: What a solution type still needs, per milestone.
+COVERED = "covered"
+DECLARED = "declared"
+OUTSTANDING = "outstanding"
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageCell:
+    milestone: str
+    title: StrOrPromise
+    state: str
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageRow:
+    """One registered solution type, and how close it is to being live."""
+
+    solution_type: str
+    label: StrOrPromise
+    cells: tuple[CoverageCell, ...]
+    is_live: bool
+
+    @property
+    def outstanding(self) -> int:
+        return sum(1 for cell in self.cells if cell.state != COVERED)
+
+
+def coverage(application: Application) -> list[CoverageRow]:
+    """One row per registered solution type: what it needs, and what it has.
+
+    The matrix is the product and it was nowhere on screen — an integrator had
+    to hold `SOLUTION_TYPE_MILESTONES` in their head to know that two declared
+    milestones and an approved exit still left HMIS one short.
+
+    Reporting only. It gates nothing, ever: exiting M1 while M3 is outstanding
+    is a legal path, and a screen that called it non-compliant would be wrong
+    about the product rather than about the data.
+    """
+    registered = current_form_data(application, "REGISTRATION").get(
+        "solution_types",
+        [],
+    )
+    grants = exit_grants(application.product)
+    live = abdm.covered(grants)
+    workflow = get_workflow(application.workflow_key)
+    declared = {
+        submission.form_key
+        for submission in application.submissions.filter(is_current=True)
+    }
+    # labels belong to the definitions that declare them, not a second list here
+    solution_labels = dict(abdm.RegistrationSolutionType.choices)
+
+    rows = []
+    for solution_type in abdm.dhis_solution_types(registered):
+        cells = tuple(
+            CoverageCell(
+                milestone=str(milestone),
+                title=workflow.form(abdm.milestone_form_key(milestone)).label,
+                state=(
+                    COVERED
+                    if milestone in live
+                    else DECLARED
+                    if abdm.milestone_form_key(milestone) in declared
+                    else OUTSTANDING
+                ),
+            )
+            for milestone in sorted(abdm.SOLUTION_TYPE_MILESTONES[solution_type])
+        )
+        rows.append(
+            CoverageRow(
+                solution_type=str(solution_type),
+                label=solution_labels.get(str(solution_type), str(solution_type)),
+                cells=cells,
+                is_live=abdm.dhis_enabled(grants, solution_type),
+            ),
+        )
+    return rows
+
+
 def document_detail(
     organisation: Organisation,
     external_id: UUID | str,
@@ -293,7 +372,7 @@ def products_available_for(
 @dataclass(frozen=True, slots=True)
 class JourneyStep:
     key: str
-    label: str
+    label: StrOrPromise
     status: str  # done | current | upcoming
 
 

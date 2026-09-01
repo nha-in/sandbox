@@ -40,12 +40,6 @@
             </dd>
           </div>
           <div>
-            <dt class="ui-label">{% translate "Kind" %}</dt>
-            <dd>
-              {{ application.get_kind_display }}
-            </dd>
-          </div>
-          <div>
             <dt class="ui-label">{% translate "Started" %}</dt>
             <dd>
               {{ application.created_date|date:"j M Y" }}
@@ -96,6 +90,42 @@
         </div>
       </div>
     {% endif %}
+    {% if coverage %}
+      <div class="ui-card mb-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "What you can take live" %}</h2>
+          <p class="ui-card-description">
+            {% translate "A solution type goes live only once an approved exit covers every milestone it needs. Declaring one is not the same as exiting it." %}
+          </p>
+        </div>
+        <div class="ui-card-content flex flex-col gap-3">
+          {% for row in coverage %}
+            <div>
+              <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <span class="ui-section-title">{{ row.label }}</span>
+                {% if row.is_live %}
+                  <span class="ui-badge ui-badge--success ui-badge--size-xs">{% translate "Live" %}</span>
+                {% else %}
+                  <span class="ui-badge ui-badge--neutral ui-badge--size-xs">
+                    {% blocktranslate count counter=row.outstanding trimmed %}
+                      {{ counter }} milestone short
+                    {% plural %}
+                      {{ counter }} milestones short
+                    {% endblocktranslate %}
+                  </span>
+                {% endif %}
+              </div>
+              <div class="flex flex-wrap gap-1.5">
+                {% for cell in row.cells %}
+                  <span class="ui-badge ui-badge--size-xs {% if cell.state == 'covered' %}ui-badge--success{% elif cell.state == 'declared' %}ui-badge--warning{% else %}ui-badge--neutral{% endif %}"
+                        title="{{ cell.title }}">{{ cell.milestone }}</span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
     {% if editable %}
       <div class="ui-card mb-6">
         <div class="ui-card-header">
@@ -109,7 +139,9 @@
             {% for label, value in profile %}
               <div class="ui-kv">
                 <dt class="ui-kv-key">{{ label }}</dt>
-                <dd class="ui-kv-value">{{ value|default:"—" }}</dd>
+                <dd class="ui-kv-value">
+                  {{ value|default:"—" }}
+                </dd>
               </div>
             {% endfor %}
           </dl>
