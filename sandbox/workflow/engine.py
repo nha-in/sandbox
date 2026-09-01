@@ -14,6 +14,7 @@ from typing import Any
 from django.db import transaction
 
 from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.audit.services import emit
 from sandbox.utils.errors import DomainError
@@ -137,6 +138,38 @@ def _check_owner(application: Application, actor: User) -> None:
         raise DomainError(message, code="forbidden")
 
 
+def _carry_documents_forward(
+    previous: ApplicationFormSubmission,
+    submission: ApplicationFormSubmission,
+) -> None:
+    """Copy evidence onto the new revision; the old one keeps its own.
+
+    A send-back typo fix must not force re-uploading the certificate, but the
+    revision a reviewer judged has to keep the evidence they judged it on.
+    Moving the rows satisfied the first and broke the second: every superseded
+    revision ended up showing none.
+
+    The copies share `storage_key`, so this is a row per revision, not a file
+    per revision. A reviewer flag for a repeated `sha256` must therefore ignore
+    carried copies, or every send-back would raise one.
+    """
+    ApplicationDocument.objects.bulk_create(
+        [
+            ApplicationDocument(
+                submission=submission,
+                kind=document.kind,
+                storage_key=document.storage_key,
+                filename=document.filename,
+                content_type=document.content_type,
+                size=document.size,
+                sha256=document.sha256,
+                uploaded_by=document.uploaded_by,
+            )
+            for document in previous.documents.filter(deleted=False)
+        ],
+    )
+
+
 def _write_submission(
     locked: Application,
     definition: type[FormDefinition],
@@ -166,9 +199,7 @@ def _write_submission(
         submitted_by=user,
     )
     if previous is not None:
-        # a send-back typo fix must not force re-uploading the evidence;
-        # uploading a file of the same kind afterwards replaces the carried one
-        previous.documents.filter(deleted=False).update(submission=submission)
+        _carry_documents_forward(previous, submission)
     return submission
 
 

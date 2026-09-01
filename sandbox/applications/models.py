@@ -200,8 +200,12 @@ class ApplicationDocument(BaseModel):
         default_manager_name = "objects"
         ordering = ["created_date"]
         constraints = [
+            # Scoped to the submission, not global: a superseded revision keeps
+            # the evidence it was judged on by pointing at the same object, so
+            # one `storage_key` legitimately appears once per revision. Twice on
+            # one revision is still a double-attach.
             models.UniqueConstraint(
-                fields=["storage_key"],
+                fields=["submission", "storage_key"],
                 condition=models.Q(deleted=False),
                 name="applications_document_unique_storage_key",
             ),

@@ -479,6 +479,32 @@ def test_a_carried_over_wasa_must_be_reaffirmed(
     assert exit_application.state == "SUBMITTED"
 
 
+def test_a_superseded_revision_keeps_the_evidence_it_was_judged_on(
+    exit_application,
+    owner,
+):
+    """Carrying forward used to move the rows, so every earlier attempt showed
+    no evidence at all and the newest showed files it was never sent with."""
+    claim, wasa = _claim_the_first_milestone(exit_application, owner)
+    _evidence(claim, wasa, owner)
+    judged_on = {document.storage_key for document in wasa.documents.all()}
+    assert judged_on
+
+    reaffirmed = engine.submit_form(
+        application=exit_application,
+        form_key="WASA",
+        cleaned_data={"start": "2026-02-01", "valid_upto": "2027-02-01"},
+        user=owner,
+    )
+
+    wasa.refresh_from_db()
+    assert {document.storage_key for document in wasa.documents.all()} == judged_on
+    # the same object in the bucket, reachable from either revision
+    assert {
+        document.storage_key for document in reaffirmed.documents.all()
+    } == judged_on
+
+
 def test_an_expired_wasa_cannot_be_reaffirmed(exit_application, owner):
     """Validity is the rule the round only approximates: restating it in this
     round does not renew a lapsed audit."""
