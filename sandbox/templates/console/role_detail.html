@@ -6,9 +6,7 @@
   <div class="ui-card">
     <div class="ui-card-header">
       <h2 class="ui-card-title">{{ role.name }}</h2>
-      <p class="ui-card-description">
-        {% translate "Changing this changes what its members may do, immediately." %}
-      </p>
+      <p class="ui-card-description">{% translate "Changing this changes what its members may do, immediately." %}</p>
     </div>
     <form method="post">
       {% csrf_token %}

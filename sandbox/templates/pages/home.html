@@ -27,4 +27,34 @@
       {% endif %}
     </div>
   </section>
+  <section class="mx-auto mt-16 max-w-3xl">
+    <ol class="grid gap-6 sm:grid-cols-2">
+      <li>
+        <span class="ui-step-number">1</span>
+        <p class="mt-2 font-medium text-foreground">{% translate "Register your organisation" %}</p>
+        <p class="ui-meta mt-1">{% translate "Entered once. Every application you file reuses these details." %}</p>
+      </li>
+      <li>
+        <span class="ui-step-number">2</span>
+        <p class="mt-2 font-medium text-foreground">{% translate "Apply for a sandbox" %}</p>
+        <p class="ui-meta mt-1">
+          {% translate "One application per product. Credentials are issued once NHA approves it." %}
+        </p>
+      </li>
+      <li>
+        <span class="ui-step-number">3</span>
+        <p class="mt-2 font-medium text-foreground">{% translate "Work through the milestones" %}</p>
+        <p class="ui-meta mt-1">
+          {% translate "Build against the sandbox and declare each milestone complete as you finish it." %}
+        </p>
+      </li>
+      <li>
+        <span class="ui-step-number">4</span>
+        <p class="mt-2 font-medium text-foreground">{% translate "Exit to production" %}</p>
+        <p class="ui-meta mt-1">
+          {% translate "Claim the milestones you are taking live. You can exit again later for the rest." %}
+        </p>
+      </li>
+    </ol>
+  </section>
 {% endblock content %}

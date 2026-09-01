@@ -16,9 +16,16 @@ out-of-band id.
 {% endcomment %}
 {% load i18n %}
 
-<nav id="console-nav" class="flex flex-1 flex-col" aria-label="{% translate 'Console' %}" hx-boost="true"
-  hx-target="#main-content" hx-select="#main-content" hx-select-oob="#console-nav" hx-swap="outerHTML"
-  hx-push-url="true" hx-indicator="#nav-progress">
+<nav id="console-nav"
+     class="flex flex-1 flex-col"
+     aria-label="{% translate 'Console' %}"
+     hx-boost="true"
+     hx-target="#main-content"
+     hx-select="#main-content"
+     hx-select-oob="#console-nav"
+     hx-swap="outerHTML"
+     hx-push-url="true"
+     hx-indicator="#nav-progress">
   <div class="ui-sidebar-group">
     <span class="ui-sidebar-label">{% translate "Review" %}</span>
     <a id="nav-queue"
@@ -43,26 +50,37 @@ out-of-band id.
     </div>
   {% endif %}
   {% if is_organisation_member %}
-  <div class="ui-sidebar-group">
-    <span class="ui-sidebar-label">{% translate "Elsewhere" %}</span>
-    <a id="nav-integrator-view" class="ui-sidebar-link" href="{% url 'applications:index' %}{{ org_query }}"
-      hx-boost="false">{% translate "Integrator view" %}</a>
-  </div>
+    <div class="ui-sidebar-group">
+      <span class="ui-sidebar-label">{% translate "Elsewhere" %}</span>
+      <a id="nav-integrator-view"
+         class="ui-sidebar-link"
+         href="{% url 'applications:index' %}{{ org_query }}"
+         hx-boost="false">{% translate "Integrator view" %}</a>
+    </div>
   {% endif %}
   {% if request.user.is_authenticated %}
-  <div class="mt-auto flex items-center gap-2 border-t border-border px-2.5 pt-3">
-    <a class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-      href="{% url 'users:detail' request.user.external_id %}" hx-boost="false">
-      <span class="block truncate text-[12.5px] font-semibold text-foreground">{% translate "NHA console" %}</span>
-      <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
-    </a>
-    <a class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline" href="{% url 'account_logout' %}" hx-boost="false"
-      title="{% translate 'Sign out' %}" aria-label="{% translate 'Sign out' %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"
-        stroke-linejoin="round" aria-hidden="true">
-        <path d="M15 17l5-5-5-5M20 12H9M12 3H6a1 1 0 00-1 1v16a1 1 0 001 1h6" />
-      </svg>
-    </a>
-  </div>
+    <div class="mt-auto flex items-center gap-2 border-t border-border px-2.5 pt-3">
+      <a class="min-w-0 flex-1 rounded-md no-underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+         href="{% url 'users:detail' request.user.external_id %}"
+         hx-boost="false">
+        <span class="block truncate text-[12.5px] font-semibold text-foreground">{% translate "NHA console" %}</span>
+        <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
+      </a>
+      <a class="ui-btn ui-btn--ghost ui-btn--size-icon-xs no-underline"
+         href="{% url 'account_logout' %}"
+         hx-boost="false"
+         title="{% translate 'Sign out' %}"
+         aria-label="{% translate 'Sign out' %}">
+        <svg viewBox="0 0 24 24"
+             fill="none"
+             stroke="currentColor"
+             stroke-width="1.75"
+             stroke-linecap="round"
+             stroke-linejoin="round"
+             aria-hidden="true">
+          <path d="M15 17l5-5-5-5M20 12H9M12 3H6a1 1 0 00-1 1v16a1 1 0 001 1h6" />
+        </svg>
+      </a>
+    </div>
   {% endif %}
 </nav>

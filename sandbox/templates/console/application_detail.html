@@ -61,7 +61,9 @@
               </div>
               <div class="ui-kv">
                 <dt class="ui-kv-key">{% translate "Summary" %}</dt>
-                <dd class="ui-kv-value whitespace-pre-wrap">{{ exit_review.summary|default:"—" }}</dd>
+                <dd class="ui-kv-value whitespace-pre-wrap">
+                  {{ exit_review.summary|default:"—" }}
+                </dd>
               </div>
               <div class="ui-kv">
                 <dt class="ui-kv-key">{% translate "Safe-to-Host valid" %}</dt>
@@ -215,14 +217,18 @@
                   <select class="ui-select" id="decide-action" name="action" required>
                     <option value="">{% translate "Choose an action…" %}</option>
                     {% for choice in decision_choices %}
-                      <option value="{{ choice.value }}"
-                              data-variant="{{ choice.variant }}">
-                        {{ choice.label }}
-                      </option>
+                      <option value="{{ choice.value }}" data-variant="{{ choice.variant }}">{{ choice.label }}</option>
                     {% endfor %}
                   </select>
                 </div>
               </div>
+              {% if exit_review %}
+                <ul class="ui-meta list-disc space-y-1 pl-4">
+                  <li>{% translate "Approving grants production access for the milestones claimed above, and never revokes an earlier grant." %}</li>
+                  <li>{% translate "Sending back leaves the round where it is; the applicant edits and resends, keeping their certificate." %}</li>
+                  <li>{% translate "Rejecting requires a fresh Safe-to-Host certificate before they can try again." %}</li>
+                </ul>
+              {% endif %}
               <div>
                 <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
                 <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
@@ -254,9 +260,7 @@
                     {% with form=exit_review.decision_form %}
                       <div>
                         <span class="ui-label">{{ form.approved_solution_types.label }}</span>
-                        <span class="ui-hint">
-                          {% translate "Only what the applicant selected at registration can be approved." %}
-                        </span>
+                        <span class="ui-hint">{% translate "Only what the applicant selected at registration can be approved." %}</span>
                         <div class="mt-2 flex flex-col gap-2">
                           {% for choice in form.approved_solution_types %}
                             <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
@@ -312,9 +316,9 @@
         const variant = action.selectedOptions[0]?.dataset.variant || "default";
         submit.classList.remove(...variants);
         submit.classList.add(`ui-btn--${variant}`);
-        hint.textContent = approving && !blocked
-          ? "{% translate 'Records your comment above and grants production access.' %}"
-          : "";
+        hint.textContent = approving && !blocked ?
+          "{% translate 'Records your comment above and grants production access.' %}" :
+          "";
       };
 
       action.addEventListener("change", sync);

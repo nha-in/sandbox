@@ -39,4 +39,11 @@
       </div>
     </div>
   </form>
+  {% if unlocks %}
+    <p class="ui-meta mt-3">
+      {% blocktranslate with milestones=unlocks|join:", " trimmed %}
+        Declaring this unlocks {{ milestones }}.
+      {% endblocktranslate %}
+    </p>
+  {% endif %}
 {% endblock content %}

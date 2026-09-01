@@ -221,6 +221,12 @@ class DeclareMilestoneView(ApplicationScopedMixin, FormView):
                 "page_title": self.row.title,
                 "milestone": self.row,
                 "existing_claim": self.row.claim,
+                "unlocks": [
+                    dependent.title
+                    for group in milestone_graph(self.application)
+                    if group["root"].key == self.row.key
+                    for dependent in group["dependents"]
+                ],
             },
         )
         return context
