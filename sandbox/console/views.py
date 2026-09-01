@@ -36,6 +36,7 @@ from sandbox.utils.errors import DomainError
 from sandbox.workflow import engine
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.registry import get_workflow
+from sandbox.workflow.registry import workflows_visible_to
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import decidable_actions
 from sandbox.workflow.selectors import history_for
@@ -85,6 +86,7 @@ class QueueView(ConsoleMixin, ListView):
     def get_queryset(self):
         after = self.request.GET.get("after")
         return queue(
+            visible=workflows_visible_to(self.request.user),
             state=self.request.GET.get("state", ""),
             search=self.request.GET.get("q", "").strip(),
             after=int(after) if after and after.isdigit() else None,
@@ -94,7 +96,10 @@ class QueueView(ConsoleMixin, ListView):
         context = super().get_context_data(**kwargs)
         rows = list(context["applications"])
         has_more = len(rows) > PAGE_SIZE
-        counts = state_counts(self.request.GET.get("q", "").strip())
+        counts = state_counts(
+            workflows_visible_to(self.request.user),
+            self.request.GET.get("q", "").strip(),
+        )
         context["applications"] = rows[:PAGE_SIZE]
         context["next_cursor"] = rows[PAGE_SIZE - 1].id if has_more else None
         # shaped here because a template cannot index a dict by a loop variable
@@ -116,7 +121,11 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
     slug_url_kwarg = "external_id"
 
     def get_queryset(self):
-        return Application.objects.select_related("product__organisation", "applicant")
+        # Another programme's application is not found, not forbidden: a 403
+        # would confirm the reference exists.
+        return Application.objects.filter(
+            workflow_key__in=workflows_visible_to(self.request.user),
+        ).select_related("product__organisation", "applicant")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -169,7 +178,9 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                 # A review is refused outside a state a verdict can be taken
                 # from; the panel used to be offered on the permission alone.
                 "can_review": (
-                    self.request.user.has_perm("workflow.review_application")
+                    self.request.user.has_perm(
+                        get_workflow(application.workflow_key).review_permission,
+                    )
                     and is_reviewable(application)
                 ),
                 # Status only. There is no reveal route on this surface, and no
@@ -190,7 +201,9 @@ class ApplicationActionView(ConsoleMixin, View):
 
     def get_application(self):
         return get_object_or_404(
-            Application,
+            Application.objects.filter(
+                workflow_key__in=workflows_visible_to(self.request.user),
+            ),
             external_id=self.kwargs["external_id"],
         )
 

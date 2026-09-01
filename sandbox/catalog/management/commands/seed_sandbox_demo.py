@@ -67,15 +67,17 @@ DEMO_USERS = [
     (OTHER_ORG_EMAIL, "Rival Integrator", {}),
 ]
 
-# Authority is a permission, never a username string (A5/A6).
+# Authority is a permission, never a username string (A5/A6), and permissions
+# are per programme: this demo world has one, so both roles are ABDM's.
 ADMIN_PERMISSIONS = (
-    "approve_application",
-    "reject_application",
-    "send_back_application",
-    "review_application",
-    "retry_provisioning",
+    "view_abdm",
+    "review_abdm",
+    "approve_abdm",
+    "reject_abdm",
+    "send_back_abdm",
+    "retry_provisioning_abdm",
 )
-REVIEWER_PERMISSIONS = ("review_application",)
+REVIEWER_PERMISSIONS = ("view_abdm", "review_abdm")
 
 DEMO_PAYLOAD = {
     "solution_types": [SolutionType.HMIS.value],

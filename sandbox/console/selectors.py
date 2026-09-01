@@ -16,15 +16,21 @@ from sandbox.programmes import abdm
 from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from django.db.models import QuerySet
 
 PAGE_SIZE = 25
 
 
-def _matching(search: str) -> QuerySet[Application]:
+def _matching(search: str, visible: Sequence[str]) -> QuerySet[Application]:
     """One definition of "matches the search", so the badges and the table can
-    never disagree about how many results there are."""
-    applications = Application.objects.all()
+    never disagree about how many results there are.
+
+    `visible` is the actor's programmes: a team holds no authority over another
+    programme's applications and has no business reading their evidence either.
+    """
+    applications = Application.objects.filter(workflow_key__in=visible)
     if search:
         applications = applications.filter(
             Q(reference__icontains=search)
@@ -35,6 +41,7 @@ def _matching(search: str) -> QuerySet[Application]:
 
 def queue(
     *,
+    visible: Sequence[str],
     state: str = "",
     search: str = "",
     after: int | None = None,
@@ -46,7 +53,7 @@ def queue(
     ordering on them is not stable enough to paginate against.
     """
     applications = (
-        _matching(search)
+        _matching(search, visible)
         .select_related(
             "product__organisation",
             "applicant",
@@ -62,7 +69,7 @@ def queue(
     return applications
 
 
-def state_counts(search: str = "") -> dict[str, int]:
+def state_counts(visible: Sequence[str], search: str = "") -> dict[str, int]:
     """Every state with its count, zeros included, in workflow order.
 
     Counts what the search is showing: a badge reading "Draft 1" next to a
@@ -70,7 +77,9 @@ def state_counts(search: str = "") -> dict[str, int]:
     """
     counted = {
         row["state"]: row["total"]
-        for row in _matching(search).values("state").annotate(total=Count("id"))
+        for row in _matching(search, visible)
+        .values("state")
+        .annotate(total=Count("id"))
     }
     return {state: counted.get(state, 0) for state in ApplicationState.values}
 
@@ -85,11 +94,14 @@ AWAITING_REVIEW_STATES = (
 )
 
 
-def awaiting_review_count() -> int:
+def awaiting_review_count(visible: Sequence[str]) -> int:
     """The sidebar badge. One query, ignoring any search or state filter — it
     reports the size of the reviewers' backlog, not of the view they happen to
     be looking at."""
-    return Application.objects.filter(state__in=AWAITING_REVIEW_STATES).count()
+    return Application.objects.filter(
+        workflow_key__in=visible,
+        state__in=AWAITING_REVIEW_STATES,
+    ).count()
 
 
 def payload_groups(application: Application) -> list[dict[str, Any]]:

@@ -7,7 +7,10 @@ from django.urls import reverse
 
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
+from sandbox.console.tests.conftest import grant
+from sandbox.console.tests.conftest import signed_in
 from sandbox.organisations.tests.factories import MembershipFactory
+from sandbox.users.tests.factories import UserFactory
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.models import WorkflowTransition
@@ -16,6 +19,7 @@ pytestmark = pytest.mark.django_db
 
 HTTP_OK = 200
 HTTP_FORBIDDEN = 403
+HTTP_NOT_FOUND = 404
 
 
 @pytest.fixture
@@ -73,7 +77,7 @@ def test_queue_search_matches_reference(reviewer_client, submitted):
 
 
 def test_reviewer_can_opine_but_moves_nothing(reviewer_client, submitted):
-    """`review_application` records opinions; transitions need their own."""
+    """`review_abdm` records opinions; transitions need their own."""
     response = reviewer_client.get(detail_url(submitted))
 
     assert response.context["decision_actions"] == []
@@ -216,6 +220,35 @@ def test_admin_can_approve_with_zero_reviews(admin_client_, submitted):
 
     submitted.refresh_from_db()
     assert submitted.state == ApplicationState.SANDBOX_APPROVED
+
+
+def test_staff_on_no_team_see_nothing(enable_mfa, submitted):
+    """`is_staff` opens the console door; a role is what puts anything behind
+    it. Someone with no role gets an empty queue, not the whole pipeline."""
+    newcomer = UserFactory.create(is_staff=True)
+    client = signed_in(enable_mfa(newcomer))
+
+    queue_page = client.get(reverse("console:queue"))
+    detail = client.get(detail_url(submitted))
+
+    assert queue_page.status_code == HTTP_OK
+    assert list(queue_page.context["applications"]) == []
+    assert queue_page.context["nav_counts"]["queue"] == 0
+    assert detail.status_code == HTTP_NOT_FOUND
+
+
+def test_a_team_cannot_see_another_programmes_applications(enable_mfa, submitted):
+    """Permissions are per programme because different teams review different
+    programmes — and a team with no authority over an application has no
+    business reading its evidence either. Not found, not forbidden."""
+    outsider = grant(UserFactory.create(is_staff=True), "review_abdm")
+    client = signed_in(enable_mfa(outsider))
+
+    queue_body = client.get(reverse("console:queue")).content.decode()
+    detail = client.get(detail_url(submitted))
+
+    assert submitted.reference not in queue_body
+    assert detail.status_code == HTTP_NOT_FOUND
 
 
 def test_payload_is_rendered_as_labels_not_json(reviewer_client, submitted):

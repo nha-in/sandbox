@@ -13,9 +13,9 @@ from django.db import transaction
 
 from sandbox.audit.services import emit
 from sandbox.utils.errors import DomainError
-from sandbox.workflow.definitions import PERM_REVIEW
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
+from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import is_reviewable
 
@@ -45,8 +45,8 @@ def record_review(
         message = f"{decision} is not a review decision"
         raise DomainError(message, code="invalid")
 
-    if not reviewer.has_perm(PERM_REVIEW):
-        message = f"recording a review requires {PERM_REVIEW}"
+    if not reviewer.has_perm(get_workflow(application.workflow_key).review_permission):
+        message = "recording a review requires the programme's review permission"
         raise DomainError(message, code="forbidden")
 
     review, _created = WorkflowReview.objects.update_or_create(

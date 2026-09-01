@@ -69,7 +69,7 @@ def _provision(application, owner, callbacks) -> None:
         transition(
             application=application,
             action="APPROVE",
-            actor=_staff("approve_application"),
+            actor=_staff("approve_abdm"),
         )
     application.refresh_from_db()
 
@@ -160,7 +160,7 @@ def test_rejecting_an_unprovisioned_application_is_a_no_op(
         transition(
             application=application,
             action="REJECT",
-            actor=_staff("reject_application"),
+            actor=_staff("reject_abdm"),
         )
 
     assert application.provisioned_resources.count() == 0
@@ -246,7 +246,7 @@ def test_a_failed_teardown_is_retryable_from_the_console(
     with django_capture_on_commit_callbacks(execute=True):
         retry_deprovisioning(
             application=application,
-            actor=_staff("retry_provisioning"),
+            actor=_staff("retry_provisioning_abdm"),
         )
 
     assert set(_states(application).values()) == {ProvisionedResourceState.DISABLED}
@@ -276,7 +276,7 @@ def test_a_console_retry_is_audited(
     with django_capture_on_commit_callbacks(execute=True):
         retry_deprovisioning(
             application=application,
-            actor=_staff("retry_provisioning"),
+            actor=_staff("retry_provisioning_abdm"),
         )
 
     assert AuditEvent.objects.filter(

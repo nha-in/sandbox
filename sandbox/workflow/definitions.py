@@ -38,13 +38,13 @@ class ActorKind(enum.StrEnum):
 
 
 # Authority is a permission check, never a username string — the legacy system
-# matched "HTC1". The permissions live on WorkflowTransition.Meta; every
-# programme's graph references these same constants.
-PERM_APPROVE = "workflow.approve_application"
-PERM_REJECT = "workflow.reject_application"
-PERM_SEND_BACK = "workflow.send_back_application"
-#: recording an opinion only — deliberately grants no transition
-PERM_REVIEW = "workflow.review_application"
+# matched "HTC1". Permissions are per programme, not global: the team reviewing
+# ABDM must not thereby be able to decide an HCX application. Each programme
+# module owns its own names and their labels; `Workflow.permissions` is what
+# creates them at migrate time and what the registry-sanity test proves exist,
+# so a name nobody created cannot become an invisible lockout.
+#
+# Names follow `workflow.<action>_<programme>`, e.g. `workflow.approve_abdm`.
 PERM_RETRY_PROVISIONING = "workflow.retry_provisioning"
 
 
@@ -142,6 +142,15 @@ class Workflow:
 
     key: ClassVar[str]
     label: ClassVar[str]
+    #: the team's unit of authority. ABDM and its exit share one, because one
+    #: team reviews both; HCX is a different programme and a different team.
+    programme: ClassVar[str]
+    #: name -> human label, created at migrate time from the registry
+    permissions: ClassVar[dict[str, str]]
+    #: seeing it in the console at all, so a queue can be scoped to a team
+    view_permission: ClassVar[str]
+    #: recording an opinion — deliberately grants no transition
+    review_permission: ClassVar[str]
     initial_state: ClassVar[str]
     #: nothing more can ever happen to the application
     terminal_states: ClassVar[frozenset[str]]
@@ -156,6 +165,16 @@ class Workflow:
             if definition.key == form_key:
                 return definition
         message = f"{cls.key} has no form {form_key!r}"
+        raise KeyError(message)
+
+    @classmethod
+    def permission_for(cls, action: str) -> str:
+        """The permission gating `action`, for authority checks with no
+        transition to ride on (retrying a teardown after a terminal state)."""
+        for (_state, candidate), spec in cls.transitions.items():
+            if candidate == action:
+                return spec.permission
+        message = f"{cls.key} has no action {action!r}"
         raise KeyError(message)
 
     @classmethod

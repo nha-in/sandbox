@@ -12,6 +12,7 @@ import uuid
 import pytest
 from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.contrib.auth.models import Permission
 from django.test import Client
 
 from sandbox.applications.models import ApplicationDocument
@@ -21,6 +22,7 @@ from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
+from sandbox.users.models import User
 from sandbox.users.tests.factories import VerifiedUserFactory
 
 ANONYMOUS = "anonymous"
@@ -78,8 +80,16 @@ def member_other_org(org_b):
 
 @pytest.fixture
 def reviewer(db):
-    """Console access, but not the admin-approve permission (A6 adds that)."""
-    return _with_mfa(VerifiedUserFactory(is_staff=True))
+    """On the ABDM review team: may see and opine, may not decide.
+
+    Holds `view_abdm` because permissions are per programme now — a staff user
+    on no team sees an empty console, which is correct but makes every route
+    row look like a broken gate.
+    """
+    user = _with_mfa(VerifiedUserFactory(is_staff=True))
+    for codename in ("view_abdm", "review_abdm"):
+        user.user_permissions.add(Permission.objects.get(codename=codename))
+    return User.objects.get(pk=user.pk)
 
 
 @pytest.fixture

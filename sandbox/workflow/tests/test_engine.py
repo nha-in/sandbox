@@ -231,7 +231,7 @@ def test_submit_runs_the_registration_guard(application, owner):
 def test_send_back_then_resubmit_advances_the_round(application, owner):
     reviewer = UserFactory.create(is_staff=True)
     reviewer.user_permissions.add(
-        Permission.objects.get(codename="send_back_application"),
+        Permission.objects.get(codename="send_back_abdm"),
     )
     engine.submit_form(
         application=application,
@@ -278,7 +278,7 @@ def test_a_system_move_cannot_carry_an_actor(application, owner):
     engine.transition(application=application, action="SUBMIT", actor=owner)
     approver = UserFactory.create(is_staff=True)
     approver.user_permissions.add(
-        Permission.objects.get(codename="approve_application"),
+        Permission.objects.get(codename="approve_abdm"),
     )
     engine.transition(application=application, action="APPROVE", actor=approver)
     with pytest.raises(DomainError, match="system move"):
@@ -297,7 +297,7 @@ def test_a_system_move_cannot_carry_an_actor(application, owner):
 def test_a_review_driven_move_refuses_a_transition_comment(application, owner):
     reviewer = UserFactory.create(is_staff=True)
     reviewer.user_permissions.add(
-        Permission.objects.get(codename="send_back_application"),
+        Permission.objects.get(codename="send_back_abdm"),
     )
     engine.submit_form(
         application=application,
@@ -323,10 +323,10 @@ def test_a_review_driven_move_refuses_a_transition_comment(application, owner):
 def approver():
     user = UserFactory.create(is_staff=True)
     user.user_permissions.add(
-        Permission.objects.get(codename="approve_application"),
+        Permission.objects.get(codename="approve_abdm"),
     )
     user.user_permissions.add(
-        Permission.objects.get(codename="reject_application"),
+        Permission.objects.get(codename="reject_abdm"),
     )
     return user
 

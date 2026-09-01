@@ -8,13 +8,21 @@ console without one and is obvious in review.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 
 from sandbox.console.selectors import awaiting_review_count
+from sandbox.workflow.registry import workflows_visible_to
+
+if TYPE_CHECKING:
+    from django.http import HttpRequest
 
 
 class ConsoleMixin(LoginRequiredMixin):
+    request: HttpRequest
+
     def dispatch(self, request, *args, **kwargs):
         # 403 rather than 404: the console's existence is not a secret, and its
         # URLs carry no organisation's identifiers to leak.
@@ -27,5 +35,7 @@ class ConsoleMixin(LoginRequiredMixin):
         # Resolved once here rather than in components/console_nav.html: the
         # sidebar renders on every console screen, and a query in the template
         # would be a query on every one of them with nowhere to see it.
-        context["nav_counts"] = {"queue": awaiting_review_count()}
+        context["nav_counts"] = {
+            "queue": awaiting_review_count(workflows_visible_to(self.request.user)),
+        }
         return context

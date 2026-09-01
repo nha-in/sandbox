@@ -74,7 +74,7 @@ def test_rejection_emails_the_applicant(
     owner,
     django_capture_on_commit_callbacks,
 ):
-    reviewer = _staff("reject_application")
+    reviewer = _staff("reject_abdm")
     transition(application=application, action="SUBMIT", actor=owner)
 
     with django_capture_on_commit_callbacks(execute=True):
@@ -93,7 +93,7 @@ def test_a_rejection_quotes_the_reviewers_note(
     django_capture_on_commit_callbacks,
 ):
     """The text lives on A6's review row, so the hook has to go and find it."""
-    reviewer = _staff("review_application", "reject_application")
+    reviewer = _staff("review_abdm", "reject_abdm")
     transition(application=application, action="SUBMIT", actor=owner)
     services.record_review(
         application=application,
@@ -115,7 +115,7 @@ def test_provisioned_emails_a_link_and_never_a_credential(
     owner,
     django_capture_on_commit_callbacks,
 ):
-    approver = _staff("approve_application")
+    approver = _staff("approve_abdm")
     transition(application=application, action="SUBMIT", actor=owner)
     transition(application=application, action="APPROVE", actor=approver)
     transition(application=application, action="START_PROVISIONING")

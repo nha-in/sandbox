@@ -59,7 +59,7 @@ def _approve_exit(application, member, covers, approved_types):
 
     approver = UserFactory.create(is_staff=True)
     approver.user_permissions.add(
-        Permission.objects.get(codename="approve_application"),
+        Permission.objects.get(codename="approve_abdm"),
     )
     engine.transition(
         application=exit_application,

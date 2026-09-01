@@ -17,8 +17,8 @@ from sandbox.audit.services import emit
 from sandbox.integrations.tasks import enqueue_chain
 from sandbox.integrations.tasks import enqueue_teardown
 from sandbox.utils.errors import DomainError
-from sandbox.workflow.definitions import PERM_RETRY_PROVISIONING
 from sandbox.workflow.engine import transition
+from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
     from sandbox.applications.models import Application
@@ -67,8 +67,11 @@ def retry_deprovisioning(*, application: Application, actor: User) -> None:
     already sits in a terminal state, so the permission check and the audit row
     have to be made here rather than inherited from `transition()`.
     """
-    if not actor.has_perm(PERM_RETRY_PROVISIONING):
-        message = f"retrying deprovisioning requires {PERM_RETRY_PROVISIONING}"
+    permission = get_workflow(application.workflow_key).permission_for(
+        "RETRY_PROVISIONING",
+    )
+    if not actor.has_perm(permission):
+        message = f"retrying deprovisioning requires {permission}"
         raise DomainError(message, code="forbidden")
 
     emit(

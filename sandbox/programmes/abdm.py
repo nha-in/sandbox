@@ -17,10 +17,6 @@ from django.db.models import TextChoices
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from sandbox.workflow.definitions import PERM_APPROVE
-from sandbox.workflow.definitions import PERM_REJECT
-from sandbox.workflow.definitions import PERM_RETRY_PROVISIONING
-from sandbox.workflow.definitions import PERM_SEND_BACK
 from sandbox.workflow.definitions import ActorKind
 from sandbox.workflow.definitions import FormDefinition
 from sandbox.workflow.definitions import TransitionSpec
@@ -33,6 +29,25 @@ if TYPE_CHECKING:
 
 # ---------------------------------------------------------------------------
 # Vocabulary
+
+
+#: One team reviews ABDM enrollments and the exits that follow them, so both
+#: workflows name this same set. A second programme gets its own.
+PERM_VIEW = "workflow.view_abdm"
+PERM_REVIEW = "workflow.review_abdm"
+PERM_APPROVE = "workflow.approve_abdm"
+PERM_REJECT = "workflow.reject_abdm"
+PERM_SEND_BACK = "workflow.send_back_abdm"
+PERM_RETRY_PROVISIONING = "workflow.retry_provisioning_abdm"
+
+ABDM_PERMISSIONS = {
+    PERM_VIEW: "Can see ABDM applications in the console",
+    PERM_REVIEW: "Can record a review on an ABDM application",
+    PERM_APPROVE: "Can approve an ABDM application",
+    PERM_REJECT: "Can reject an ABDM application",
+    PERM_SEND_BACK: "Can return an ABDM application to the applicant",
+    PERM_RETRY_PROVISIONING: "Can retry a failed ABDM provisioning chain",
+}
 
 
 class Milestone(enum.StrEnum):
@@ -477,6 +492,10 @@ class ABDMWorkflow(Workflow):
 
     key = "ABDM"
     label = "ABDM Sandbox"
+    programme = "abdm"
+    permissions = ABDM_PERMISSIONS
+    view_permission = PERM_VIEW
+    review_permission = PERM_REVIEW
     initial_state = "DRAFT"
     terminal_states = frozenset({"REJECTED", "WITHDRAWN"})
     resting_states = frozenset({"REJECTED", "WITHDRAWN"})
@@ -562,6 +581,10 @@ class ABDMExitWorkflow(Workflow):
 
     key = "ABDM_EXIT"
     label = "ABDM production exit"
+    programme = "abdm"
+    permissions = ABDM_PERMISSIONS
+    view_permission = PERM_VIEW
+    review_permission = PERM_REVIEW
     initial_state = "DRAFT"
     terminal_states = frozenset({"APPROVED", "WITHDRAWN"})
     #: APPROVED/REJECTED rest: January's approved exit sits beside September's

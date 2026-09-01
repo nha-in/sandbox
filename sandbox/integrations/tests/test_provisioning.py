@@ -69,7 +69,7 @@ def _staff(*codenames: str) -> User:
 def _approve(application, owner, callbacks) -> None:
     """Approve, running the on-commit chain the approval schedules."""
     transition(application=application, action="SUBMIT", actor=owner)
-    approver = _staff("approve_application")
+    approver = _staff("approve_abdm")
     with callbacks(execute=True):
         transition(application=application, action="APPROVE", actor=approver)
     application.refresh_from_db()
@@ -184,7 +184,7 @@ def test_a_retry_provisions_only_the_missing_system(
     with django_capture_on_commit_callbacks(execute=True):
         retry_provisioning(
             application=application,
-            actor=_staff("retry_provisioning"),
+            actor=_staff("retry_provisioning_abdm"),
         )
 
     application.refresh_from_db()
@@ -242,7 +242,7 @@ def test_a_retryable_failure_retries_instead_of_parking(
     transition(
         application=application,
         action="APPROVE",
-        actor=_staff("approve_application"),
+        actor=_staff("approve_abdm"),
     )
     transition(application=application, action="START_PROVISIONING")
     always_fail(ExternalSystem.KEYCLOAK, code="REALM_DOWN", retryable=True)
@@ -290,7 +290,7 @@ def test_completion_refuses_an_incomplete_ledger(
     transition(
         application=application,
         action="APPROVE",
-        actor=_staff("approve_application"),
+        actor=_staff("approve_abdm"),
     )
     transition(application=application, action="START_PROVISIONING")
 
@@ -352,7 +352,7 @@ def test_an_expired_parked_secret_is_re_minted_rather_than_dead_ending(
     transition(
         application=application,
         action="APPROVE",
-        actor=_staff("approve_application"),
+        actor=_staff("approve_abdm"),
     )
     transition(application=application, action="START_PROVISIONING")
     provision_keycloak.delay(application.pk, "cid")

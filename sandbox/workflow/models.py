@@ -47,13 +47,8 @@ class WorkflowTransition(models.Model):
                 name="workflow_transition_app_idx",
             ),
         ]
-        permissions = [
-            ("approve_application", "Can approve an application"),
-            ("reject_application", "Can reject an application"),
-            ("send_back_application", "Can return an application to the applicant"),
-            ("review_application", "Can record a review (moves nothing)"),
-            ("retry_provisioning", "Can retry a failed provisioning chain"),
-        ]
+        # Permissions are per programme and live in the registry, created by
+        # `workflow.apps.sync_workflow_permissions` — see definitions.py.
 
     def __str__(self) -> str:
         return f"{self.application_id}: {self.from_state} -> {self.to_state}"

@@ -62,17 +62,17 @@ def submitted(owner_and_application):
 
 @pytest.fixture
 def reviewer():
-    return grant(UserFactory.create(is_staff=True), "review_application")
+    return grant(UserFactory.create(is_staff=True), "review_abdm")
 
 
 @pytest.fixture
 def admin():
     return grant(
         UserFactory.create(is_staff=True),
-        "review_application",
-        "approve_application",
-        "reject_application",
-        "send_back_application",
+        "review_abdm",
+        "approve_abdm",
+        "reject_abdm",
+        "send_back_abdm",
     )
 
 
@@ -256,7 +256,7 @@ def test_the_previous_round_stays_readable(
 
 
 def test_two_reviewers_may_both_record_in_one_round(submitted, reviewer):
-    second = grant(UserFactory.create(is_staff=True), "review_application")
+    second = grant(UserFactory.create(is_staff=True), "review_abdm")
 
     record_review(
         application=submitted,
@@ -352,7 +352,7 @@ def test_available_actions_offers_only_what_the_actor_may_do(
 ):
     """A screen must not offer a move `transition()` would then refuse."""
     assert set(decidable_actions(submitted, admin)) >= {"APPROVE", "REJECT"}
-    # review_application is opinion-only: a reviewer may move nothing at all
+    # review_abdm is opinion-only: a reviewer may move nothing at all
     assert decidable_actions(submitted, reviewer) == ()
 
 

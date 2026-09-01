@@ -91,7 +91,7 @@ def provisioned(application, owner, django_capture_on_commit_callbacks):
         transition(
             application=application,
             action="APPROVE",
-            actor=_staff("approve_application"),
+            actor=_staff("approve_abdm"),
         )
     application.refresh_from_db()
     assert application.state == ApplicationState.PROVISIONED
@@ -300,7 +300,7 @@ def test_another_organisation_gets_a_404_not_a_403(client, provisioned):
 def test_staff_have_no_reveal_route_at_all(client, provisioned):
     """Not "staff are refused" — there is no staff-facing path to a secret in
     the URLconf, which is the property worth asserting."""
-    session = _client_for(_staff("approve_application"), client)
+    session = _client_for(_staff("view_abdm", "approve_abdm"), client)
 
     # The integrator routes 404 for staff: they hold no membership.
     assert session.post(_reveal(provisioned)).status_code == HTTP_NOT_FOUND

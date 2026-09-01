@@ -176,7 +176,7 @@ def _approve(application, owner, callbacks) -> None:
         transition(
             application=application,
             action="APPROVE",
-            actor=_staff("approve_application"),
+            actor=_staff("approve_abdm"),
         )
     application.refresh_from_db()
 
@@ -275,7 +275,7 @@ def test_a_chain_killed_at_the_last_step_resumes_without_duplicating(
         with django_capture_on_commit_callbacks(execute=True):
             retry_provisioning(
                 application=application,
-                actor=_staff("retry_provisioning"),
+                actor=_staff("retry_provisioning_abdm"),
             )
 
     application.refresh_from_db()
