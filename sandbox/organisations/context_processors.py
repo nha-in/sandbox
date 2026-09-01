@@ -33,6 +33,7 @@ NAV_SECTIONS: dict[str, str] = {
     "applications:milestones": "milestones",
     "applications:declare_milestone": "milestones",
     "applications:exit": "exit",
+    "applications:past_exit": "exit",
     "applications:exit_claim": "exit",
     "applications:exit_wasa": "exit",
     "applications:exit_review": "exit",

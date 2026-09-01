@@ -634,3 +634,53 @@ class DocumentDownloadView(LoginRequiredMixin, OrganisationMixin, View):
 
 
 document_download_view = DocumentDownloadView.as_view()
+
+
+class PastExitView(ExitJourneyMixin, TemplateView):
+    """One exit as it was decided. Strictly read-only: no form, no POST.
+
+    An application accrues exits over its life, and until now a decided one
+    could only be read through the console. The applicant is the other party to
+    that decision and had no copy of it.
+    """
+
+    template_name = "journey/exit_detail.html"
+
+    @cached_property
+    def past_exit(self) -> Application:
+        exit_application = (
+            Application.objects.filter(
+                product=self.application.product,
+                workflow_key=EXIT_WORKFLOW,
+                external_id=self.kwargs["exit_id"],
+                deleted=False,
+            )
+            .select_related("product")
+            .first()
+        )
+        if exit_application is None:
+            raise Http404
+        return exit_application
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        exit_application = self.past_exit
+        claim = current_form_data(exit_application, "EXIT_CLAIM")
+        decision = current_form_data(exit_application, "EXIT_DECISION")
+        approved = decision.get("approved_solution_types", [])
+        labels = dict(abdm.RegistrationSolutionType.choices)
+        context.update(
+            {
+                **self.base_context(),
+                "page_title": exit_application.reference,
+                "past_exit": exit_application,
+                "covers": claim.get("covers", []),
+                "summary": claim.get("summary", ""),
+                "wasa": current_form_data(exit_application, "WASA"),
+                "documents": exit_documents(exit_application),
+                "granted": [labels.get(value, value) for value in approved],
+                "reviews": reviews_for_round(exit_application),
+                "history": exit_application.transitions.select_related("actor"),
+            },
+        )
+        return context

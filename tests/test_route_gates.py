@@ -97,6 +97,13 @@ def _application_id(context: dict) -> dict:
     return {"external_id": context["application"].external_id}
 
 
+def _past_exit_ids(context: dict) -> dict:
+    return {
+        "external_id": context["application"].external_id,
+        "exit_id": context["past_exit"].external_id,
+    }
+
+
 def _document_id(context: dict) -> dict:
     return {"external_id": context[DOCUMENT_A].external_id}
 
@@ -297,6 +304,13 @@ ROUTES: dict[str, Route] = {
     "applications:exit": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
+        query=_org_a,
+    ),
+    # Read-only, but scoped like every write: a decided exit names what a
+    # tenant took to production.
+    "applications:past_exit": Route(
+        Access.ORG_SCOPED,
+        kwargs=_past_exit_ids,
         query=_org_a,
     ),
     # The exit wizard writes to the exit application, so each step is scoped

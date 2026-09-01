@@ -16,6 +16,8 @@ from sandbox.workflow.models import WorkflowTransition
 
 pytestmark = pytest.mark.django_db
 
+WAITED = 3
+
 
 def _submitted(application, *, days_ago: int):
     transition = WorkflowTransition.objects.create(
@@ -33,11 +35,11 @@ def _submitted(application, *, days_ago: int):
 def test_a_row_ages_from_the_submission_not_the_draft():
     """A draft opened in March and sent yesterday has waited a day."""
     application = ApplicationFactory.create(state=ApplicationState.SUBMITTED)
-    _submitted(application, days_ago=3)
+    _submitted(application, days_ago=WAITED)
 
     (row,) = queue_rows([application])
 
-    assert row.waiting_days == 3
+    assert row.waiting_days == WAITED
     assert not row.is_over_target
 
 

@@ -89,6 +89,11 @@ urlpatterns = [
         journey_views.ExitReviewStepView.as_view(),
         name="exit_review",
     ),
+    path(
+        "<uuid:external_id>/exits/<uuid:exit_id>/",
+        journey_views.PastExitView.as_view(),
+        name="past_exit",
+    ),
     path("<uuid:external_id>/dhis/", journey_views.DhisView.as_view(), name="dhis"),
     # A stored document is reached by its own id and scoped by organisation, so
     # it hangs off no single application.

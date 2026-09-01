@@ -163,6 +163,18 @@ def milestone_m1():
 
 
 @pytest.fixture
+def past_exit(application):
+    """A decided exit on the same product, for the read-only exit screen."""
+    return ApplicationFactory.create(
+        product=application.product,
+        applicant=application.applicant,
+        workflow_key="ABDM_EXIT",
+        state="APPROVED",
+        registered=False,
+    )
+
+
+@pytest.fixture
 def role(db):
     """A console role for the routes that edit one. Nobody in the matrix holds
     `manage_roles`, which is the point of those rows."""
@@ -170,7 +182,7 @@ def role(db):
 
 
 @pytest.fixture
-def context(actors, application, document_a, milestone_m1, role):
+def context(actors, application, document_a, milestone_m1, role, past_exit):
     """What a route's `kwargs` callable receives when it builds URL arguments.
 
     Organisations and products are reachable from these objects
@@ -179,6 +191,7 @@ def context(actors, application, document_a, milestone_m1, role):
     return {
         **actors,
         "application": application,
+        "past_exit": past_exit,
         DOCUMENT_A: document_a,
         MILESTONE_M1: milestone_m1,
         ROLE: role,

@@ -1,0 +1,121 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  A decided exit, as it was decided. No form and no POST — the applicant is the
+  other party to this decision and this is their copy of it.
+{% endcomment %}
+{% load i18n careui %}
+
+{% block title %}
+  {{ past_exit.reference }}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-3xl">
+    <div class="ui-card mb-6">
+      <div class="ui-card-header flex flex-wrap items-start justify-between gap-3">
+        <p class="ui-card-description">
+          {% blocktranslate with round=past_exit.round %}Round {{ round }}, as it was decided.{% endblocktranslate %}
+        </p>
+        <span class="ui-badge ui-badge--{{ past_exit.state|state_variant }} ui-badge--size-sm">{{ past_exit|state_label }}</span>
+      </div>
+      <div class="ui-card-content">
+        <dl>
+          <div class="ui-kv">
+            <dt class="ui-kv-key">{% translate "Milestones claimed" %}</dt>
+            <dd class="ui-kv-value">
+              {% for cover in covers %}
+                {{ cover }}{% if not forloop.last %},{% endif %}
+              {% empty %}
+                —
+              {% endfor %}
+            </dd>
+          </div>
+          <div class="ui-kv">
+            <dt class="ui-kv-key">{% translate "Summary" %}</dt>
+            <dd class="ui-kv-value whitespace-pre-wrap">
+              {{ summary|default:"—" }}
+            </dd>
+          </div>
+          <div class="ui-kv">
+            <dt class="ui-kv-key">{% translate "Safe-to-Host valid" %}</dt>
+            <dd class="ui-kv-value">
+              {{ wasa.start|default:"—" }} → {{ wasa.valid_upto|default:"—" }}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+    {% if granted %}
+      <div class="ui-card mb-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "What this granted" %}</h2>
+          <p class="ui-card-description">{% translate "Still in force. An approved exit is never revoked by a later one." %}</p>
+        </div>
+        <div class="ui-card-content">
+          <ul class="flex flex-wrap gap-2">
+            {% for label in granted %}
+              <li class="ui-badge ui-badge--success ui-badge--size-sm">{{ label }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+    <div class="ui-card mb-6">
+      <div class="ui-card-header">
+        <h2 class="ui-card-title">{% translate "Evidence" %}</h2>
+      </div>
+      <div class="ui-card-content">
+        <ul class="ui-file-list">
+          {% for kind, files in documents.items %}
+            {% for document in files %}
+              <li class="ui-file-item">
+                <a class="truncate"
+                   href="{% url 'applications:document_download' external_id=document.external_id %}{{ org_query }}">{{ kind }} — {{ document.filename }}</a>
+                <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
+              </li>
+            {% endfor %}
+          {% empty %}
+            <li class="text-sm text-muted-foreground">{% translate "No documents attached." %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% if reviews %}
+      <div class="ui-card mb-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "What NHA said" %}</h2>
+        </div>
+        <div class="ui-card-content space-y-3">
+          {% for review in reviews %}
+            {% if review.comment %}
+              <blockquote class="border-l-2 border-border pl-3 text-sm text-muted-foreground italic">
+                {{ review.comment }}
+              </blockquote>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <h2 class="ui-card-title">{% translate "History" %}</h2>
+      </div>
+      <div class="ui-card-content">
+        <ol class="space-y-3">
+          {% for entry in history %}
+            <li class="flex items-start justify-between gap-4 text-sm">
+              <span class="text-foreground">{{ entry.from_state }} → {{ entry.to_state }}</span>
+              <span class="ui-meta shrink-0 text-right">{{ entry.created_date|date:"j M Y, H:i" }}</span>
+            </li>
+          {% empty %}
+            <li class="text-sm text-muted-foreground">{% translate "Nothing recorded." %}</li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="ui-card-footer">
+        <a class="text-sm underline"
+           href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Back to exit" %}</a>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

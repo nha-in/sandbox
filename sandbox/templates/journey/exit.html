@@ -165,6 +165,9 @@
                 <span class="ui-badge ui-badge--{{ attempt.application.state|state_variant }} ui-badge--size-sm">{{ attempt.application|state_label }}</span>
                 {% if attempt.is_open %}
                   <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{% translate "This exit" %}</span>
+                {% else %}
+                  <a class="text-sm underline"
+                     href="{% url 'applications:past_exit' external_id=application.external_id exit_id=attempt.application.external_id %}{{ org_query }}">{% translate "View" %}</a>
                 {% endif %}
               </div>
               <p class="ui-meta mt-1">
