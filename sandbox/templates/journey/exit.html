@@ -90,9 +90,23 @@
       </div>
       <div class="ui-card-content">
         {% url 'applications:exit_claim' external_id=application.external_id as claim_url %}
-        {% include "journey/partials/exit_step.html" with number=1 done=has_claim url=claim_url|add:org_query title=_("What you are taking live") description=_("Which declared milestones this exit covers, and the evidence for them.") %}
+        {% if claim_covers %}
+          {% blocktranslate asvar claim_detail with covered=claim_covers|join:", " trimmed %}
+            Covers {{ covered }}.
+          {% endblocktranslate %}
+        {% else %}
+          {% translate "Which declared milestones this exit covers, and the evidence for them." as claim_detail %}
+        {% endif %}
+        {% include "journey/partials/exit_step.html" with number=1 done=has_claim url=claim_url|add:org_query title=_("What you are taking live") description=claim_detail %}
         {% url 'applications:exit_wasa' external_id=application.external_id as wasa_url %}
-        {% include "journey/partials/exit_step.html" with number=2 done=has_wasa url=wasa_url|add:org_query title=_("Safe-to-Host certificate") description=_("Your security audit certificate, and the dates it is valid between.") %}
+        {% if wasa.valid_upto %}
+          {% blocktranslate asvar wasa_detail with start=wasa.start upto=wasa.valid_upto trimmed %}
+            Valid {{ start }} to {{ upto }}.
+          {% endblocktranslate %}
+        {% else %}
+          {% translate "Your security audit certificate, and the dates it is valid between." as wasa_detail %}
+        {% endif %}
+        {% include "journey/partials/exit_step.html" with number=2 done=has_wasa url=wasa_url|add:org_query title=_("Safe-to-Host certificate") description=wasa_detail %}
         {% url 'applications:exit_review' external_id=application.external_id as review_url %}
         {% include "journey/partials/exit_step.html" with number=3 no_status=True url=review_url|add:org_query title=_("Review and send to NHA") description=_("Check the request over, then send it. Once sent it locks until NHA responds.") action_label=_("Review") %}
       </div>
@@ -101,5 +115,37 @@
            href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
       </div>
     </div>
+    {% if outcomes %}
+      <div class="ui-card mt-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "If this is approved" %}</h2>
+          <p class="ui-card-description">
+            {% translate "Approval grants only what your claim covers, computed from the same rules NHA reviews against." %}
+          </p>
+        </div>
+        <div class="ui-card-content">
+          <ul class="divide-y divide-border">
+            {% for outcome in outcomes %}
+              <li class="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+                <span class="font-medium text-foreground">{{ outcome.label }}</span>
+                <span class="flex items-center gap-2">
+                  <span class="ui-meta">{{ outcome.detail }}</span>
+                  {% if outcome.outcome == "goes_live" %}
+                    <span class="ui-badge ui-badge--success ui-badge--size-sm">{% translate "Goes live" %}</span>
+                  {% elif outcome.outcome == "already_live" %}
+                    <span class="ui-badge ui-badge--primary ui-badge--size-sm">{% translate "Already live" %}</span>
+                  {% else %}
+                    <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{% translate "Stays in sandbox" %}</span>
+                  {% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="ui-meta mt-3">
+            {% translate "Milestones you have not claimed can go to production later as a second exit. Nothing you already hold is revoked." %}
+          </p>
+        </div>
+      </div>
+    {% endif %}
   {% endif %}
 {% endblock content %}

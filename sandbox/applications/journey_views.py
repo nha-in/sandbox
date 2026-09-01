@@ -36,6 +36,7 @@ from django.views.generic import View
 from sandbox.applications.documents import attach_documents
 from sandbox.applications.documents import download_url
 from sandbox.applications.models import Application
+from sandbox.applications.selectors import approval_outcomes
 from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import document_detail
 from sandbox.applications.selectors import exit_documents
@@ -348,12 +349,18 @@ class ExitView(ExitJourneyMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        claim = self._current("EXIT_CLAIM")
+        wasa = self._current("WASA")
+        covers = claim.get("covers", [])
         context.update(
             {
                 **self.exit_context(),
                 "page_title": _("Exit to production"),
-                "has_claim": bool(self._current("EXIT_CLAIM")),
-                "has_wasa": bool(self._current("WASA")),
+                "has_claim": bool(claim),
+                "has_wasa": bool(wasa),
+                "claim_covers": covers,
+                "wasa": wasa,
+                "outcomes": approval_outcomes(self.application, covers),
             },
         )
         return context

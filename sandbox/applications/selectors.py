@@ -24,6 +24,7 @@ from sandbox.programmes import abdm
 from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from uuid import UUID
 
     from django.db.models import QuerySet
@@ -617,3 +618,59 @@ def days_live(application: Application) -> int | None:
     if started is None:
         return None
     return (timezone.localdate() - timezone.localtime(started).date()).days + 1
+
+
+#: What approving the claim in front of NHA would change, per solution type.
+GOES_LIVE = "goes_live"
+ALREADY_LIVE = "already_live"
+STAYS_SANDBOX = "stays_sandbox"
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovalOutcome:
+    """One solution type, and what an approval would mean for it."""
+
+    label: StrOrPromise
+    outcome: str
+    detail: StrOrPromise
+
+
+def approval_outcomes(
+    application: Application,
+    claimed: Iterable[str],
+) -> list[ApprovalOutcome]:
+    """What this exit claim would and would not put into production.
+
+    Computed from the same rules the reviewer decides against, so the applicant
+    can see before sending that a claim missing one milestone enables nothing.
+    An approval is additive and never revokes, which is why an already-live type
+    still gets a row rather than disappearing.
+    """
+    registered = current_form_data(application, "REGISTRATION").get(
+        "solution_types",
+        [],
+    )
+    grants = exit_grants(application.product)
+    live = abdm.covered(grants)
+    would_cover = live | {str(milestone) for milestone in claimed}
+    labels = dict(abdm.RegistrationSolutionType.choices)
+
+    outcomes = []
+    for solution_type in abdm.dhis_solution_types(registered):
+        needed = {str(m) for m in abdm.SOLUTION_TYPE_MILESTONES[solution_type]}
+        label = labels.get(str(solution_type), str(solution_type))
+        detail: StrOrPromise
+        if abdm.dhis_enabled(grants, solution_type):
+            outcome = ALREADY_LIVE
+            detail = _("Already in production, and never revoked.")
+        elif needed <= would_cover:
+            outcome = GOES_LIVE
+            detail = _("Every milestone it needs would be covered.")
+        else:
+            short = sorted(needed - would_cover)
+            outcome = STAYS_SANDBOX
+            detail = _("Still short of %(milestones)s.") % {
+                "milestones": ", ".join(short),
+            }
+        outcomes.append(ApprovalOutcome(label=label, outcome=outcome, detail=detail))
+    return outcomes
