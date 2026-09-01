@@ -5,11 +5,17 @@ from django.http import Http404
 
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import DECLARED
+from sandbox.applications.selectors import GOES_LIVE
+from sandbox.applications.selectors import STAYS_SANDBOX
+from sandbox.applications.selectors import activity
 from sandbox.applications.selectors import application_detail
 from sandbox.applications.selectors import applications_for_organisation
+from sandbox.applications.selectors import approval_outcomes
 from sandbox.applications.selectors import console_queue
 from sandbox.applications.selectors import coverage
 from sandbox.applications.selectors import milestone_graph
+from sandbox.applications.selectors import milestone_rows
+from sandbox.applications.selectors import next_action
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
@@ -176,3 +182,110 @@ def test_declaring_a_milestone_does_not_make_it_live():
     row = coverage(application)[0]
     assert row.outstanding == before
     assert next(cell for cell in row.cells if cell.milestone == "M1").state == DECLARED
+
+
+# What to do next
+
+
+def test_a_draft_is_told_to_finish_itself():
+    application = ApplicationFactory.create(state=ApplicationState.DRAFT)
+
+    action = next_action(application)
+
+    assert action is not None
+    assert action.route == "applications:step_details"
+
+
+def test_an_application_with_a_reviewer_is_told_nothing():
+    """The honest answer is "wait", and a card that invented work would be lying."""
+    application = ApplicationFactory.create(state=ApplicationState.SUBMITTED)
+
+    assert next_action(application) is None
+
+
+def test_a_live_sandbox_is_pointed_at_its_next_milestone():
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+
+    action = next_action(application)
+
+    assert action is not None
+    assert action.route == "applications:declare_milestone"
+    assert action.route_kwargs["key"] == "m1"
+
+
+def test_with_every_open_milestone_declared_the_next_step_is_the_exit():
+    """Declaring one unlocks the next, so this drains the DAG rather than the
+    milestones that happened to be open at the start."""
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+    MembershipFactory.create(
+        organisation=application.product.organisation,
+        user=application.applicant,
+    )
+    while True:
+        pending = [
+            row
+            for row in milestone_rows(application)
+            if row.unlocked and not row.declared
+        ]
+        if not pending:
+            break
+        engine.submit_form(
+            application=application,
+            form_key=pending[0].form_key,
+            cleaned_data={"notes": "Done."},
+            user=application.applicant,
+        )
+
+    action = next_action(application)
+
+    assert action is not None
+    assert action.route == "applications:exit"
+
+
+# Activity
+
+
+def test_activity_merges_decisions_with_what_the_applicant_wrote():
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+
+    summaries = [str(entry.summary) for entry in activity(application)]
+
+    assert "Integration profile updated" in summaries
+
+
+def test_activity_is_newest_first():
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+    MembershipFactory.create(
+        organisation=application.product.organisation,
+        user=application.applicant,
+    )
+    engine.submit_form(
+        application=application,
+        form_key="MILESTONE_M1",
+        cleaned_data={"notes": "Done."},
+        user=application.applicant,
+    )
+
+    entries = activity(application)
+
+    assert entries == sorted(entries, key=lambda e: e.happened_at, reverse=True)
+
+
+# What an approval would grant
+
+
+def test_a_claim_short_of_a_milestone_enables_nothing():
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+
+    outcomes = approval_outcomes(application, ["M1", "M2"])
+
+    assert [outcome.outcome for outcome in outcomes] == [STAYS_SANDBOX]
+    assert "M3" in str(outcomes[0].detail)
+
+
+def test_a_complete_claim_takes_the_solution_type_live():
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+
+    outcomes = approval_outcomes(application, ["M1", "M2", "M3"])
+
+    assert [outcome.outcome for outcome in outcomes] == [GOES_LIVE]
