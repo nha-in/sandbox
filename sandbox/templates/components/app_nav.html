@@ -58,7 +58,29 @@
         <a id="nav-applications-back"
            class="ui-sidebar-link text-soft-foreground"
            href="{% url 'applications:index' %}{{ org_query }}">{% translate "Back to applications" %}</a>
-        <span class="ui-sidebar-label">{{ application.reference }}</span>
+        {% comment %}
+          The switcher. An organisation with two products moves between them
+          more than it does anything else in the rail, and "back to the list,
+          then pick" is three interactions for it.
+
+          A native <details> rather than a scripted menu: the summary is a real
+          focusable control, Escape and the keyboard work without us, and with
+          JavaScript off the list still opens and every entry is a plain link.
+        {% endcomment %}
+        <details class="ui-picker mb-1">
+          <summary class="ui-picker-summary">
+            <span class="truncate font-medium">{{ application.reference }}</span>
+            <span aria-hidden="true">▾</span>
+          </summary>
+          <div class="ui-picker-panel">
+            {% for candidate in switchable_applications %}
+              <a class="ui-sidebar-link {% if candidate.pk == application.pk %}ui-sidebar-link--active{% endif %}"
+                 href="{% url 'applications:overview' external_id=candidate.external_id %}{{ org_query }}">
+                <span class="truncate">{{ candidate.product.name }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </details>
         <a id="nav-overview"
            class="ui-sidebar-link {% if nav_section == 'overview' %}ui-sidebar-link--active{% endif %}"
            href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}"

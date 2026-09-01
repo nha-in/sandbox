@@ -8,7 +8,7 @@
     <a class="ui-badge {% if not selected_state %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
        href="{% url 'console:queue' %}{% if search %}?q={{ search }}{% endif %}">{% translate "All" %}</a>
     {% for filter in state_filters %}
-      {% if filter.count %}
+      {% if filter.count or selected_state == filter.value %}
         <a class="ui-badge {% if selected_state == filter.value %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
            href="?state={{ filter.value }}{% if search %}&q={{ search }}{% endif %}">
           {{ filter.label }} <span class="ml-1 opacity-70">{{ filter.count }}</span>
@@ -17,6 +17,8 @@
     {% endfor %}
   </div>
   <form method="get" class="mb-6 flex flex-wrap items-end gap-3">
+    {# the tabs above own the state; carry it or searching would clear it #}
+    {% if selected_state %}<input type="hidden" name="state" value="{{ selected_state }}" />{% endif %}
     <div class="grow sm:max-w-xs">
       <label class="ui-label" for="q">{% translate "Search" %}</label>
       <input class="ui-input"
@@ -25,17 +27,7 @@
              value="{{ search }}"
              placeholder="{% translate 'SBX-2026-00001 or organisation' %}" />
     </div>
-    <div class="ui-select-wrapper sm:max-w-xs">
-      <label class="ui-label" for="state">{% translate "State" %}</label>
-      <select class="ui-select" id="state" name="state">
-        <option value="">{% translate "All states" %}</option>
-        {% for state, label in states %}
-          <option value="{{ state }}"
-                  {% if selected_state == state %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button class="ui-btn ui-btn--default ui-btn--size-default" type="submit">{% translate "Filter" %}</button>
+    <button class="ui-btn ui-btn--default ui-btn--size-default" type="submit">{% translate "Search" %}</button>
     {% if selected_state or search %}
       <a class="ui-btn ui-btn--ghost ui-btn--size-default"
          href="{% url 'console:queue' %}">{% translate "Clear" %}</a>

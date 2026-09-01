@@ -75,6 +75,38 @@ def test_queue_search_matches_reference(reviewer_client, submitted):
     assert other.reference not in body
 
 
+def test_searching_inside_a_state_stays_inside_it(reviewer_client, submitted):
+    """The tabs own the state and the box owns the text. The box has to carry
+    the state or searching silently widens the queue back to everything."""
+    organisation = submitted.product.organisation
+    draft = ApplicationFactory.create(
+        state=ApplicationState.DRAFT,
+        product__organisation=organisation,
+    )
+
+    body = reviewer_client.get(
+        reverse("console:queue"),
+        {"state": ApplicationState.SUBMITTED, "q": organisation.name},
+    ).content.decode()
+
+    assert submitted.reference in body
+    assert draft.reference not in body
+
+
+def test_the_selected_state_keeps_its_tab_when_it_matches_nothing(
+    reviewer_client,
+    submitted,
+):
+    """A tab hidden because its count is zero cannot be left highlighted with
+    no way back — you would be filtered into a state you cannot unselect."""
+    body = reviewer_client.get(
+        reverse("console:queue"),
+        {"state": ApplicationState.WITHDRAWN},
+    ).content.decode()
+
+    assert "?state=WITHDRAWN" in body
+
+
 # Choices match the engine
 
 
@@ -302,11 +334,12 @@ def test_state_badges_show_their_own_count(reviewer_client, submitted):
     assert "'DRAFT':" not in response.content.decode()
 
 
-def test_empty_states_get_no_badge_but_stay_in_the_dropdown(reviewer_client, submitted):
+def test_a_state_with_nothing_in_it_gets_no_tab(reviewer_client, submitted):
+    """The tabs are the whole state filter now, so an empty one is simply not
+    offered rather than hidden from one control and present in another."""
     body = reviewer_client.get(reverse("console:queue")).content.decode()
 
-    assert "?state=WITHDRAWN" not in body  # no badge for a state with nothing in it
-    assert 'value="WITHDRAWN"' in body  # but still filterable from the dropdown
+    assert "?state=WITHDRAWN" not in body
 
 
 def test_state_badges_count_only_what_the_search_shows(reviewer_client, submitted):

@@ -119,7 +119,6 @@ class QueueView(ConsoleMixin, ListView):
             {"value": value, "label": label, "count": counts.get(value, 0)}
             for value, label in ApplicationState.choices
         ]
-        context["states"] = ApplicationState.choices
         context["selected_state"] = self.request.GET.get("state", "")
         context["search"] = self.request.GET.get("q", "")
         context["page_title"] = "Review queue"

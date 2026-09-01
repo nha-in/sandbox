@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sandbox.applications.selectors import applications_for_organisation
 from sandbox.organisations.mixins import ORGANISATION_QUERY_PARAM
 from sandbox.organisations.mixins import organisation_query
 from sandbox.organisations.models import Membership
@@ -88,6 +89,11 @@ def active_organisation(request):
         "active_organisation": active,
         "org_query": f"?{organisation_query(active)}" if active else "",
         "has_multiple_organisations": len(memberships) > 1,
+        # A lazy QuerySet: the rail only iterates it inside an application, so
+        # the query does not run on the screens that have no switcher.
+        "switchable_applications": (
+            applications_for_organisation(active) if active else ()
+        ),
     }
 
 

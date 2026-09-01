@@ -23,6 +23,7 @@ from django.test import override_settings
 from django.urls import reverse
 
 from sandbox.applications.models import ApplicationState
+from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.context_processors import NAV_SECTIONS
 from sandbox.organisations.mixins import organisation_query
 from sandbox.users.tests.factories import VerifiedUserFactory
@@ -244,6 +245,37 @@ def test_a_member_reaches_the_wizard_and_the_switcher_from_the_sidebar(
 
     assert reverse("applications:index") in links
     assert reverse("organisations:choose") in links
+
+
+def test_the_rail_switches_between_an_organisations_applications(
+    clients,
+    context,
+):
+    """Two products is the case the rail exists for. Reaching the second one
+    should not mean going back to the list and picking again."""
+    application = context["application"]
+    organisation = application.product.organisation
+    sibling = ApplicationFactory.create(product__organisation=organisation)
+    query = f"?{organisation_query(organisation)}"
+
+    response = clients[ORG_MEMBER].get(
+        reverse(
+            "applications:overview",
+            kwargs={"external_id": application.external_id},
+        )
+        + query,
+    )
+    links = {
+        href.split("?")[0] for href in _sidebar_links(response.content, b"app-nav")
+    }
+
+    assert (
+        reverse(
+            "applications:overview",
+            kwargs={"external_id": sibling.external_id},
+        )
+        in links
+    )
 
 
 def test_a_user_with_no_organisation_is_offered_the_one_screen_that_helps(
