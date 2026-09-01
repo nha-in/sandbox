@@ -1,0 +1,49 @@
+{% extends "layouts/console.html" %}
+
+{% comment %}
+  Console users and the roles they hold. Roles are assigned from here rather
+  than from the role: with twenty people a members checklist on each role is
+  unreadable, and "what may this person do" is the question actually asked.
+{% endcomment %}
+{% load i18n %}
+
+{% block content %}
+  <form method="get" class="mb-6 flex flex-wrap items-end gap-3">
+    <div class="grow sm:max-w-xs">
+      <label class="ui-label" for="q">{% translate "Search" %}</label>
+      <input class="ui-input"
+             id="q"
+             name="q"
+             value="{{ search }}"
+             placeholder="{% translate 'name or email' %}" />
+    </div>
+    <button class="ui-btn ui-btn--secondary ui-btn--size-sm" type="submit">{% translate "Search" %}</button>
+  </form>
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Console users" %}</h2>
+      <p class="ui-card-description">
+        {% translate "Someone holding no role can sign in and see nothing. That is the intended default." %}
+      </p>
+    </div>
+    <div class="ui-card-content">
+      <ul class="divide-y divide-border">
+        {% for person in console_users %}
+          <li class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+            <a class="min-w-0 flex-1 truncate font-medium text-foreground underline"
+               href="{% url 'console:user_roles' person.external_id %}">{{ person.email }}</a>
+            <span class="flex flex-wrap items-center gap-2">
+              {% for role in person.groups.all %}
+                <span class="ui-badge ui-badge--primary ui-badge--size-sm">{{ role.name }}</span>
+              {% empty %}
+                <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{% translate "No role" %}</span>
+              {% endfor %}
+            </span>
+          </li>
+        {% empty %}
+          <li class="py-3 text-sm text-muted-foreground">{% translate "No console users found." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endblock content %}

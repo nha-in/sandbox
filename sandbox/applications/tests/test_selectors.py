@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 from django.http import Http404
 
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import application_detail
 from sandbox.applications.selectors import applications_for_organisation
@@ -51,7 +50,12 @@ def test_console_queue_filters_by_kind_and_state():
     matching = ApplicationFactory.create(state=ApplicationState.SUBMITTED)
     ApplicationFactory.create(state=ApplicationState.DRAFT)
 
-    results = list(console_queue(kind=matching.kind, state=ApplicationState.SUBMITTED))
+    results = list(
+        console_queue(
+            workflow_key=matching.workflow_key,
+            state=ApplicationState.SUBMITTED,
+        ),
+    )
 
     assert results == [matching]
 
@@ -69,7 +73,7 @@ def test_products_available_excludes_one_with_a_live_application():
     free = ProductFactory.create(organisation=organisation)
     ApplicationFactory.create(product=taken, state=ApplicationState.SUBMITTED)
 
-    available = products_available_for(organisation, ApplicationKind.SANDBOX)
+    available = products_available_for(organisation, "ABDM")
 
     assert list(available) == [free]
 
@@ -85,7 +89,7 @@ def test_products_available_includes_one_whose_application_was_released(
     product = ProductFactory.create(organisation=organisation)
     ApplicationFactory.create(product=product, state=released_state)
 
-    available = products_available_for(organisation, ApplicationKind.SANDBOX)
+    available = products_available_for(organisation, "ABDM")
 
     assert list(available) == [product]
 
@@ -95,7 +99,7 @@ def test_products_available_is_scoped_to_the_organisation():
     mine = ProductFactory.create(organisation=organisation)
     ProductFactory.create(organisation=OrganisationFactory.create())
 
-    available = products_available_for(organisation, ApplicationKind.SANDBOX)
+    available = products_available_for(organisation, "ABDM")
 
     assert list(available) == [mine]
 
@@ -105,10 +109,10 @@ def test_products_available_ignores_another_kinds_application():
     product = ProductFactory.create(organisation=organisation)
     ApplicationFactory.create(
         product=product,
-        kind=ApplicationKind.HCX,
+        workflow_key="HCX",
         state=ApplicationState.SUBMITTED,
     )
 
-    available = products_available_for(organisation, ApplicationKind.SANDBOX)
+    available = products_available_for(organisation, "ABDM")
 
     assert list(available) == [product]

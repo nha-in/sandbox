@@ -1,0 +1,51 @@
+{% extends "layouts/console.html" %}
+
+{% load i18n %}
+
+{% block content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{{ console_user.email }}</h2>
+      <p class="ui-card-description">
+        {% translate "Roles take effect immediately. Removing the last one leaves this person an empty console." %}
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="ui-card-content space-y-5">
+        {% include "components/form_errors.html" with form=form %}
+        <div>
+          <span class="ui-label">{{ form.roles.label }}</span>
+          <div class="mt-2 flex flex-col gap-2">
+            {% for choice in form.roles %}
+              <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                {{ choice.tag }}{{ choice.choice_label }}
+              </label>
+            {% empty %}
+              <p class="text-sm text-muted-foreground">
+                {% translate "No roles exist yet." %}
+                <a class="underline" href="{% url 'console:roles' %}">{% translate "Create one" %}</a>.
+              </p>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <span class="ui-label">{% translate "What this grants today" %}</span>
+          <span class="ui-hint">{% translate "The union of every role held. Read-only." %}</span>
+          <ul class="mt-2 flex flex-col gap-1">
+            {% for permission in granted %}
+              <li class="text-sm text-muted-foreground">{{ permission }}</li>
+            {% empty %}
+              <li class="text-sm text-muted-foreground">{% translate "Nothing. They will see an empty console." %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      <div class="ui-card-footer flex flex-wrap items-center justify-between gap-3">
+        <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
+           href="{% url 'console:users' %}">{% translate "Back to users" %}</a>
+        <button class="ui-btn ui-btn--primary ui-btn--size-sm" type="submit">{% translate "Save roles" %}</button>
+      </div>
+    </form>
+  </div>
+{% endblock content %}

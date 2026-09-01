@@ -3,14 +3,14 @@
 {% load i18n %}
 
 {% block step_title %}
-  {% if editable %}
+  {% if can_submit %}
     {% translate "Review and submit" %}
   {% else %}
     {% translate "Your application" %}
   {% endif %}
 {% endblock step_title %}
 {% block step_description %}
-  {% if editable %}
+  {% if can_submit %}
     {% blocktranslate with reference=application.reference %}Check {{ reference }} before it goes to the review team.{% endblocktranslate %}
   {% else %}
     {% blocktranslate with reference=application.reference %}What was submitted as {{ reference }}.{% endblocktranslate %}
@@ -58,18 +58,28 @@
     {% endfor %}
   </dl>
   <div class="flex items-center justify-between gap-3">
-    {# Back to the editor only while there is one: the details step redirects #}
-    {# here once the application is locked, which would be a loop. #}
+    {% comment %}
+      Back to the editor only while there is one: the details step redirects
+      here once the application is locked, which would be a loop. Editable and
+      submittable are different questions — a provisioned application's profile
+      can still be corrected, but SUBMIT is not legal from PROVISIONED.
+    {% endcomment %}
     {% if editable %}
       <a class="ui-btn ui-btn--ghost"
          href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+    {% else %}
+      <a class="ui-btn ui-btn--ghost"
+         href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}">{% translate "Back to overview" %}</a>
+    {% endif %}
+    {% if can_submit %}
       <form method="post">
         {% csrf_token %}
         <button type="submit" class="ui-btn ui-btn--primary">{% translate "Submit for review" %}</button>
       </form>
-    {% else %}
-      <a class="ui-btn ui-btn--ghost"
+    {% elif editable %}
+      <a class="ui-btn ui-btn--primary no-underline"
          href="{% url 'applications:overview' external_id=application.external_id %}{{ org_query }}">{% translate "Back to overview" %}</a>
+    {% else %}
       <span class="ui-badge ui-badge--primary">{{ application.get_state_display }}</span>
     {% endif %}
   </div>

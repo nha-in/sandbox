@@ -62,7 +62,7 @@ CHROME_LESS = {
     "console:decide",
     "console:retry_provisioning",
     "console:document_download",
-    "declarations:document_download",
+    "applications:document_download",
     # Development-only, and deliberately outside the product's nav.
     "theme:styleguide",
 }
@@ -364,8 +364,6 @@ def test_styleguide_renders_every_primitive(clients):
     [
         ApplicationState.DRAFT,
         ApplicationState.PROVISIONED,
-        ApplicationState.EXIT_REQUESTED,
-        ApplicationState.PRODUCTION_APPROVED,
     ],
 )
 def test_every_application_rail_link_answers_the_actor(clients, context, state):
@@ -430,7 +428,7 @@ def test_the_application_rail_replaces_the_organisation_rail(clients, context):
     assert reverse("applications:index") in links, "no way back to the list"
     assert (
         reverse(
-            "declarations:milestones",
+            "applications:milestones",
             kwargs={"external_id": application.external_id},
         )
         in links

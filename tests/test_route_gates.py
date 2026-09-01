@@ -38,6 +38,9 @@ from tests.conftest import DOCUMENT_A
 from tests.conftest import MEMBER_OTHER_ORG
 from tests.conftest import MILESTONE_M1
 from tests.conftest import ORG_MEMBER
+from tests.conftest import REVIEWER
+from tests.conftest import ROLE
+from tests.conftest import STAFF
 from tests.conftest import STAFF_ACTORS
 
 if TYPE_CHECKING:
@@ -61,6 +64,10 @@ class Access(enum.StrEnum):
     SELF_ONLY = "self_only"
     ORG_SCOPED = "org_scoped"
     CONSOLE = "console"
+    #: staff is not enough: it wants `manage_roles`, which in this matrix only
+    #: the superuser holds — a reviewer has authority over applications, not
+    #: over authority itself
+    ROLE_ADMIN = "role_admin"
     #: Exists only on a development machine. 404 for everyone under any settings
     #: where DEBUG is off, which is every deployed environment and this suite.
     DEVELOPMENT_ONLY = "development_only"
@@ -94,10 +101,18 @@ def _document_id(context: dict) -> dict:
     return {"external_id": context[DOCUMENT_A].external_id}
 
 
+def _role_id(context: dict) -> dict:
+    return {"pk": context[ROLE].pk}
+
+
+def _staff_user_id(context: dict) -> dict:
+    return {"external_id": context[REVIEWER].external_id}
+
+
 def _application_and_milestone(context: dict) -> dict:
     return {
         "external_id": context["application"].external_id,
-        "key": context[MILESTONE_M1].key,
+        "key": context[MILESTONE_M1],
     }
 
 
@@ -222,6 +237,23 @@ ROUTES: dict[str, Route] = {
     # Console (C5). Staff-only; an org member must be refused even for their own
     # application, because the console is a different surface, not a nicer view.
     "console:queue": Route(Access.CONSOLE),
+    # Editing a role is authority over authority, so it needs more than staff:
+    # `manage_roles`, which neither console actor in this matrix holds.
+    "console:roles": Route(
+        Access.ROLE_ADMIN,
+        methods=("GET", "POST"),
+    ),
+    "console:role_detail": Route(
+        Access.ROLE_ADMIN,
+        kwargs=_role_id,
+        methods=("GET", "POST"),
+    ),
+    "console:users": Route(Access.ROLE_ADMIN),
+    "console:user_roles": Route(
+        Access.ROLE_ADMIN,
+        kwargs=_staff_user_id,
+        methods=("GET", "POST"),
+    ),
     "console:application_detail": Route(Access.CONSOLE, kwargs=_application_id),
     "console:record_review": Route(
         Access.CONSOLE,
@@ -246,18 +278,46 @@ ROUTES: dict[str, Route] = {
     # Milestones and exit (C8). POST rows included because the writes are what
     # actually matter: a declaration accepted for the wrong tenant would attach
     # evidence to somebody else's application.
-    "declarations:milestones": Route(
+    "applications:milestones": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
     ),
-    "declarations:declare_milestone": Route(
+    "applications:declare_milestone": Route(
         Access.ORG_SCOPED,
         kwargs=_application_and_milestone,
         query=_org_a,
         methods=("GET", "POST"),
     ),
-    "declarations:exit": Route(
+    "applications:exit": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
+    # The exit wizard writes to the exit application, so each step is scoped
+    # like any other write: a claim accepted for the wrong tenant would attach
+    # somebody else's evidence to a production request.
+    "applications:exit_claim": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "applications:exit_wasa": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "applications:exit_review": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    # Recording a DHIS handoff writes to the application, so it is scoped like
+    # any other write on it.
+    "applications:dhis": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
@@ -265,7 +325,7 @@ ROUTES: dict[str, Route] = {
     ),
     # Presigned download. Org-scoped: the bucket is private, so this row is the
     # only thing standing between another tenant and the file.
-    "declarations:document_download": Route(
+    "applications:document_download": Route(
         Access.ORG_SCOPED,
         kwargs=_document_id,
         query=_org_a,
@@ -410,12 +470,22 @@ def _assert_console(actor, response, where):
         )
 
 
+def _assert_role_admin(actor, response, where):
+    if actor == STAFF:
+        assert response.status_code not in DENIED_CODES, where
+    else:
+        assert response.status_code in DENIED_CODES, (
+            f"{where}: reachable without manage_roles"
+        )
+
+
 _ASSERTERS = {
     Access.AUTHENTICATED: _assert_authenticated,
     Access.SELF_RESOURCE: _assert_self_resource,
     Access.SELF_ONLY: _assert_self_only,
     Access.ORG_SCOPED: _assert_org_scoped,
     Access.CONSOLE: _assert_console,
+    Access.ROLE_ADMIN: _assert_role_admin,
 }
 
 

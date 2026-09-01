@@ -8,10 +8,22 @@ from sandbox.console.views import DocumentDownloadView
 from sandbox.console.views import QueueView
 from sandbox.console.views import RecordReviewView
 from sandbox.console.views import RetryProvisioningView
+from sandbox.console.views import RoleDetailView
+from sandbox.console.views import RoleListView
+from sandbox.console.views import UserListView
+from sandbox.console.views import UserRolesView
 
 app_name = "console"
 urlpatterns = [
     path("", QueueView.as_view(), name="queue"),
+    path("roles/", RoleListView.as_view(), name="roles"),
+    path("roles/<int:pk>/", RoleDetailView.as_view(), name="role_detail"),
+    path("users/", UserListView.as_view(), name="users"),
+    path(
+        "users/<uuid:external_id>/",
+        UserRolesView.as_view(),
+        name="user_roles",
+    ),
     path(
         "applications/<uuid:external_id>/",
         ApplicationDetailView.as_view(),

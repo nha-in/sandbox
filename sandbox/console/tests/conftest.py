@@ -35,7 +35,7 @@ def signed_in(user) -> Client:
 
 @pytest.fixture
 def reviewer_client(enable_mfa):
-    user = grant(UserFactory.create(is_staff=True), "review_application")
+    user = grant(UserFactory.create(is_staff=True), "view_abdm", "review_abdm")
     return signed_in(enable_mfa(user))
 
 
@@ -43,10 +43,11 @@ def reviewer_client(enable_mfa):
 def admin_client_(enable_mfa):
     user = grant(
         UserFactory.create(is_staff=True),
-        "review_application",
-        "approve_application",
-        "reject_application",
-        "send_back_application",
+        "view_abdm",
+        "review_abdm",
+        "approve_abdm",
+        "reject_abdm",
+        "send_back_abdm",
     )
     return signed_in(enable_mfa(user))
 

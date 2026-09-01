@@ -28,9 +28,8 @@ from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
 from sandbox.utils.correlation import set_correlation_id
-from sandbox.workflow import services as workflow_services
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -40,11 +39,11 @@ ALL_SYSTEMS = set(ProvisionedSystem.values)
 @pytest.fixture(autouse=True)
 def _hooks():
     """Other suites call `clear_hooks()`, which wipes what `ready()` registered."""
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
     register_workflow_hooks()
     notification_hooks.register_workflow_hooks()
     yield
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -69,10 +68,10 @@ def _staff(*codenames: str) -> User:
 
 def _approve(application, owner, callbacks) -> None:
     """Approve, running the on-commit chain the approval schedules."""
-    transition(application=application, action=Action.SUBMIT, actor=owner)
-    approver = _staff("approve_application")
+    transition(application=application, action="SUBMIT", actor=owner)
+    approver = _staff("approve_abdm")
     with callbacks(execute=True):
-        transition(application=application, action=Action.APPROVE, actor=approver)
+        transition(application=application, action="APPROVE", actor=approver)
     application.refresh_from_db()
 
 
@@ -185,7 +184,7 @@ def test_a_retry_provisions_only_the_missing_system(
     with django_capture_on_commit_callbacks(execute=True):
         retry_provisioning(
             application=application,
-            actor=_staff("retry_provisioning"),
+            actor=_staff("retry_provisioning_abdm"),
         )
 
     application.refresh_from_db()
@@ -239,13 +238,13 @@ def test_a_retryable_failure_retries_instead_of_parking(
 ):
     from sandbox.integrations.tasks import provision_keycloak  # noqa: PLC0415
 
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     transition(
         application=application,
-        action=Action.APPROVE,
-        actor=_staff("approve_application"),
+        action="APPROVE",
+        actor=_staff("approve_abdm"),
     )
-    transition(application=application, action=Action.START_PROVISIONING)
+    transition(application=application, action="START_PROVISIONING")
     always_fail(ExternalSystem.KEYCLOAK, code="REALM_DOWN", retryable=True)
 
     with pytest.raises(Retry):
@@ -287,13 +286,13 @@ def test_completion_refuses_an_incomplete_ledger(
     """`PROVISIONED` is a claim about three systems, not about the chain running."""
     from sandbox.integrations.tasks import complete_provisioning  # noqa: PLC0415
 
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     transition(
         application=application,
-        action=Action.APPROVE,
-        actor=_staff("approve_application"),
+        action="APPROVE",
+        actor=_staff("approve_abdm"),
     )
-    transition(application=application, action=Action.START_PROVISIONING)
+    transition(application=application, action="START_PROVISIONING")
 
     complete_provisioning.delay(application.pk, "cid")
 
@@ -349,13 +348,13 @@ def test_an_expired_parked_secret_is_re_minted_rather_than_dead_ending(
     from sandbox.integrations.tasks import provision_keycloak  # noqa: PLC0415
     from sandbox.integrations.tasks import provision_wso2  # noqa: PLC0415
 
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     transition(
         application=application,
-        action=Action.APPROVE,
-        actor=_staff("approve_application"),
+        action="APPROVE",
+        actor=_staff("approve_abdm"),
     )
-    transition(application=application, action=Action.START_PROVISIONING)
+    transition(application=application, action="START_PROVISIONING")
     provision_keycloak.delay(application.pk, "cid")
 
     row = ProvisionedResource.objects.get(
@@ -411,8 +410,8 @@ def test_every_state_move_is_audited(
         ),
     )
     assert actions == [
-        Action.SUBMIT,
-        Action.APPROVE,
-        Action.START_PROVISIONING,
-        Action.COMPLETE_PROVISIONING,
+        "SUBMIT",
+        "APPROVE",
+        "START_PROVISIONING",
+        "COMPLETE_PROVISIONING",
     ]

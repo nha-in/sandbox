@@ -1,0 +1,42 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  One milestone's declaration. Plain multipart POST: no JavaScript is involved
+  in attaching a file, so the form works with scripting off.
+{% endcomment %}
+{% load careui i18n %}
+
+{% block title %}
+  {{ milestone.title }}
+{% endblock title %}
+{% block content %}
+  {% if existing_claim %}
+    <div class="ui-alert mb-6" role="status">
+      <div class="flex-1 space-y-1">
+        <p>
+          {% blocktranslate with when=existing_claim.created_date|date:"j M Y" trimmed %}
+            You declared this on {{ when }}. Submitting again replaces that declaration.
+          {% endblocktranslate %}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="ui-card">
+      <div class="ui-card-content flex flex-col gap-5">
+        {% include "components/form_errors.html" %}
+        <div class="grid gap-5 sm:grid-cols-2">
+          {% ui_field form.started_on %}
+          {% ui_field form.completed_on %}
+        </div>
+        {% ui_field form.notes %}
+      </div>
+      <div class="ui-card-footer flex items-center justify-between gap-3">
+        <a class="text-sm underline"
+           href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
+        <button class="ui-btn ui-btn--primary" type="submit">{% translate "Declare complete" %}</button>
+      </div>
+    </div>
+  </form>
+{% endblock content %}

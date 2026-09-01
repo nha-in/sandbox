@@ -1,4 +1,4 @@
-"""Which gateway APIs each application kind subscribes to.
+"""Which gateway APIs each workflow subscribes to.
 
 Names, never ids — legacy configured `wso2.v3-subscription-api-list` as a
 comma-separated list of `apiId` UUIDs, so the config was pinned to one WSO2
@@ -19,7 +19,7 @@ def api_names_for(kind: str) -> tuple[str, ...]:
     names = tuple(settings.WSO2_API_NAMES.get(kind, ()))
     if not names:
         msg = (
-            f"No WSO2 API subscription set configured for application kind "
+            f"No WSO2 API subscription set configured for workflow "
             f"{kind!r}. Set settings.WSO2_API_NAMES[{kind!r}] (or the "
             f"WSO2_SANDBOX_API_NAMES env var) to the published API names."
         )

@@ -77,7 +77,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # on every dev machine, which made both B7's happy path and C7's panel
 # unreachable without knowing to set an env var nobody had written down.
 WSO2_API_NAMES = {
-    "SANDBOX": tuple(
+    "ABDM": tuple(
         env.list("WSO2_SANDBOX_API_NAMES", default=["HealthIdAPI", "GatewayAPI"]),
     ),
 }
@@ -86,5 +86,15 @@ WSO2_API_NAMES = {
 # any settings module that does this with DEBUG off.
 STAFF_MFA_REQUIRED = env.bool("STAFF_MFA_REQUIRED", default=False)
 assert_staff_mfa_is_required(DEBUG, STAFF_MFA_REQUIRED)
+
+# Storage
+# ------------------------------------------------------------------------------
+# The app reaches MinIO over the compose network; the browser reaches the
+# published port. Without this a download link points at `minio:9000`, which
+# resolves for the container and for nobody else.
+AWS_S3_PUBLIC_ENDPOINT_URL = env.str(
+    "AWS_S3_PUBLIC_ENDPOINT_URL",
+    default="http://localhost:9000",
+)
 # Your stuff...
 # ------------------------------------------------------------------------------

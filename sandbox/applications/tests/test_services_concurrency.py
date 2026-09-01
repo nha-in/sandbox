@@ -10,9 +10,7 @@ import threading
 import pytest
 from django.db import connection
 
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.services import create_draft
-from sandbox.applications.tests.factories import VALID_SANDBOX_DATA
 from sandbox.organisations.tests.factories import ProductFactory
 from sandbox.users.tests.factories import UserFactory
 
@@ -31,8 +29,7 @@ def test_reference_generation_is_race_safe_across_concurrent_transactions():
                 organisation=product.organisation,
                 product=product,
                 applicant=applicant,
-                kind=ApplicationKind.SANDBOX,
-                data=dict(VALID_SANDBOX_DATA),
+                workflow_key="ABDM",
             )
             references.append(application.reference)
         except Exception as exc:  # noqa: BLE001 - surfaced via `errors` below

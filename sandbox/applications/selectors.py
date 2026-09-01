@@ -7,15 +7,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from typing import Any
 
 from django.db.models import Q
 from django.http import Http404
 from django.utils.translation import gettext_lazy as _
 
-from sandbox.applications.models import NON_BLOCKING_STATES
+from sandbox.applications.models import RESTING_STATES
 from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationDocument
+from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
 from sandbox.organisations.models import Product
+from sandbox.programmes import abdm
+from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -26,11 +31,181 @@ if TYPE_CHECKING:
     from sandbox.organisations.models import Organisation
 
 
+def current_submission(
+    application: Application,
+    form_key: str,
+) -> ApplicationFormSubmission | None:
+    return application.submissions.filter(form_key=form_key, is_current=True).first()
+
+
+def current_form_data(application: Application, form_key: str) -> dict:
+    """The answers as last saved, or an empty form if never filled in."""
+    submission = current_submission(application, form_key)
+    return dict(submission.data) if submission else {}
+
+
+@dataclass(frozen=True, slots=True)
+class MilestoneRow:
+    """One milestone as the milestones screen needs it."""
+
+    key: str
+    form_key: str
+    title: StrOrPromise
+    claim: ApplicationFormSubmission | None
+    unlocked: bool
+    blocked_by: tuple[StrOrPromise, ...]
+
+    @property
+    def declared(self) -> bool:
+        return self.claim is not None
+
+
+def milestone_rows(application: Application) -> list[MilestoneRow]:
+    """Every milestone the programme defines, with the claim that stands on it.
+
+    Offered milestones are gated by the prerequisite DAG alone. The
+    solution-type matrix governs DHIS eligibility, never what you may declare:
+    an EUA-only integrator still builds M1.
+    """
+    # Deferred: the engine imports models, which need the app registry ready.
+    from sandbox.workflow.engine import ApplicationContext  # noqa: PLC0415
+
+    workflow = get_workflow(application.workflow_key)
+    context = ApplicationContext(application)
+    submissions = {
+        submission.form_key: submission
+        for submission in application.submissions.filter(is_current=True)
+    }
+    rows = []
+    for definition in workflow.forms:
+        if not definition.key.startswith("MILESTONE_"):
+            continue
+        blocked_by = tuple(
+            workflow.form(key).label
+            for key in definition.depends_on
+            if not context.has_current(key)
+        )
+        rows.append(
+            MilestoneRow(
+                key=definition.key.removeprefix("MILESTONE_").lower(),
+                form_key=definition.key,
+                title=definition.label,
+                claim=submissions.get(definition.key),
+                unlocked=definition.is_unlocked(context),
+                blocked_by=blocked_by,
+            ),
+        )
+    return rows
+
+
+def milestone_progress(application: Application) -> dict[str, Any]:
+    """Declared-of-total plus what is still outstanding, for the dashboard."""
+    rows = milestone_rows(application)
+    return {
+        "declared": sum(1 for row in rows if row.declared),
+        "total": len(rows),
+        "next": [row.title for row in rows if not row.declared and row.unlocked][:3],
+    }
+
+
 def applications_for_organisation(organisation: Organisation) -> QuerySet[Application]:
-    return Application.objects.for_organisation(organisation).select_related(
-        "product",
-        "applicant",
+    """The enrollments an integrator can open. Exits are applications too, but
+    they are reached from the enrollment they exit, and have no registration
+    form for these screens to ask about."""
+    return (
+        Application.objects.for_organisation(organisation)
+        .filter(workflow_key="ABDM")
+        .select_related(
+            "product",
+            "applicant",
+        )
     )
+
+
+def exit_in_flight(product: Product) -> Application | None:
+    """The product's open exit, if it has one. Approved exits are history."""
+    return (
+        Application.objects.filter(
+            product=product,
+            workflow_key="ABDM_EXIT",
+            deleted=False,
+        )
+        .exclude(state__in=RESTING_STATES)
+        .first()
+    )
+
+
+def exit_grants(product: Product) -> list[abdm.ExitGrant]:
+    """What this product's approved exits granted, as they stood when decided.
+
+    Never a live claim and never an in-flight exit: a second exit under review
+    grants nothing until its decision lands, and an approved exit's grant is
+    not revoked by anything that happens afterwards.
+    """
+    approved = Application.objects.filter(
+        product=product,
+        workflow_key="ABDM_EXIT",
+        state="APPROVED",
+        deleted=False,
+    ).prefetch_related("submissions")
+
+    grants = []
+    for application in approved:
+        current = {
+            submission.form_key: submission.data
+            for submission in application.submissions.all()
+            if submission.is_current
+        }
+        grants.append(
+            abdm.ExitGrant(
+                covers=frozenset(
+                    abdm.Milestone(value)
+                    for value in current.get("EXIT_CLAIM", {}).get("covers", [])
+                ),
+                approved_types=frozenset(
+                    abdm.SolutionType(value)
+                    for value in current.get("EXIT_DECISION", {}).get(
+                        "approved_solution_types",
+                        [],
+                    )
+                ),
+            ),
+        )
+    return grants
+
+
+def exit_documents(application: Application | None) -> dict[str, list]:
+    """Evidence on the exit's current revisions, keyed by document kind."""
+    if application is None:
+        return {}
+    documents: dict[str, list] = {}
+    for submission in application.submissions.filter(is_current=True):
+        for document in submission.documents.filter(deleted=False):
+            documents.setdefault(document.kind, []).append(document)
+    return documents
+
+
+def document_detail(
+    organisation: Organisation,
+    external_id: UUID | str,
+) -> ApplicationDocument:
+    """One stored file, scoped to the caller's tenant.
+
+    Wrong organisation 404s rather than 403s — a 403 would confirm the file
+    exists, which is the thing being protected.
+    """
+    document = (
+        ApplicationDocument.objects.filter(
+            external_id=external_id,
+            deleted=False,
+            submission__application__product__organisation=organisation,
+        )
+        .select_related("submission__application")
+        .first()
+    )
+    if document is None:
+        raise Http404
+    return document
 
 
 def application_detail(
@@ -51,7 +226,7 @@ def application_detail(
 
 def console_queue(
     *,
-    kind: str | None = None,
+    workflow_key: str | None = None,
     state: str | None = None,
 ) -> QuerySet[Application]:
     queryset = Application.objects.select_related(
@@ -59,8 +234,8 @@ def console_queue(
         "product__organisation",
         "applicant",
     )
-    if kind:
-        queryset = queryset.filter(kind=kind)
+    if workflow_key:
+        queryset = queryset.filter(workflow_key=workflow_key)
     if state:
         queryset = queryset.filter(state=state)
     return queryset.order_by("-created_date")
@@ -68,19 +243,19 @@ def console_queue(
 
 def products_available_for(
     organisation: Organisation,
-    kind: str,
+    workflow_key: str,
     keep: Product | None = None,
 ) -> QuerySet[Product]:
     """C4's product picker: offering a product that already has a live
-    application of this kind would trip the partial-unique constraint.
+    application on this workflow would trip the partial-unique constraint.
 
     `keep` is the product the draft being edited already holds. Its own
     application is what makes it unavailable, so without this the applicant
     stepping back from the details step cannot see the product they just named.
     """
     taken = (
-        Application.objects.filter(kind=kind)
-        .exclude(state__in=NON_BLOCKING_STATES)
+        Application.objects.filter(workflow_key=workflow_key)
+        .exclude(state__in=RESTING_STATES)
         .values("product_id")
     )
     available = Product.objects.for_organisation(organisation).exclude(pk__in=taken)
@@ -98,14 +273,13 @@ class JourneyStep:
     status: str  # done | current | upcoming
 
 
+#: The sandbox journey ends at credentials: an exit is its own application with
+#: its own states, so it is not a further step on this one.
 JOURNEY_LABELS: tuple[tuple[str, StrOrPromise], ...] = (
     ("apply", _("Apply")),
     ("verify", _("Verify")),
     ("review", _("Review")),
     ("credentials", _("Credentials")),
-    ("milestones", _("Milestones")),
-    ("exit", _("Exit")),
-    ("production", _("Production")),
 )
 
 S = ApplicationState
@@ -117,14 +291,9 @@ STATE_STEP: dict[str, str] = {
     S.PROVISIONING: "credentials",
     S.PROVISIONING_FAILED: "credentials",
     S.PROVISIONED: "credentials",
-    S.EXIT_REQUESTED: "exit",
-    S.EXIT_REVIEW: "exit",
-    S.PRODUCTION_APPROVED: "production",
 }
 
-EDGE_STATES = frozenset(
-    {S.REJECTED, S.SENT_BACK, S.WITHDRAWN, S.EXIT_REJECTED},
-)
+EDGE_STATES = frozenset({S.REJECTED, S.SENT_BACK, S.WITHDRAWN})
 
 PENDING_STATES = frozenset({S.SUBMITTED, S.PROVISIONING})
 

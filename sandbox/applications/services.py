@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from typing import Any
 
 from django.db import transaction
 from django.utils import timezone
 
-from sandbox.applications.models import NON_BLOCKING_STATES
+from sandbox.applications.models import RESTING_STATES
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationReferenceCounter
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas import validate_envelope
 from sandbox.organisations.services import create_product
 from sandbox.organisations.services import rename_product
 from sandbox.utils.errors import DomainError
@@ -24,7 +21,9 @@ if TYPE_CHECKING:
     from sandbox.users.models import User
 
 _EDITABLE_STATES = (ApplicationState.DRAFT, ApplicationState.SENT_BACK)
-_SCHEMA_VERSION = 1
+
+SANDBOX_WORKFLOW = "ABDM"
+EXIT_WORKFLOW = "ABDM_EXIT"
 
 
 def _next_reference() -> str:
@@ -48,25 +47,67 @@ def create_draft(
     organisation: Organisation,
     product: Product,
     applicant: User,
-    kind: str,
-    data: dict[str, Any],
+    workflow_key: str = SANDBOX_WORKFLOW,
 ) -> Application:
-    if kind != ApplicationKind.SANDBOX:
-        message = f"{kind} enrollment is not available yet"
+    """Open an empty draft. Answers arrive later, as form submissions."""
+    if workflow_key != SANDBOX_WORKFLOW:
+        message = f"{workflow_key} enrollment is not available yet"
         raise DomainError(message)
 
     if product.organisation_id != organisation.pk:
         message = "product does not belong to this organisation"
         raise DomainError(message)
 
-    payload = {"schema_version": _SCHEMA_VERSION, "data": data}
-    validate_envelope(kind, payload)
     return Application.objects.create(
         reference=_next_reference(),
-        kind=kind,
+        workflow_key=workflow_key,
         product=product,
         applicant=applicant,
-        payload=payload,
+    )
+
+
+#: an exit may only be opened once the sandbox work it exits actually exists
+_EXITABLE_STATES = ("PROVISIONED",)
+
+
+@transaction.atomic
+def open_exit(*, product: Product, applicant: User) -> Application:
+    """Start an exit for this product, or return the one already in flight.
+
+    An exit is its own application rather than a state on the sandbox one:
+    exits repeat and cover subsets, so January's approved M1 exit has to sit
+    beside September's in-flight M2 exit without either overwriting the other.
+    """
+    sandbox = (
+        Application.objects.filter(
+            product=product,
+            workflow_key=SANDBOX_WORKFLOW,
+            deleted=False,
+        )
+        .exclude(state__in=RESTING_STATES)
+        .first()
+    )
+    if sandbox is None or sandbox.state not in _EXITABLE_STATES:
+        message = "this product has no provisioned sandbox to exit from"
+        raise DomainError(message, code="not_exitable")
+
+    in_flight = (
+        Application.objects.filter(
+            product=product,
+            workflow_key=EXIT_WORKFLOW,
+            deleted=False,
+        )
+        .exclude(state__in=RESTING_STATES)
+        .first()
+    )
+    if in_flight is not None:
+        return in_flight
+
+    return Application.objects.create(
+        reference=_next_reference(),
+        workflow_key=EXIT_WORKFLOW,
+        product=product,
+        applicant=applicant,
     )
 
 
@@ -76,17 +117,15 @@ def create_draft_with_new_product(
     organisation: Organisation,
     product_name: str,
     applicant: User,
-    kind: str,
-    data: dict[str, Any],
+    workflow_key: str = SANDBOX_WORKFLOW,
 ) -> Application:
     """C4 offers "pick a product or name a new one" in one form; the nested
-    atomic block means a rejected payload rolls the new product back too."""
+    atomic block means a rejected draft rolls the new product back too."""
     return create_draft(
         organisation=organisation,
         product=create_product(organisation=organisation, name=product_name),
         applicant=applicant,
-        kind=kind,
-        data=data,
+        workflow_key=workflow_key,
     )
 
 
@@ -115,8 +154,11 @@ def set_draft_product(*, application: Application, product: Product) -> Applicat
 
     # The partial-unique index would refuse this anyway; saying so is kinder.
     taken = (
-        Application.objects.filter(kind=application.kind, product=product)
-        .exclude(state__in=NON_BLOCKING_STATES)
+        Application.objects.filter(
+            workflow_key=application.workflow_key,
+            product=product,
+        )
+        .exclude(state__in=RESTING_STATES)
         .exclude(pk=application.pk)
         .exists()
     )
@@ -162,20 +204,3 @@ def rename_draft_product(*, application: Application, name: str) -> Product:
         )
         raise DomainError(message, code="illegal_state")
     return rename_product(product=application.product, name=name)
-
-
-@transaction.atomic
-def update_draft(*, application: Application, data: dict[str, Any]) -> Application:
-    if application.state not in _EDITABLE_STATES:
-        message = f"cannot edit an application in state {application.state}"
-        raise DomainError(message)
-
-    # .get() so a missing key fails closed as DomainError, not KeyError
-    payload = {
-        "schema_version": application.payload.get("schema_version"),
-        "data": data,
-    }
-    validate_envelope(application.kind, payload)
-    application.payload = payload
-    application.save(update_fields=["payload", "modified_date"])
-    return application

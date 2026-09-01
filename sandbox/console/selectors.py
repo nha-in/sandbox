@@ -10,28 +10,27 @@ from django.db.models import Q
 
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas.sandbox import IntegrationIntent
-from sandbox.applications.schemas.sandbox import PayerCategory
-from sandbox.applications.schemas.sandbox import SolutionType
-from sandbox.declarations.selectors import current_exit_declaration
+from sandbox.applications.selectors import current_form_data
+from sandbox.applications.selectors import exit_documents
+from sandbox.programmes import abdm
+from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from django.db.models import QuerySet
 
 PAGE_SIZE = 25
 
-#: payload key -> (heading, the choices enum whose labels we render)
-_PAYLOAD_CHOICES = {
-    "solution_types": ("Solution types", SolutionType),
-    "integration_intents": ("Integration intents", IntegrationIntent),
-    "payer_categories": ("Payer categories", PayerCategory),
-}
 
-
-def _matching(search: str) -> QuerySet[Application]:
+def _matching(search: str, visible: Sequence[str]) -> QuerySet[Application]:
     """One definition of "matches the search", so the badges and the table can
-    never disagree about how many results there are."""
-    applications = Application.objects.all()
+    never disagree about how many results there are.
+
+    `visible` is the actor's programmes: a team holds no authority over another
+    programme's applications and has no business reading their evidence either.
+    """
+    applications = Application.objects.filter(workflow_key__in=visible)
     if search:
         applications = applications.filter(
             Q(reference__icontains=search)
@@ -42,6 +41,7 @@ def _matching(search: str) -> QuerySet[Application]:
 
 def queue(
     *,
+    visible: Sequence[str],
     state: str = "",
     search: str = "",
     after: int | None = None,
@@ -53,7 +53,7 @@ def queue(
     ordering on them is not stable enough to paginate against.
     """
     applications = (
-        _matching(search)
+        _matching(search, visible)
         .select_related(
             "product__organisation",
             "applicant",
@@ -69,7 +69,7 @@ def queue(
     return applications
 
 
-def state_counts(search: str = "") -> dict[str, int]:
+def state_counts(visible: Sequence[str], search: str = "") -> dict[str, int]:
     """Every state with its count, zeros included, in workflow order.
 
     Counts what the search is showing: a badge reading "Draft 1" next to a
@@ -77,7 +77,9 @@ def state_counts(search: str = "") -> dict[str, int]:
     """
     counted = {
         row["state"]: row["total"]
-        for row in _matching(search).values("state").annotate(total=Count("id"))
+        for row in _matching(search, visible)
+        .values("state")
+        .annotate(total=Count("id"))
     }
     return {state: counted.get(state, 0) for state in ApplicationState.values}
 
@@ -87,55 +89,84 @@ def state_counts(search: str = "") -> dict[str, int]:
 #: and counting it would have the console nag reviewers about work they cannot do.
 AWAITING_REVIEW_STATES = (
     ApplicationState.SUBMITTED,
-    ApplicationState.EXIT_REQUESTED,
-    ApplicationState.EXIT_REVIEW,
+    # exits are their own applications, with their own reviewable state
+    "UNDER_REVIEW",
 )
 
 
-def awaiting_review_count() -> int:
+def awaiting_review_count(visible: Sequence[str]) -> int:
     """The sidebar badge. One query, ignoring any search or state filter — it
     reports the size of the reviewers' backlog, not of the view they happen to
     be looking at."""
-    return Application.objects.filter(state__in=AWAITING_REVIEW_STATES).count()
+    return Application.objects.filter(
+        workflow_key__in=visible,
+        state__in=AWAITING_REVIEW_STATES,
+    ).count()
 
 
 def payload_groups(application: Application) -> list[dict[str, Any]]:
-    """Payload as labelled groups — never a raw JSON dump on a reviewer's screen."""
-    data = application.payload.get("data", {})
-    groups: list[dict[str, Any]] = []
+    """Registration as labelled groups — never a raw JSON dump on a reviewer's
+    screen, and never a bare code: `['EUA']` is not an answer.
 
-    for key, (heading, choices) in _PAYLOAD_CHOICES.items():
-        values = data.get(key) or []
-        labels = dict(choices.choices)
+    Headings and labels come from the form the applicant actually filled in, so
+    a field added to the programme shows up here without a second list to edit.
+    """
+    data = current_form_data(application, "REGISTRATION")
+    if not data:
+        return []
+
+    form = get_workflow(application.workflow_key).form("REGISTRATION").form_class()
+    groups: list[dict[str, Any]] = []
+    for name, field in form.fields.items():
+        value = data.get(name)
+        if value in (None, "", []):
+            continue
+        labels = dict(getattr(field, "choices", []) or [])
+        values = value if isinstance(value, list | tuple) else [value]
         groups.append(
             {
-                "heading": heading,
-                "values": [str(labels.get(value, value)) for value in values],
+                "heading": str(field.label or name),
+                "values": [str(labels.get(item, item)) for item in values],
             },
         )
-
-    narrative = data.get("use_case_narrative")
-    if narrative:
-        groups.append({"heading": "Use case", "values": [narrative]})
     return groups
 
 
-def exit_bundle(application: Application) -> dict[str, Any] | None:
-    """What the reviewer decides on: the milestones claimed, the integrator's
-    summary, and the evidence attached.
+def registered_solution_types(exit_application: Application) -> list[tuple[str, str]]:
+    """The admin's ceiling: only what the applicant selected may be approved.
 
-    Returns `None` when no exit is pending, which is what hides the panel. The
-    per-milestone claims come from the *declaration*, not from
-    `milestone_coverage()`: the bundle means "complete at the time of exit", so
-    recomputing coverage now would answer a different question.
+    Read at decision time from the product's sandbox application, so widening
+    the registration later grants nothing until the next exit is decided (§10).
     """
-    declaration = current_exit_declaration(application)
-    if declaration is None:
-        return None
+    sandbox = (
+        Application.objects.filter(
+            product_id=exit_application.product_id,
+            workflow_key="ABDM",
+            deleted=False,
+        )
+        .order_by("-created_date")
+        .first()
+    )
+    if sandbox is None:
+        return []
+    selected = current_form_data(sandbox, "REGISTRATION").get("solution_types", [])
+    labels = dict(abdm.RegistrationSolutionType.choices)
+    eligible = abdm.dhis_solution_types(selected)
+    return [
+        (solution_type.value, str(labels.get(solution_type.value, solution_type.value)))
+        for solution_type in sorted(eligible)
+    ]
 
+
+def exit_review(exit_application: Application) -> dict[str, Any]:
+    """What the reviewer decides on: the claim, the WASA, and the evidence."""
+    claim = current_form_data(exit_application, "EXIT_CLAIM")
     return {
-        "declaration": declaration,
-        "milestones": [claim.milestone for claim in declaration.milestones.all()],
-        "summary": declaration.payload.get("summary", ""),
-        "documents": list(declaration.documents.all()),
+        "covers": claim.get("covers", []),
+        "summary": claim.get("summary", ""),
+        "wasa": current_form_data(exit_application, "WASA"),
+        "documents": exit_documents(exit_application),
+        "decision_form": abdm.ExitDecisionForm(
+            registered_choices=registered_solution_types(exit_application),
+        ),
     }

@@ -4,12 +4,12 @@ import factory
 from factory.django import DjangoModelFactory
 
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationKind
+from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
-from sandbox.applications.schemas.sandbox import IntegrationIntent
-from sandbox.applications.schemas.sandbox import PayerCategory
-from sandbox.applications.schemas.sandbox import SolutionType
 from sandbox.organisations.tests.factories import ProductFactory
+from sandbox.programmes.abdm import IntegrationIntent
+from sandbox.programmes.abdm import PayerCategory
+from sandbox.programmes.abdm import RegistrationSolutionType as SolutionType
 from sandbox.users.tests.factories import UserFactory
 
 VALID_SANDBOX_DATA = {
@@ -25,13 +25,28 @@ VALID_SANDBOX_DATA = {
 
 class ApplicationFactory(DjangoModelFactory[Application]):
     reference = factory.Sequence(lambda n: f"SBX-2026-{n:05d}")
-    kind = ApplicationKind.SANDBOX
+    workflow_key = "ABDM"
     product = factory.SubFactory(ProductFactory)
     applicant = factory.SubFactory(UserFactory)
     state = ApplicationState.DRAFT
-    payload = factory.LazyFunction(
-        lambda: {"schema_version": 1, "data": dict(VALID_SANDBOX_DATA)},
-    )
 
     class Meta:
         model = Application
+
+    @factory.post_generation
+    def registered(obj: Application, create, extracted, **kwargs):  # noqa: N805
+        """Most tests want an application someone has actually filled in.
+
+        Pass `registered=False` when the test is about one that nobody has yet
+        — the engine's own guards are exactly that case.
+        """
+        if not create or extracted is False:
+            return
+        ApplicationFormSubmission.objects.create(
+            application=obj,
+            form_key="REGISTRATION",
+            round=obj.round,
+            data=dict(VALID_SANDBOX_DATA),
+            is_current=True,
+            submitted_by=obj.applicant,
+        )

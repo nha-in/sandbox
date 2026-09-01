@@ -1,0 +1,56 @@
+{% extends "journey/exit_base.html" %}
+
+{% load i18n careui %}
+
+{% block step_title %}
+  {% translate "What you are taking to production" %}
+{% endblock step_title %}
+{% block step_description %}
+  {% translate "Tell NHA which of your declared milestones this exit covers, and attach the evidence for them." %}
+{% endblock step_description %}
+{% block step_body %}
+  {% comment %}
+    No `novalidate`: a file input cannot be refilled by the server, so a round
+    trip for a missing field silently clears whatever was chosen. Let the
+    browser stop it here instead.
+  {% endcomment %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="ui-card-content flex flex-col gap-5">
+      {% include "components/form_errors.html" with form=form %}
+      <div>
+        <span class="ui-label">{{ form.covers.label }}</span>
+        <span class="ui-hint">
+          {% translate "Only milestones you have already declared complete can be exited." %}
+        </span>
+        <div class="mt-2 flex flex-col gap-2">
+          {% for choice in form.covers %}
+            <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+              {{ choice.tag }}{{ choice.choice_label }}
+            </label>
+          {% endfor %}
+        </div>
+        {% for error in form.covers.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+      </div>
+      {% ui_field form.summary %}
+      {% for upload in uploads %}
+        <div>
+          <label class="ui-label" for="id_{{ upload.name }}">{{ upload.label }}</label>
+          {% for document in upload.existing %}
+            <span class="ui-hint">{% blocktranslate with filename=document.filename %}{{ filename }} is already attached. Choose a file only to replace it.{% endblocktranslate %}</span>
+          {% endfor %}
+          <input class="ui-input"
+                 id="id_{{ upload.name }}"
+                 type="file"
+                 name="{{ upload.name }}"
+                 {% if not upload.existing %}required{% endif %} />
+        </div>
+      {% endfor %}
+    </div>
+    <div class="ui-card-footer flex items-center justify-between gap-3">
+      <a class="ui-btn ui-btn--ghost no-underline"
+         href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}">{% translate "Cancel" %}</a>
+      <button class="ui-btn ui-btn--primary" type="submit">{% translate "Save and continue" %}</button>
+    </div>
+  </form>
+{% endblock step_body %}

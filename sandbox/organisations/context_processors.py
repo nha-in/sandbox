@@ -28,9 +28,14 @@ NAV_SECTIONS: dict[str, str] = {
     "applications:step_product_edit": "details",
     "applications:step_details": "details",
     "applications:step_review": "details",
-    "declarations:milestones": "milestones",
-    "declarations:declare_milestone": "milestones",
-    "declarations:exit": "exit",
+    "applications:milestones": "milestones",
+    "applications:declare_milestone": "milestones",
+    "applications:exit": "exit",
+    "applications:exit_claim": "exit",
+    "applications:exit_wasa": "exit",
+    "applications:exit_review": "exit",
+    # DHIS is what an approved exit unlocks, so it belongs to the same section
+    "applications:dhis": "exit",
     "organisations:profile": "settings",
     "organisations:choose": "organisations",
     "organisations:create": "organisation_create",
@@ -38,6 +43,10 @@ NAV_SECTIONS: dict[str, str] = {
     "users:update": "settings",
     "console:queue": "queue",
     "console:application_detail": "queue",
+    "console:roles": "roles",
+    "console:role_detail": "roles",
+    "console:users": "users",
+    "console:user_roles": "users",
 }
 
 #: view name -> the settings tab that should read as current.

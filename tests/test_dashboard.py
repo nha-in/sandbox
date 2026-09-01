@@ -58,7 +58,7 @@ def test_every_state_has_a_place_on_the_track(state):
 
 
 def test_steps_before_the_current_one_are_done():
-    steps = journey_for(ApplicationState.PRODUCTION_APPROVED)
+    steps = journey_for(ApplicationState.PROVISIONED)
 
     assert [step.status for step in steps[:-1]] == ["done"] * (len(steps) - 1)
     assert steps[-1].status == "current"
@@ -92,6 +92,28 @@ def test_no_application_offers_the_wizard(member_client):
     assert response.status_code == HTTP_OK
     assert response.context["rows"] == []
     assert reverse("applications:step_product") in response.content.decode()
+
+
+def test_the_list_ignores_exits(member_client, product_a, org_member):
+    """An exit is an application, but not one this list can describe: it has no
+    registration form, and asking it for one used to 500 the whole page."""
+    enrollment = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=ApplicationState.PROVISIONED,
+    )
+    ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        workflow_key="ABDM_EXIT",
+        state="UNDER_REVIEW",
+        registered=False,
+    )
+
+    response = member_client.get(reverse("applications:index"))
+
+    assert response.status_code == HTTP_OK
+    assert [row["application"] for row in response.context["rows"]] == [enrollment]
 
 
 def test_a_rejected_application_lets_you_start_again(
@@ -146,7 +168,7 @@ def test_pending_states_poll(member_client, product_a, org_member, state):
 
 @pytest.mark.parametrize(
     "state",
-    [ApplicationState.PROVISIONED, ApplicationState.PRODUCTION_APPROVED],
+    [ApplicationState.PROVISIONED, ApplicationState.SANDBOX_APPROVED],
 )
 def test_settled_states_stop_polling(member_client, product_a, org_member, state):
     """Left running, every finished application would hammer the server forever."""

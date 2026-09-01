@@ -1,0 +1,118 @@
+{% extends "journey/exit_base.html" %}
+
+{% load i18n %}
+
+{% block step_title %}
+  {% translate "Review and request exit" %}
+{% endblock step_title %}
+{% block step_description %}
+  {% translate "This is what NHA will see. Nothing is sent until you request the exit." %}
+{% endblock step_description %}
+{% block step_body %}
+  <div class="ui-card-content flex flex-col gap-6">
+    {% if reviews %}
+      <div>
+        <h2 class="ui-card-title mb-2">{% translate "Reviewer comments" %}</h2>
+        {% for review in reviews %}
+          {% if review.comment %}
+            <div class="ui-alert ui-alert--warning mb-2">
+              <p>{{ review.comment }}</p>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+    <div>
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <h2 class="ui-card-title">{% translate "What you are taking to production" %}</h2>
+        <a class="text-sm underline"
+           href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Change" %}</a>
+      </div>
+      <dl>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">{% translate "Milestones" %}</dt>
+          <dd class="ui-kv-value">
+            {% for cover in covers %}
+              {{ cover }}{% if not forloop.last %},{% endif %}
+            {% empty %}
+              —
+            {% endfor %}
+          </dd>
+        </div>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">{% translate "Summary" %}</dt>
+          <dd class="ui-kv-value">{{ summary|default:"—" }}</dd>
+        </div>
+      </dl>
+    </div>
+    <div>
+      <div class="mb-2 flex items-center justify-between gap-3">
+        <h2 class="ui-card-title">{% translate "Safe-to-Host certificate" %}</h2>
+        <a class="text-sm underline"
+           href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Change" %}</a>
+      </div>
+      <dl>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">{% translate "Valid from" %}</dt>
+          <dd class="ui-kv-value">{{ wasa.start|default:"—" }}</dd>
+        </div>
+        <div class="ui-kv">
+          <dt class="ui-kv-key">{% translate "Valid until" %}</dt>
+          <dd class="ui-kv-value">{{ wasa.valid_upto|default:"—" }}</dd>
+        </div>
+      </dl>
+    </div>
+    <div>
+      <h2 class="ui-card-title mb-2">{% translate "Evidence" %}</h2>
+      <dl>
+        {% for row in evidence %}
+          <div class="ui-kv">
+            <dt class="ui-kv-key">{{ row.label }}</dt>
+            <dd class="ui-kv-value">
+              {% for document in row.files %}
+                <span class="block truncate">{{ document.filename }}</span>
+              {% empty %}
+                <span class="ui-badge ui-badge--destructive ui-badge--size-sm">{% translate "Missing" %}</span>
+              {% endfor %}
+            </dd>
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </div>
+  {% if wasa_expired %}
+    <div class="ui-card-content pt-0">
+      <div class="ui-alert ui-alert--destructive" role="alert">
+        <div class="flex-1 space-y-1">
+          <p>
+            {% blocktranslate with expired_on=wasa.valid_upto %}Your Safe-to-Host certificate expired on {{ expired_on }}. A new audit is needed before this exit can be requested.{% endblocktranslate %}
+          </p>
+          <a class="text-sm underline"
+             href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Upload a current certificate" %}</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  <div class="ui-card-footer flex items-center justify-between gap-3">
+    <a class="ui-btn ui-btn--ghost no-underline"
+       href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+    <form method="post" class="flex flex-col items-end gap-3">
+      {% csrf_token %}
+      {% comment %}
+        The affirmation sits with the button it gates: on the certificate step
+        a returning applicant could reach Request exit without ever seeing it.
+      {% endcomment %}
+      {% if affirmation_form %}
+        <div>
+          <label class="flex items-start gap-2.5 text-sm leading-snug font-semibold text-foreground select-none">
+            {{ affirmation_form.still_valid }}{{ affirmation_form.still_valid.label }}
+          </label>
+          {% for error in affirmation_form.still_valid.errors %}<p class="ui-error mt-1">{{ error }}</p>{% endfor %}
+        </div>
+      {% endif %}
+      <button class="ui-btn ui-btn--primary"
+              type="submit"
+              {% if wasa_expired %}disabled{% endif %}>{% translate "Request exit" %}</button>
+    </form>
+  </div>
+{% endblock step_body %}

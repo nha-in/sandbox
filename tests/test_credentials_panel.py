@@ -28,9 +28,8 @@ from sandbox.organisations.models import MembershipRole
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import VerifiedUserFactory
-from sandbox.workflow import services as workflow_services
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -40,11 +39,11 @@ HTTP_NOT_FOUND = 404
 
 @pytest.fixture(autouse=True)
 def _hooks():
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
     register_workflow_hooks()
     notification_hooks.register_workflow_hooks()
     yield
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -87,12 +86,12 @@ def _staff(*codenames: str) -> User:
 
 @pytest.fixture
 def provisioned(application, owner, django_capture_on_commit_callbacks):
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     with django_capture_on_commit_callbacks(execute=True):
         transition(
             application=application,
-            action=Action.APPROVE,
-            actor=_staff("approve_application"),
+            action="APPROVE",
+            actor=_staff("approve_abdm"),
         )
     application.refresh_from_db()
     assert application.state == ApplicationState.PROVISIONED
@@ -301,7 +300,7 @@ def test_another_organisation_gets_a_404_not_a_403(client, provisioned):
 def test_staff_have_no_reveal_route_at_all(client, provisioned):
     """Not "staff are refused" — there is no staff-facing path to a secret in
     the URLconf, which is the property worth asserting."""
-    session = _client_for(_staff("approve_application"), client)
+    session = _client_for(_staff("view_abdm", "approve_abdm"), client)
 
     # The integrator routes 404 for staff: they hold no membership.
     assert session.post(_reveal(provisioned)).status_code == HTTP_NOT_FOUND

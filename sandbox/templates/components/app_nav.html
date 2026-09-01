@@ -73,11 +73,11 @@
            {% if nav_section == 'credentials' %}aria-current="page"{% endif %}>{% translate "Credentials" %}</a>
         <a id="nav-milestones"
            class="ui-sidebar-link {% if nav_section == 'milestones' %}ui-sidebar-link--active{% endif %}"
-           href="{% url 'declarations:milestones' external_id=application.external_id %}{{ org_query }}"
+           href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}"
            {% if nav_section == 'milestones' %}aria-current="page"{% endif %}>{% translate "Milestones" %}</a>
         <a id="nav-exit"
            class="ui-sidebar-link {% if nav_section == 'exit' %}ui-sidebar-link--active{% endif %}"
-           href="{% url 'declarations:exit' external_id=application.external_id %}{{ org_query }}"
+           href="{% url 'applications:exit' external_id=application.external_id %}{{ org_query }}"
            {% if nav_section == 'exit' %}aria-current="page"{% endif %}>{% translate "Exit to production" %}</a>
       </div>
     {% else %}

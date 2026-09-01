@@ -41,8 +41,7 @@ from sandbox.integrations.secret_ref import store_secret
 from sandbox.integrations.wso2.apis import api_names_for
 from sandbox.utils.correlation import get_correlation_id
 from sandbox.utils.correlation import set_correlation_id
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow.engine import transition
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -125,7 +124,7 @@ def _fail(
     detail = f"{system}/{failure.code}: {failure.detail}"
     transition(
         application=application,
-        action=Action.FAIL_PROVISIONING,
+        action="FAIL_PROVISIONING",
         comment=detail[: settings.PROVISIONING_DETAIL_MAX_CHARS],
         data={"system": str(system), "code": failure.code, "attempts": attempts},
     )
@@ -184,14 +183,14 @@ def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> 
     # A retry arrives already in PROVISIONING, having been moved there by the
     # console's RETRY_PROVISIONING; only a fresh approval needs this move.
     if application.state == ApplicationState.SANDBOX_APPROVED:
-        transition(application=application, action=Action.START_PROVISIONING)
+        transition(application=application, action="START_PROVISIONING")
 
     def run(application: Application) -> None:
         created = get_idp_admin().create_client(
             ClientSpec(
                 reference=application.reference,
                 display_name=application.product.name,
-                role_names=role_names_for(application.kind),
+                role_names=role_names_for(application.workflow_key),
             ),
         )
         _record(
@@ -238,7 +237,7 @@ def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
             message = "WSO2 needs the Keycloak client that should already exist"
             raise ImproperlyConfigured(message)
 
-        api_names = api_names_for(application.kind)
+        api_names = api_names_for(application.workflow_key)
         gateway = get_api_gateway()
         created = gateway.create_application(
             GatewayAppSpec(
@@ -315,14 +314,14 @@ def complete_provisioning(application_id: int, correlation_id: str) -> int:
         )
         transition(
             application=application,
-            action=Action.FAIL_PROVISIONING,
+            action="FAIL_PROVISIONING",
             comment=f"incomplete ledger: missing {', '.join(sorted(missing))}",
             data={"missing": sorted(missing)},
         )
         return application_id
 
     # PROVISIONED fires B6's `notify_provisioned`, which mails the panel link.
-    transition(application=application, action=Action.COMPLETE_PROVISIONING)
+    transition(application=application, action="COMPLETE_PROVISIONING")
     return application_id
 
 
@@ -450,7 +449,10 @@ def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> in
         # The same source provisioning subscribed from. If the configured set has
         # changed since, the difference is left behind for P4's sweep rather than
         # guessed at from here.
-        get_api_gateway().unsubscribe(row.external_ref, api_names_for(application.kind))
+        get_api_gateway().unsubscribe(
+            row.external_ref,
+            api_names_for(application.workflow_key),
+        )
 
     return _teardown_step(
         task,

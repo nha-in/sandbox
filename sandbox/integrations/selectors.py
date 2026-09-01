@@ -34,10 +34,6 @@ CREDENTIAL_STATES = frozenset(
         "PROVISIONING",
         "PROVISIONING_FAILED",
         "PROVISIONED",
-        "EXIT_REQUESTED",
-        "EXIT_REVIEW",
-        "EXIT_REJECTED",
-        "PRODUCTION_APPROVED",
     },
 )
 

@@ -12,18 +12,17 @@ from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
 from sandbox.utils.errors import DomainError
-from sandbox.workflow import services
-from sandbox.workflow.machine import Action
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
-from sandbox.workflow.selectors import available_actions
 from sandbox.workflow.selectors import current_round
+from sandbox.workflow.selectors import decidable_actions
 from sandbox.workflow.selectors import history_for
 from sandbox.workflow.selectors import queue_by_state
 from sandbox.workflow.selectors import review_tally
 from sandbox.workflow.selectors import reviews_for_round
 from sandbox.workflow.services import record_review
-from sandbox.workflow.services import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -40,9 +39,9 @@ def grant(user: User, *codenames: str) -> User:
 
 @pytest.fixture(autouse=True)
 def _no_hooks():
-    services.clear_hooks()
+    workflow_engine.clear_hooks()
     yield
-    services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -56,24 +55,24 @@ def owner_and_application():
 @pytest.fixture
 def submitted(owner_and_application):
     owner, application = owner_and_application
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     application.refresh_from_db()
     return application
 
 
 @pytest.fixture
 def reviewer():
-    return grant(UserFactory.create(is_staff=True), "review_application")
+    return grant(UserFactory.create(is_staff=True), "review_abdm")
 
 
 @pytest.fixture
 def admin():
     return grant(
         UserFactory.create(is_staff=True),
-        "review_application",
-        "approve_application",
-        "reject_application",
-        "send_back_application",
+        "review_abdm",
+        "approve_abdm",
+        "reject_abdm",
+        "send_back_abdm",
     )
 
 
@@ -115,7 +114,7 @@ def test_a_reviewer_cannot_approve_the_application(submitted, reviewer):
     )
 
     with pytest.raises(DomainError) as excinfo:
-        transition(application=submitted, action=Action.APPROVE, actor=reviewer)
+        transition(application=submitted, action="APPROVE", actor=reviewer)
 
     assert excinfo.value.code == "forbidden"
 
@@ -124,7 +123,7 @@ def test_admin_can_approve_with_zero_reviews_recorded(submitted, admin):
     """Deliberate parity with legacy: no quorum, the admin's call stands alone."""
     assert not WorkflowReview.objects.filter(application=submitted).exists()
 
-    transition(application=submitted, action=Action.APPROVE, actor=admin)
+    transition(application=submitted, action="APPROVE", actor=admin)
 
     submitted.refresh_from_db()
     assert submitted.state == ApplicationState.SANDBOX_APPROVED
@@ -142,7 +141,7 @@ def test_reviews_do_not_gate_approval_even_when_they_disagree(
         comment="Not convinced.",
     )
 
-    transition(application=submitted, action=Action.APPROVE, actor=admin)
+    transition(application=submitted, action="APPROVE", actor=admin)
 
     submitted.refresh_from_db()
     assert submitted.state == ApplicationState.SANDBOX_APPROVED
@@ -211,8 +210,8 @@ def test_send_back_and_resubmit_opens_a_new_round(
         decision=ReviewDecision.SEND_BACK,
         comment="Round one: fix the payer categories.",
     )
-    transition(application=submitted, action=Action.SEND_BACK, actor=admin)
-    transition(application=submitted, action=Action.SUBMIT, actor=owner)
+    transition(application=submitted, action="SEND_BACK", actor=admin)
+    transition(application=submitted, action="SUBMIT", actor=owner)
     submitted.refresh_from_db()
 
     assert current_round(submitted) == ROUND_TWO
@@ -240,8 +239,8 @@ def test_the_previous_round_stays_readable(
         decision=ReviewDecision.SEND_BACK,
         comment="Round one comment.",
     )
-    transition(application=submitted, action=Action.SEND_BACK, actor=admin)
-    transition(application=submitted, action=Action.SUBMIT, actor=owner)
+    transition(application=submitted, action="SEND_BACK", actor=admin)
+    transition(application=submitted, action="SUBMIT", actor=owner)
     submitted.refresh_from_db()
     record_review(
         application=submitted,
@@ -257,7 +256,7 @@ def test_the_previous_round_stays_readable(
 
 
 def test_two_reviewers_may_both_record_in_one_round(submitted, reviewer):
-    second = grant(UserFactory.create(is_staff=True), "review_application")
+    second = grant(UserFactory.create(is_staff=True), "review_abdm")
 
     record_review(
         application=submitted,
@@ -288,8 +287,8 @@ def test_tally_counts_the_current_round_only(
         reviewer=reviewer,
         decision=ReviewDecision.SEND_BACK,
     )
-    transition(application=submitted, action=Action.SEND_BACK, actor=admin)
-    transition(application=submitted, action=Action.SUBMIT, actor=owner)
+    transition(application=submitted, action="SEND_BACK", actor=admin)
+    transition(application=submitted, action="SUBMIT", actor=owner)
     submitted.refresh_from_db()
     record_review(
         application=submitted,
@@ -320,7 +319,7 @@ def test_the_review_comment_is_not_copied_onto_the_transition(
         comment="the only home for this text",
     )
 
-    record = transition(application=submitted, action=Action.APPROVE, actor=admin)
+    record = transition(application=submitted, action="APPROVE", actor=admin)
 
     assert record.comment == ""
 
@@ -352,17 +351,17 @@ def test_available_actions_offers_only_what_the_actor_may_do(
     admin,
 ):
     """A screen must not offer a move `transition()` would then refuse."""
-    assert set(available_actions(submitted, admin)) >= {Action.APPROVE, Action.REJECT}
-    # review_application is opinion-only: a reviewer may move nothing at all
-    assert available_actions(submitted, reviewer) == ()
+    assert set(decidable_actions(submitted, admin)) >= {"APPROVE", "REJECT"}
+    # review_abdm is opinion-only: a reviewer may move nothing at all
+    assert decidable_actions(submitted, reviewer) == ()
 
 
 def test_available_actions_hides_system_moves(submitted, admin):
-    assert Action.START_PROVISIONING not in available_actions(submitted, admin)
+    assert "START_PROVISIONING" not in decidable_actions(submitted, admin)
 
 
 def test_available_actions_is_empty_for_anonymous(submitted):
-    assert available_actions(submitted, None) == ()
+    assert decidable_actions(submitted, None) == ()
 
 
 def test_owner_moves_are_offered_only_to_members(
@@ -372,16 +371,16 @@ def test_owner_moves_are_offered_only_to_members(
 ):
     owner, _ = owner_and_application
 
-    assert Action.WITHDRAW in available_actions(submitted, owner)
-    assert Action.WITHDRAW not in available_actions(submitted, admin)
+    assert "WITHDRAW" in decidable_actions(submitted, owner)
+    assert "WITHDRAW" not in decidable_actions(submitted, admin)
 
 
 def test_history_is_newest_first(submitted, admin):
-    transition(application=submitted, action=Action.SEND_BACK, actor=admin)
+    transition(application=submitted, action="SEND_BACK", actor=admin)
 
     actions = [row.action for row in history_for(submitted)]
 
-    assert actions == [Action.SEND_BACK, Action.SUBMIT]
+    assert actions == ["SEND_BACK", "SUBMIT"]
 
 
 def test_queue_by_state_finds_submitted_applications(submitted):

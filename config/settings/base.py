@@ -105,7 +105,6 @@ LOCAL_APPS = [
     "sandbox.organisations",
     "sandbox.catalog",
     "sandbox.applications",
-    "sandbox.declarations",
     "sandbox.workflow",
     "sandbox.audit",
     "sandbox.integrations",
@@ -415,7 +414,7 @@ KEYCLOAK_CLIENT_SECRET = env.str("KEYCLOAK_CLIENT_SECRET", default="")
 # This subset is provisional: legacy granted all 14 roles to everyone, and NHA
 # has not yet confirmed the per-kind set (open question 4).
 KEYCLOAK_ROLE_NAMES = {
-    "SANDBOX": tuple(
+    "ABDM": tuple(
         env.list(
             "KEYCLOAK_SANDBOX_ROLE_NAMES",
             default=["healthId", "hip", "hiu", "hfr"],
@@ -450,7 +449,7 @@ WSO2_KEY_TYPE = env.str("WSO2_KEY_TYPE", default="PRODUCTION")
 WSO2_READ_TIMEOUT_SECONDS = env.float("WSO2_READ_TIMEOUT_SECONDS", default=15.0)
 # API NAMES, never ids. No default: NHA has not published the sandbox API names,
 # and a wrong or empty guess would fail silently at provisioning time.
-WSO2_API_NAMES = {"SANDBOX": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[]))}
+WSO2_API_NAMES = {"ABDM": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[]))}
 
 # How long a secret parked for `map_keys` stays readable (B7 → B4 hand-off).
 SECRET_REF_TTL_SECONDS = env.int("SECRET_REF_TTL_SECONDS", default=900)
@@ -617,6 +616,10 @@ UPLOAD_DOWNLOAD_URL_TTL_SECONDS = env.int(
 # Declaration documents live in their own private bucket, never `default`:
 # nothing in the portal may serve them by URL, only the presigned-download view.
 AWS_S3_ENDPOINT_URL = env.str("AWS_S3_ENDPOINT_URL", default="http://minio:9000")
+#: where the *browser* reaches storage. SigV4 signs the Host header, so a URL
+#: signed for the compose-internal name cannot be rewritten for the browser —
+#: it has to be signed against this one. Empty means the two are the same.
+AWS_S3_PUBLIC_ENDPOINT_URL = env.str("AWS_S3_PUBLIC_ENDPOINT_URL", default="")
 AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", default="sandbox")
 AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", default="sandbox-secret")
 AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", default="sandbox-uploads")
@@ -627,7 +630,7 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
-    "declarations": {
+    "evidence": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
             "bucket_name": AWS_STORAGE_BUCKET_NAME,

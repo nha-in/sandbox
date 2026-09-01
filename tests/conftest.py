@@ -12,17 +12,18 @@ import uuid
 import pytest
 from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.contrib.auth.models import Group
+from django.contrib.auth.models import Permission
 from django.test import Client
 
+from sandbox.applications.models import ApplicationDocument
+from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
-from sandbox.catalog.tests.factories import MilestoneFactory
-from sandbox.declarations.models import Declaration
-from sandbox.declarations.models import DeclarationDocument
-from sandbox.declarations.models import DeclarationKind
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
+from sandbox.users.models import User
 from sandbox.users.tests.factories import VerifiedUserFactory
 
 ANONYMOUS = "anonymous"
@@ -32,6 +33,7 @@ REVIEWER = "reviewer"
 STAFF = "staff"
 DOCUMENT_A = "document_a"
 MILESTONE_M1 = "milestone_m1"
+ROLE = "role"
 
 ACTORS = (ANONYMOUS, ORG_MEMBER, MEMBER_OTHER_ORG, REVIEWER, STAFF)
 STAFF_ACTORS = (REVIEWER, STAFF)
@@ -80,8 +82,16 @@ def member_other_org(org_b):
 
 @pytest.fixture
 def reviewer(db):
-    """Console access, but not the admin-approve permission (A6 adds that)."""
-    return _with_mfa(VerifiedUserFactory(is_staff=True))
+    """On the ABDM review team: may see and opine, may not decide.
+
+    Holds `view_abdm` because permissions are per programme now — a staff user
+    on no team sees an empty console, which is correct but makes every route
+    row look like a broken gate.
+    """
+    user = _with_mfa(VerifiedUserFactory(is_staff=True))
+    for codename in ("view_abdm", "review_abdm"):
+        user.user_permissions.add(Permission.objects.get(codename=codename))
+    return User.objects.get(pk=user.pk)
 
 
 @pytest.fixture
@@ -112,27 +122,31 @@ def application(product_a, org_member):
 
 @pytest.fixture
 def document_a(org_a, org_member):
-    """A declaration document owned by org A, for the org-scoped download row.
+    """An evidence document owned by org A, for the org-scoped download row.
 
     Built through the ORM rather than the service: presigning needs no network,
     so the matrix stays offline and does not depend on a mocked S3.
 
-    Its own product, because `UNIQUE (product, kind)` allows only one live
-    application per product and `application` above already holds product_a.
+    Its own product, because the in-flight constraint allows only one live
+    application per (product, workflow) and `application` above holds product_a.
     """
     application = ApplicationFactory(
         product=ProductFactory(organisation=org_a),
         applicant=org_member,
         state=ApplicationState.PROVISIONED,
     )
-    declaration = Declaration.objects.create(
+    submission = ApplicationFormSubmission.objects.create(
         application=application,
-        kind=DeclarationKind.MILESTONE,
-        declared_by=org_member,
+        form_key="MILESTONE_M1",
+        round=application.round,
+        data={},
+        is_current=True,
+        submitted_by=org_member,
     )
-    return DeclarationDocument.objects.create(
-        declaration=declaration,
-        storage_key=f"declarations/{declaration.external_id}/{uuid.uuid4()}",
+    return ApplicationDocument.objects.create(
+        submission=submission,
+        kind="FUNCTIONAL_TEST_REPORT",
+        storage_key=f"applications/{submission.external_id}/{uuid.uuid4()}",
         filename="evidence.pdf",
         content_type="application/pdf",
         size=1024,
@@ -142,14 +156,21 @@ def document_a(org_a, org_member):
 
 
 @pytest.fixture
-def milestone_m1(db):
-    """The catalog is seeded by a management command, not a migration, so a
-    milestone URL has nothing to name unless a test makes one."""
-    return MilestoneFactory(key="m1")
+def milestone_m1():
+    """The key a milestone URL names. Milestones come from the workflow, so
+    there is no row to create — only the segment the route needs."""
+    return "m1"
 
 
 @pytest.fixture
-def context(actors, application, document_a, milestone_m1):
+def role(db):
+    """A console role for the routes that edit one. Nobody in the matrix holds
+    `manage_roles`, which is the point of those rows."""
+    return Group.objects.create(name="ABDM review team")
+
+
+@pytest.fixture
+def context(actors, application, document_a, milestone_m1, role):
     """What a route's `kwargs` callable receives when it builds URL arguments.
 
     Organisations and products are reachable from these objects
@@ -160,6 +181,7 @@ def context(actors, application, document_a, milestone_m1):
         "application": application,
         DOCUMENT_A: document_a,
         MILESTONE_M1: milestone_m1,
+        ROLE: role,
     }
 
 

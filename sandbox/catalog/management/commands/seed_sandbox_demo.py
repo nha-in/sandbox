@@ -10,30 +10,25 @@ usable as the e2e fixture and the demo dataset rather than just table filler.
 from __future__ import annotations
 
 import secrets
+from datetime import timedelta
 
 from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from sandbox.applications.documents import attach_documents
 from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState as S
-from sandbox.applications.schemas.sandbox import IntegrationIntent
-from sandbox.applications.schemas.sandbox import PayerCategory
-from sandbox.applications.schemas.sandbox import SolutionType
 from sandbox.applications.services import create_draft
-from sandbox.catalog.models import Milestone
+from sandbox.applications.services import open_exit
 from sandbox.catalog.selectors import districts_for_state
 from sandbox.catalog.selectors import state_choices
-from sandbox.declarations.services import submit_exit_declaration
-from sandbox.declarations.services import submit_milestone_declaration
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import MembershipRole
 from sandbox.organisations.models import NatureOfEntity
@@ -42,10 +37,14 @@ from sandbox.organisations.models import OrganisationCategory
 from sandbox.organisations.models import OrganisationKind
 from sandbox.organisations.models import OrganisationOwnership
 from sandbox.organisations.models import Product
-from sandbox.workflow.machine import Action
+from sandbox.programmes.abdm import ABDMExitWorkflow
+from sandbox.programmes.abdm import IntegrationIntent
+from sandbox.programmes.abdm import PayerCategory
+from sandbox.programmes.abdm import SolutionType
+from sandbox.workflow import engine
+from sandbox.workflow.engine import transition
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.services import record_review
-from sandbox.workflow.services import transition
 
 User = get_user_model()
 
@@ -60,6 +59,10 @@ OWNER_EMAIL = "integrator@example.com"
 DEVELOPER_EMAIL = "developer@example.com"
 OTHER_ORG_EMAIL = "rival@example.com"
 
+# Shared by every demo login so a fresh checkout needs nothing but this file.
+# Only ever reached under DEBUG — see `handle`.
+DEMO_PASSWORD = "Lilo@123"  # noqa: S105
+
 DEMO_USERS = [
     (ADMIN_EMAIL, "Sandbox Superuser", {"is_staff": True, "is_superuser": True}),
     (REVIEWER_EMAIL, "Sandbox Reviewer", {"is_staff": True}),
@@ -68,15 +71,20 @@ DEMO_USERS = [
     (OTHER_ORG_EMAIL, "Rival Integrator", {}),
 ]
 
-# Authority is a permission, never a username string (A5/A6).
+# Authority is a permission, never a username string (A5/A6), and permissions
+# are per programme: this demo world has one, so both roles are ABDM's.
+# `manage_roles` is the exception — authority over authority, not over a
+# programme — and only the demo admin holds it.
 ADMIN_PERMISSIONS = (
-    "approve_application",
-    "reject_application",
-    "send_back_application",
-    "review_application",
-    "retry_provisioning",
+    "view_abdm",
+    "review_abdm",
+    "approve_abdm",
+    "reject_abdm",
+    "send_back_abdm",
+    "retry_provisioning_abdm",
+    "manage_roles",
 )
-REVIEWER_PERMISSIONS = ("review_application",)
+REVIEWER_PERMISSIONS = ("view_abdm", "review_abdm")
 
 DEMO_PAYLOAD = {
     "solution_types": [SolutionType.HMIS.value],
@@ -93,7 +101,7 @@ DEMO_PAYLOAD = {
 
 # Every state, reached the way a real actor would reach it.
 #: an action plus the key of the actor performing it; None means a system move
-Step = tuple["Action | str", str | None]
+Step = tuple[str, str | None]
 
 #: not a workflow move — the exit bundle A8's `exit_bundle` guard requires
 DECLARE_EXIT = "declare_exit"
@@ -103,31 +111,53 @@ DEMO_MILESTONE_KEYS = ("m1", "m2")
 
 DEMO_EVIDENCE = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n%%EOF\n"
 
-_SUBMITTED: list[Step] = [(Action.SUBMIT, "owner")]
-_APPROVED = [*_SUBMITTED, (Action.APPROVE, "admin")]
-_PROVISIONING = [*_APPROVED, (Action.START_PROVISIONING, None)]
-_PROVISIONED = [*_PROVISIONING, (Action.COMPLETE_PROVISIONING, None)]
-_EXIT_REQUESTED = [
-    *_PROVISIONED,
-    (DECLARE_EXIT, "owner"),
-    (Action.REQUEST_EXIT, "owner"),
-]
-_EXIT_REVIEW = [*_EXIT_REQUESTED, (Action.START_EXIT_REVIEW, "admin")]
+_SUBMITTED: list[Step] = [("SUBMIT", "owner")]
+_APPROVED = [*_SUBMITTED, ("APPROVE", "admin")]
+_PROVISIONING = [*_APPROVED, ("START_PROVISIONING", None)]
+_PROVISIONED = [*_PROVISIONING, ("COMPLETE_PROVISIONING", None)]
 
 PATHS: dict[str, list[Step]] = {
     S.DRAFT: [],
     S.SUBMITTED: _SUBMITTED,
-    S.SENT_BACK: [*_SUBMITTED, (Action.SEND_BACK, "admin")],
-    S.WITHDRAWN: [(Action.WITHDRAW, "owner")],
-    S.REJECTED: [*_SUBMITTED, (Action.REJECT, "admin")],
+    S.SENT_BACK: [*_SUBMITTED, ("SEND_BACK", "admin")],
+    S.WITHDRAWN: [("WITHDRAW", "owner")],
+    S.REJECTED: [*_SUBMITTED, ("REJECT", "admin")],
     S.SANDBOX_APPROVED: _APPROVED,
     S.PROVISIONING: _PROVISIONING,
     S.PROVISIONED: _PROVISIONED,
-    S.PROVISIONING_FAILED: [*_PROVISIONING, (Action.FAIL_PROVISIONING, None)],
-    S.EXIT_REQUESTED: _EXIT_REQUESTED,
-    S.EXIT_REVIEW: _EXIT_REVIEW,
-    S.PRODUCTION_APPROVED: [*_EXIT_REVIEW, (Action.APPROVE_EXIT, "admin")],
-    S.EXIT_REJECTED: [*_EXIT_REVIEW, (Action.REJECT_EXIT, "admin")],
+    S.PROVISIONING_FAILED: [*_PROVISIONING, ("FAIL_PROVISIONING", None)],
+}
+
+#: Exits are their own applications, so their states are seeded separately —
+#: each on a product whose sandbox application is already PROVISIONED.
+EXIT_PATHS: dict[str, list[Step]] = {
+    "DRAFT": [],
+    "SUBMITTED": [("SUBMIT", "owner")],
+    "UNDER_REVIEW": [("SUBMIT", "owner"), ("START_REVIEW", "admin")],
+    "APPROVED": [
+        ("SUBMIT", "owner"),
+        ("START_REVIEW", "admin"),
+        ("APPROVE", "admin"),
+    ],
+    "REJECTED": [
+        ("SUBMIT", "owner"),
+        ("START_REVIEW", "admin"),
+        ("REJECT", "admin"),
+    ],
+    "SENT_BACK": [
+        ("SUBMIT", "owner"),
+        ("START_REVIEW", "admin"),
+        ("SEND_BACK", "admin"),
+    ],
+}
+
+EXIT_PRODUCT_NAMES: dict[str, str] = {
+    "DRAFT": "Jeevan Care Connect",
+    "SUBMITTED": "Nidaan Lab Gateway",
+    "UNDER_REVIEW": "Setu Health Locker Pro",
+    "APPROVED": "Kavach Insurance Hub",
+    "REJECTED": "Sahayak PHR",
+    "SENT_BACK": "Arogya Bridge Plus",
 }
 
 # A second visit to review, so the console tally has more than one round to show.
@@ -146,15 +176,11 @@ PRODUCT_NAMES: dict[str, str] = {
     S.PROVISIONING: "Chikitsa OPD",
     S.PROVISIONED: "Swasthya Bridge",
     S.PROVISIONING_FAILED: "Amrit Pharmacy Link",
-    S.EXIT_REQUESTED: "Jeevan Care Connect",
-    S.EXIT_REVIEW: "Nidaan Lab Gateway",
-    S.PRODUCTION_APPROVED: "Kavach Insurance Hub",
-    S.EXIT_REJECTED: "Sahayak PHR",
 }
 ROUND_TWO_PATH: list[Step] = [
     *_SUBMITTED,
-    (Action.SEND_BACK, "admin"),
-    (Action.SUBMIT, "owner"),
+    ("SEND_BACK", "admin"),
+    ("SUBMIT", "owner"),
 ]
 
 
@@ -176,46 +202,57 @@ def _demo_profile(address_line1: str, city: str, pincode: str) -> dict:
     }
 
 
-def _declare_exit_bundle(application, actor):
-    """Milestone declarations, then the exit bundle they justify.
+def _evidence(name: str) -> SimpleUploadedFile:
+    return SimpleUploadedFile(name, DEMO_EVIDENCE, content_type="application/pdf")
 
-    Built through A7's services so the seeded evidence has real sha256s and
-    real objects behind it, and so it satisfies A8's guard the same way a
-    person would.
-    """
-    milestones = [
-        Milestone.objects.get(key=key)
-        for key in DEMO_MILESTONE_KEYS
-        if Milestone.objects.filter(key=key).exists()
-    ]
-    if not milestones:
-        message = (
-            f"no demo milestones {DEMO_MILESTONE_KEYS} in the catalog — "
-            "seed_catalog must run first"
-        )
-        raise CommandError(message)
 
-    for milestone in milestones:
-        submit_milestone_declaration(
+def _declare_milestones(application, actor):
+    """The claims an exit is allowed to cover."""
+    for key in DEMO_MILESTONE_KEYS:
+        engine.submit_form(
             application=application,
-            milestone=milestone,
-            actor=actor,
-            completed_on=timezone.localdate(),
+            form_key=f"MILESTONE_{key.upper()}",
+            cleaned_data={"completed_on": timezone.localdate()},
+            user=actor,
         )
 
-    submit_exit_declaration(
-        application=application,
-        milestones=milestones,
-        actor=actor,
-        payload={"readiness": "Functional testing complete on the sandbox gateway."},
-        files=[
-            SimpleUploadedFile(
-                "exit-readiness.pdf",
-                DEMO_EVIDENCE,
-                content_type="application/pdf",
-            ),
-        ],
+
+def _open_evidenced_exit(application, actor):
+    """An exit application filled in far enough to pass its own gate."""
+    exit_application = open_exit(product=application.product, applicant=actor)
+    claim = engine.submit_form(
+        application=exit_application,
+        form_key="EXIT_CLAIM",
+        cleaned_data={
+            "covers": [key.upper() for key in DEMO_MILESTONE_KEYS],
+            "summary": "Functional testing complete on the sandbox gateway.",
+        },
+        user=actor,
     )
+    for kind in ABDMExitWorkflow.form("EXIT_CLAIM").requires_document:
+        attach_documents(
+            submission=claim,
+            uploads=[_evidence(f"{kind.lower()}.pdf")],
+            kind=kind,
+            actor=actor,
+        )
+    wasa = engine.submit_form(
+        application=exit_application,
+        form_key="WASA",
+        cleaned_data={
+            "start": timezone.localdate() - timedelta(days=30),
+            "valid_upto": timezone.localdate() + timedelta(days=335),
+        },
+        user=actor,
+    )
+    for kind in ABDMExitWorkflow.form("WASA").requires_document:
+        attach_documents(
+            submission=wasa,
+            uploads=[_evidence(f"{kind.lower()}.pdf")],
+            kind=kind,
+            actor=actor,
+        )
+    return exit_application
 
 
 class Command(BaseCommand):
@@ -235,7 +272,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--password",
             default=None,
-            help="Password for every demo login. Generated and printed if omitted.",
+            help=(
+                "Password for every demo login. Defaults to the shared demo "
+                "password under DEBUG, and to a generated one otherwise."
+            ),
         )
 
     @transaction.atomic
@@ -244,14 +284,15 @@ class Command(BaseCommand):
             msg = "Refusing to seed outside DEBUG without --force."
             raise CommandError(msg)
 
-        password = options["password"] or secrets.token_urlsafe(9)
+        # a password this guessable must not reach a --force'd staging snapshot
+        password = options["password"] or (
+            DEMO_PASSWORD if settings.DEBUG else secrets.token_urlsafe(9)
+        )
 
         if options["fresh"]:
             self._retire()
 
         # The demo declares and exits milestones, so it needs the catalog it
-        # references. seed_catalog is idempotent, so calling it is free.
-        call_command("seed_catalog", verbosity=0)
 
         users = self._seed_users(password)
         demo_org, other_org = self._seed_organisations(users)
@@ -397,7 +438,24 @@ class Command(BaseCommand):
                 continue
             self._walk(application, path, users)
 
+        self._seed_exits(organisation, users)
         self._seed_review_rounds(organisation, users)
+
+    def _seed_exits(self, organisation, users):
+        """Each exit state on its own product, beside a provisioned sandbox."""
+        for state, path in EXIT_PATHS.items():
+            application = self._application_for(
+                organisation,
+                f"exit-{state.lower().replace('_', '-')}",
+                users["owner"],
+                name=EXIT_PRODUCT_NAMES.get(state, ""),
+            )
+            if application is None:
+                continue
+            self._walk(application, _PROVISIONED, users)
+            _declare_milestones(application, users["owner"])
+            exit_application = _open_evidenced_exit(application, users["owner"])
+            self._walk(exit_application, path, users)
 
     def _seed_other_org_application(self, organisation, users):
         """A second org's application, so wrong-org 404s are demonstrable."""
@@ -414,25 +472,36 @@ class Command(BaseCommand):
         )
         if not created and Application.objects.filter(product=product).exists():
             return None
-        return create_draft(
+        application = create_draft(
             organisation=organisation,
             product=product,
             applicant=applicant,
-            kind=ApplicationKind.SANDBOX,
-            data=dict(DEMO_PAYLOAD),
+            workflow_key="ABDM",
         )
+        engine.submit_form(
+            application=application,
+            form_key="REGISTRATION",
+            cleaned_data=dict(DEMO_PAYLOAD),
+            user=applicant,
+        )
+        return application
 
     @staticmethod
     def _walk(application, path, users):
         for action, actor_key in path:
             actor = users[actor_key] if actor_key else None
-            if action == DECLARE_EXIT:
-                _declare_exit_bundle(application, actor)
-                continue
+            decision_data = None
+            if action == "APPROVE" and application.workflow_key == "ABDM_EXIT":
+                decision_data = {
+                    "approved_solution_types": [SolutionType.HMIS.value],
+                    "undertaking_hard_copy_received_on": timezone.localdate(),
+                    "m1_on_v3_confirmed": True,
+                }
             transition(
                 application=application,
                 action=action,
                 actor=actor,
+                decision_data=decision_data,
             )
 
     def _seed_review_rounds(self, organisation, users):
@@ -445,7 +514,7 @@ class Command(BaseCommand):
         if application is None:
             return
 
-        transition(application=application, action=Action.SUBMIT, actor=users["owner"])
+        transition(application=application, action="SUBMIT", actor=users["owner"])
         record_review(
             application=application,
             reviewer=users["reviewer"],
@@ -454,10 +523,10 @@ class Command(BaseCommand):
         )
         transition(
             application=application,
-            action=Action.SEND_BACK,
+            action="SEND_BACK",
             actor=users["admin"],
         )
-        transition(application=application, action=Action.SUBMIT, actor=users["owner"])
+        transition(application=application, action="SUBMIT", actor=users["owner"])
         record_review(
             application=application,
             reviewer=users["reviewer"],

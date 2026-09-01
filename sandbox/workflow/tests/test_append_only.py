@@ -22,8 +22,7 @@ from django.db.utils import ProgrammingError
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.tests.factories import UserFactory
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -49,7 +48,7 @@ def application_with_history():
     application = ApplicationFactory.create()
     owner = UserFactory.create()
     MembershipFactory.create(organisation=application.product.organisation, user=owner)
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     return application
 
 

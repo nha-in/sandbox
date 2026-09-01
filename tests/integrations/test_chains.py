@@ -27,9 +27,8 @@ from sandbox.integrations.services import retry_provisioning
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
-from sandbox.workflow import services as workflow_services
-from sandbox.workflow.machine import Action
-from sandbox.workflow.services import transition
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 
@@ -146,10 +145,10 @@ def _pointing_at(url: str):
 
 @pytest.fixture(autouse=True)
 def _hooks():
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
     register_workflow_hooks()
     yield
-    workflow_services.clear_hooks()
+    workflow_engine.clear_hooks()
 
 
 @pytest.fixture
@@ -172,12 +171,12 @@ def _staff(*codenames: str) -> User:
 
 
 def _approve(application, owner, callbacks) -> None:
-    transition(application=application, action=Action.SUBMIT, actor=owner)
+    transition(application=application, action="SUBMIT", actor=owner)
     with callbacks(execute=True):
         transition(
             application=application,
-            action=Action.APPROVE,
-            actor=_staff("approve_application"),
+            action="APPROVE",
+            actor=_staff("approve_abdm"),
         )
     application.refresh_from_db()
 
@@ -276,7 +275,7 @@ def test_a_chain_killed_at_the_last_step_resumes_without_duplicating(
         with django_capture_on_commit_callbacks(execute=True):
             retry_provisioning(
                 application=application,
-                actor=_staff("retry_provisioning"),
+                actor=_staff("retry_provisioning_abdm"),
             )
 
     application.refresh_from_db()
@@ -299,7 +298,7 @@ def test_the_teardown_disables_each_resource_exactly_once(
     with _pointing_at(wiremock_url):
         _approve(application, owner, django_capture_on_commit_callbacks)
         with django_capture_on_commit_callbacks(execute=True):
-            transition(application=application, action=Action.WITHDRAW, actor=owner)
+            transition(application=application, action="WITHDRAW", actor=owner)
 
         assert wiremock.count("PUT", KEYCLOAK_DISABLE) == 1
         assert wiremock.count("PATCH", HIECM_CREATE) == 1

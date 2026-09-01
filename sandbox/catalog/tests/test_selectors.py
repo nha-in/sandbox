@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from sandbox.catalog import selectors
-from sandbox.catalog.models import Milestone
 from sandbox.organisations.models import Organisation
 
 pytestmark = pytest.mark.django_db
@@ -55,25 +54,3 @@ def test_every_code_fits_the_column_that_stores_it():
             assert len(district_code) <= district_width, (
                 f"district code {district_code!r} exceeds the column"
             )
-
-
-def test_active_milestones_excludes_inactive():
-    Milestone.objects.create(
-        key="active-test",
-        title="Active",
-        track="TEST",
-        order=0,
-        is_active=True,
-    )
-    Milestone.objects.create(
-        key="inactive-test",
-        title="Inactive",
-        track="TEST",
-        order=1,
-        is_active=False,
-    )
-
-    keys = {m.key for m in selectors.active_milestones()}
-
-    assert "active-test" in keys
-    assert "inactive-test" not in keys

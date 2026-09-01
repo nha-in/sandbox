@@ -4,13 +4,9 @@ import re
 
 import pytest
 
-from sandbox.applications.models import ApplicationKind
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
-from sandbox.applications.services import update_draft
-from sandbox.applications.tests.factories import VALID_SANDBOX_DATA
-from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.models import Product
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
@@ -27,13 +23,12 @@ def _create_sandbox_draft(product, applicant, **overrides):
         "organisation": product.organisation,
         "product": product,
         "applicant": applicant,
-        "kind": ApplicationKind.SANDBOX,
-        "data": dict(VALID_SANDBOX_DATA),
+        "workflow_key": "ABDM",
     }
     return create_draft(**{**kwargs, **overrides})
 
 
-def test_create_draft_generates_a_valid_reference_and_stores_payload():
+def test_create_draft_opens_an_empty_application_bound_to_its_workflow():
     product = ProductFactory.create()
     applicant = UserFactory.create()
 
@@ -42,7 +37,9 @@ def test_create_draft_generates_a_valid_reference_and_stores_payload():
     assert REFERENCE_PATTERN.match(application.reference)
     assert application.state == ApplicationState.DRAFT
     assert application.product == product
-    assert application.payload == {"schema_version": 1, "data": VALID_SANDBOX_DATA}
+    # answers arrive later, one form submission at a time
+    assert application.workflow_key == "ABDM"
+    assert not application.submissions.exists()
 
 
 def test_create_draft_rejects_non_sandbox_kind():
@@ -50,33 +47,7 @@ def test_create_draft_rejects_non_sandbox_kind():
     applicant = UserFactory.create()
 
     with pytest.raises(DomainError):
-        _create_sandbox_draft(product, applicant, kind=ApplicationKind.HCX)
-
-
-def test_create_draft_accepts_incomplete_answers():
-    """A draft holds work in progress; completeness is SUBMIT's problem."""
-    product = ProductFactory.create()
-    applicant = UserFactory.create()
-
-    application = _create_sandbox_draft(product, applicant, data={})
-
-    assert application.state == ApplicationState.DRAFT
-    assert application.payload == {"schema_version": 1, "data": {}}
-
-
-def test_create_draft_rejects_an_unrenderable_schema_version():
-    """The answers may be missing; the envelope around them may not be broken."""
-    product = ProductFactory.create()
-    applicant = UserFactory.create()
-
-    with pytest.raises(DomainError):
-        create_draft(
-            organisation=product.organisation,
-            product=product,
-            applicant=applicant,
-            kind="NOT_A_KIND",
-            data={},
-        )
+        _create_sandbox_draft(product, applicant, workflow_key="HCX")
 
 
 def test_create_draft_rejects_a_product_from_another_organisation():
@@ -109,8 +80,7 @@ def test_create_draft_creates_the_product_when_given_a_name():
         organisation=organisation,
         product_name="Brand New HMIS",
         applicant=applicant,
-        kind=ApplicationKind.SANDBOX,
-        data=dict(VALID_SANDBOX_DATA),
+        workflow_key="ABDM",
     )
 
     assert application.product.name == "Brand New HMIS"
@@ -127,8 +97,7 @@ def test_create_draft_does_not_leave_an_orphan_product_when_the_kind_is_invalid(
             organisation=organisation,
             product_name="Never Persisted",
             applicant=applicant,
-            kind=ApplicationKind.HCX,
-            data=dict(VALID_SANDBOX_DATA),
+            workflow_key="HCX",
         )
 
     assert not Product.objects.filter(name="Never Persisted").exists()
@@ -144,36 +113,3 @@ def test_create_draft_references_are_sequential_within_a_year():
     first_seq = int(first.reference.rsplit("-", 1)[1])
     second_seq = int(second.reference.rsplit("-", 1)[1])
     assert second_seq == first_seq + 1
-
-
-def test_update_draft_allowed_in_draft_state():
-    application = ApplicationFactory.create(state=ApplicationState.DRAFT)
-    new_data = dict(VALID_SANDBOX_DATA, use_case_narrative="Updated narrative.")
-
-    updated = update_draft(application=application, data=new_data)
-
-    assert updated.payload["data"]["use_case_narrative"] == "Updated narrative."
-
-
-def test_update_draft_allowed_in_sent_back_state():
-    application = ApplicationFactory.create(state=ApplicationState.SENT_BACK)
-    new_data = dict(VALID_SANDBOX_DATA, use_case_narrative="Revised after send-back.")
-
-    updated = update_draft(application=application, data=new_data)
-
-    assert updated.payload["data"]["use_case_narrative"] == "Revised after send-back."
-
-
-def test_update_draft_rejected_once_submitted():
-    application = ApplicationFactory.create(state=ApplicationState.SUBMITTED)
-
-    with pytest.raises(DomainError):
-        update_draft(application=application, data=dict(VALID_SANDBOX_DATA))
-
-
-def test_update_draft_accepts_incomplete_answers():
-    application = ApplicationFactory.create(state=ApplicationState.DRAFT)
-
-    updated = update_draft(application=application, data={})
-
-    assert updated.payload["data"] == {}

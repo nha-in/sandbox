@@ -37,13 +37,13 @@
           </dl>
         </div>
       </div>
-      {% if exit_bundle %}
+      {% if exit_review %}
         <div class="ui-card">
           <div class="ui-card-header">
             <h2 class="ui-card-title">{% translate "Exit to production" %}</h2>
             <p class="ui-card-description">
-              {% blocktranslate with when=exit_bundle.declaration.created_date|date:"j M Y" who=exit_bundle.declaration.declared_by trimmed %}
-                Requested {{ when }} by {{ who }}
+              {% blocktranslate with round=application.round trimmed %}
+                Round {{ round }}
               {% endblocktranslate %}
             </p>
           </div>
@@ -52,24 +52,37 @@
               <div class="ui-kv">
                 <dt class="ui-kv-key">{% translate "Milestones claimed" %}</dt>
                 <dd class="ui-kv-value">
-                  {% for milestone in exit_bundle.milestones %}
-                    {{ milestone.title }}{% if not forloop.last %},{% endif %}
+                  {% for milestone in exit_review.covers %}
+                    {{ milestone }}{% if not forloop.last %},{% endif %}
+                  {% empty %}
+                    —
                   {% endfor %}
                 </dd>
               </div>
               <div class="ui-kv">
                 <dt class="ui-kv-key">{% translate "Summary" %}</dt>
-                <dd class="ui-kv-value whitespace-pre-wrap">{{ exit_bundle.summary|default:"—" }}</dd>
+                <dd class="ui-kv-value whitespace-pre-wrap">{{ exit_review.summary|default:"—" }}</dd>
+              </div>
+              <div class="ui-kv">
+                <dt class="ui-kv-key">{% translate "Safe-to-Host valid" %}</dt>
+                <dd class="ui-kv-value">
+                  {{ exit_review.wasa.start|default:"—" }} → {{ exit_review.wasa.valid_upto|default:"—" }}
+                </dd>
               </div>
             </dl>
             <h3 class="ui-label mt-4">{% translate "Evidence" %}</h3>
             <ul class="ui-file-list">
-              {% for document in exit_bundle.documents %}
-                <li class="ui-file-item">
-                  <a class="truncate"
-                     href="{% url 'console:document_download' document.external_id %}">{{ document.filename }}</a>
-                  <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
-                </li>
+              {% for kind, documents in exit_review.documents.items %}
+                {% for document in documents %}
+                  <li class="ui-file-item">
+                    {# new tab: a PDF opens in the viewer, and the review it belongs to stays open behind it #}
+                    <a class="truncate"
+                       target="_blank"
+                       rel="noopener"
+                       href="{% url 'console:document_download' document.external_id %}">{{ kind }} — {{ document.filename }}</a>
+                    <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
+                  </li>
+                {% endfor %}
               {% empty %}
                 <li class="text-sm text-muted-foreground">{% translate "No documents attached." %}</li>
               {% endfor %}
@@ -143,10 +156,34 @@
           {% endfor %}
         </div>
       </div>
-      {% if can_review %}
+      {% if can_start_review %}
         <div class="ui-card">
           <div class="ui-card-header">
-            <h2 class="ui-card-title">{% translate "Record a review" %}</h2>
+            <h2 class="ui-card-title">{{ start_review_label }}</h2>
+            <p class="ui-card-description">
+              {% blocktranslate with reference=application.reference %}Marks {{ reference }} as being looked at. It is not a decision.{% endblocktranslate %}
+            </p>
+          </div>
+          <form method="post"
+                action="{% url 'console:decide' application.external_id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="START_REVIEW" />
+            <div class="ui-card-footer flex justify-end">
+              <button class="ui-btn ui-btn--default ui-btn--size-sm" type="submit">{{ start_review_label }}</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+      {% comment %}
+        A reviewer who cannot decide records an opinion here. Whoever decides
+        does not get this panel: their comment becomes their review row as part
+        of deciding, so a second one would be a second door to the same table.
+      {% endcomment %}
+      {% if can_review and not decision_choices %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Your review" %}</h2>
+            <p class="ui-card-description">{% translate "Advisory. It does not move the application." %}</p>
           </div>
           <form method="post"
                 action="{% url 'console:record_review' application.external_id %}">
@@ -155,32 +192,93 @@
               {% ui_field review_form.decision %}
               {% ui_field review_form.comment %}
             </div>
-            <div class="ui-card-footer">
+            <div class="ui-card-footer flex justify-end">
               <button class="ui-btn ui-btn--secondary ui-btn--size-sm" type="submit">{% translate "Record" %}</button>
             </div>
           </form>
         </div>
       {% endif %}
-      {% if decision_actions %}
+      {% if decision_choices %}
         <div class="ui-card">
           <div class="ui-card-header">
             <h2 class="ui-card-title">{% translate "Decide" %}</h2>
-            <p class="ui-card-description">{% translate "A comment is recorded as your review." %}</p>
+            <p class="ui-card-description">{% translate "Your comment is recorded as your review." %}</p>
           </div>
           <form method="post"
+                id="decide-form"
                 action="{% url 'console:decide' application.external_id %}">
             {% csrf_token %}
             <div class="ui-card-content space-y-4">
-              <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
-              <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
+              <div>
+                <label class="ui-label" for="decide-action">{% translate "Decision" %}</label>
+                <div class="ui-select-wrapper">
+                  <select class="ui-select" id="decide-action" name="action" required>
+                    <option value="">{% translate "Choose an action…" %}</option>
+                    {% for choice in decision_choices %}
+                      <option value="{{ choice.value }}"
+                              data-variant="{{ choice.variant }}">
+                        {{ choice.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
+                <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
+              </div>
             </div>
-            <div class="ui-card-footer flex flex-wrap gap-2">
-              {% for action in decision_actions %}
-                <button class="ui-btn {% if action.is_destructive %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
-                        type="submit"
-                        name="action"
-                        value="{{ action.value }}">{{ action.value }}</button>
-              {% endfor %}
+            {% comment %}
+              Approving an exit writes EXIT_DECISION with the move. These
+              fields belong to that one option, so they appear with it: shown
+              beside every option they read as though each one consumed them.
+            {% endcomment %}
+            {% if approval_fields %}
+              <div id="approve-fields"
+                   class="border-t border-border"
+                   data-blocked="{{ approval_blocked|yesno:"1," }}"
+                   hidden>
+                {% if approval_blocked %}
+                  <div class="ui-card-content">
+                    <div class="ui-alert ui-alert--warning" role="alert">
+                      <div class="flex-1 space-y-1">
+                        <p>
+                          {% translate "This exit cannot be approved: the applicant has selected no DHIS-eligible solution types. Send it back and ask them to update their integration profile." %}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="ui-card-content space-y-4">
+                    <p class="text-sm font-medium text-foreground">{% translate "To approve, NHA also needs:" %}</p>
+                    {% with form=exit_review.decision_form %}
+                      <div>
+                        <span class="ui-label">{{ form.approved_solution_types.label }}</span>
+                        <span class="ui-hint">
+                          {% translate "Only what the applicant selected at registration can be approved." %}
+                        </span>
+                        <div class="mt-2 flex flex-col gap-2">
+                          {% for choice in form.approved_solution_types %}
+                            <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                              {{ choice.tag }}{{ choice.choice_label }}
+                            </label>
+                          {% endfor %}
+                        </div>
+                      </div>
+                      {% ui_field form.undertaking_hard_copy_received_on %}
+                      <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                        {{ form.m1_on_v3_confirmed }}{{ form.m1_on_v3_confirmed.label }}
+                      </label>
+                    {% endwith %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+            <div class="ui-card-footer flex flex-col items-end gap-1">
+              <button class="ui-btn ui-btn--default ui-btn--size-sm"
+                      id="decide-submit"
+                      type="submit">{% translate "Submit" %}</button>
+              <span class="ui-hint" id="decide-hint"></span>
             </div>
           </form>
         </div>
@@ -188,3 +286,39 @@
     </div>
   </div>
 {% endblock content %}
+{% block inline_javascript %}
+  {{ block.super }}
+  <script>
+    (() => {
+      const action = document.getElementById("decide-action");
+      if (!action) return;
+      const fields = document.getElementById("approve-fields");
+      const submit = document.getElementById("decide-submit");
+      const hint = document.getElementById("decide-hint");
+      const blocked = fields ? fields.dataset.blocked === "1" : false;
+      const variants = ["ui-btn--default", "ui-btn--destructive", "ui-btn--warning"];
+
+      const sync = () => {
+        const approving = action.value === "APPROVE";
+        if (fields) {
+          fields.hidden = !approving;
+          // Hiding alone is not enough: a required control that is hidden but
+          // still enabled makes the form unsubmittable with no visible reason.
+          fields.querySelectorAll("input, select, textarea").forEach((field) => {
+            field.disabled = !approving;
+          });
+        }
+        submit.disabled = approving && blocked;
+        const variant = action.selectedOptions[0]?.dataset.variant || "default";
+        submit.classList.remove(...variants);
+        submit.classList.add(`ui-btn--${variant}`);
+        hint.textContent = approving && !blocked
+          ? "{% translate 'Records your comment above and grants production access.' %}"
+          : "";
+      };
+
+      action.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock inline_javascript %}

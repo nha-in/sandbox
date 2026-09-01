@@ -1,0 +1,51 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  One step of the exit wizard. The step list is the workflow's, not the
+  template's: a step nobody can reach yet is refused by the view, which
+  redirects to the one that is next.
+{% endcomment %}
+{% load i18n careui %}
+
+{% block title %}
+  {% translate "Exit to production" %}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-2xl">
+    <ol class="mb-6 flex flex-wrap gap-2" aria-label="{% translate 'Exit steps' %}">
+      {% for value, label in steps %}
+        <li class="ui-badge {% if value == current_step %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
+            {% if value == current_step %}aria-current="step"{% endif %}>{{ forloop.counter }}. {{ label }}</li>
+      {% endfor %}
+    </ol>
+    {% if exit_state == "SENT_BACK" %}
+      <div class="ui-alert mb-6" role="alert">
+        <div class="flex-1 space-y-1">
+          <p>{% translate "NHA has asked for changes. Address their comments and request the exit again." %}</p>
+        </div>
+      </div>
+    {% elif exit_state == "REJECTED" %}
+      <div class="ui-alert ui-alert--destructive mb-6" role="alert">
+        <div class="flex-1 space-y-1">
+          <p>
+            {% translate "Your last exit request was rejected. A rejected exit needs a fresh security audit, so the Safe-to-Host certificate must be uploaded again." %}
+          </p>
+        </div>
+      </div>
+    {% endif %}
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <h1 class="ui-card-title">
+          {% block step_title %}
+          {% endblock step_title %}
+        </h1>
+        <p class="ui-card-description">
+          {% block step_description %}
+          {% endblock step_description %}
+        </p>
+      </div>
+      {% block step_body %}
+      {% endblock step_body %}
+    </div>
+  </div>
+{% endblock content %}

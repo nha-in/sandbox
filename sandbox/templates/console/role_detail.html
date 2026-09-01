@@ -1,0 +1,62 @@
+{% extends "layouts/console.html" %}
+
+{% load i18n careui %}
+
+{% block content %}
+  <div class="ui-card">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{{ role.name }}</h2>
+      <p class="ui-card-description">
+        {% translate "Changing this changes what its members may do, immediately." %}
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="ui-card-content space-y-5">
+        {% include "components/form_errors.html" with form=form %}
+        {% ui_field form.name %}
+        {% include "console/_permission_picker.html" with form=form %}
+      </div>
+      <div class="ui-card-footer flex flex-wrap items-center justify-between gap-3">
+        <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
+           href="{% url 'console:roles' %}">{% translate "Back to roles" %}</a>
+        <button class="ui-btn ui-btn--primary ui-btn--size-sm" type="submit">{% translate "Save role" %}</button>
+      </div>
+    </form>
+  </div>
+  <div class="ui-card mt-6">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Who holds this role" %}</h2>
+      <p class="ui-card-description">
+        {% translate "Roles are given to a person on their own page, so one screen answers what someone may do." %}
+      </p>
+    </div>
+    <div class="ui-card-content">
+      <ul class="divide-y divide-border">
+        {% for member in members %}
+          <li class="py-2 first:pt-0 last:pb-0">
+            <a class="truncate underline"
+               href="{% url 'console:user_roles' member.external_id %}">{{ member.email }}</a>
+          </li>
+        {% empty %}
+          <li class="py-2 text-sm text-muted-foreground">{% translate "Nobody yet." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="ui-card mt-6">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Delete this role" %}</h2>
+      <p class="ui-card-description">
+        {% blocktranslate count counter=members|length %}{{ counter }} person loses whatever it granted. This cannot be undone.{% plural %}{{ counter }} people lose whatever it granted. This cannot be undone.{% endblocktranslate %}
+      </p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete" />
+      <div class="ui-card-footer flex justify-end">
+        <button class="ui-btn ui-btn--destructive ui-btn--size-sm" type="submit">{% translate "Delete role" %}</button>
+      </div>
+    </form>
+  </div>
+{% endblock content %}
