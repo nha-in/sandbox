@@ -94,6 +94,28 @@ def test_no_application_offers_the_wizard(member_client):
     assert reverse("applications:step_product") in response.content.decode()
 
 
+def test_the_list_ignores_exits(member_client, product_a, org_member):
+    """An exit is an application, but not one this list can describe: it has no
+    registration form, and asking it for one used to 500 the whole page."""
+    enrollment = ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        state=ApplicationState.PROVISIONED,
+    )
+    ApplicationFactory(
+        product=product_a,
+        applicant=org_member,
+        workflow_key="ABDM_EXIT",
+        state="UNDER_REVIEW",
+        registered=False,
+    )
+
+    response = member_client.get(reverse("applications:index"))
+
+    assert response.status_code == HTTP_OK
+    assert [row["application"] for row in response.context["rows"]] == [enrollment]
+
+
 def test_a_rejected_application_lets_you_start_again(
     member_client,
     product_a,

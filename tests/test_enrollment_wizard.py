@@ -509,6 +509,45 @@ def test_a_refused_save_never_reports_success(
     assert current_form_data(application, "REGISTRATION") == before
 
 
+def test_a_provisioned_profile_is_editable_but_not_submittable(
+    member_client,
+    application,
+    org_a,
+    org_member,
+):
+    """Editing a live integration profile is a correction, not a resubmission.
+    The review step used to offer "Submit for review" to anyone whose form was
+    editable, and PROVISIONED is editable — so the button was there, and clicking
+    it answered "SUBMIT is not legal from PROVISIONED"."""
+    application.state = ApplicationState.PROVISIONED
+    application.save(update_fields=["state"])
+
+    details = _org_url(
+        "applications:step_details",
+        org_a,
+        external_id=application.external_id,
+    )
+    response = member_client.get(details)
+    assert response.status_code == HTTP_OK
+    assert response.context["editable"]
+    assert not response.context["can_submit"]
+
+    # saving lands on the overview, not on a review step with nothing to review
+    response = member_client.post(details, DETAILS_POST)
+    assert response.status_code == HTTP_FOUND
+    assert "/review/" not in response["Location"]
+
+    review = _org_url(
+        "applications:step_review",
+        org_a,
+        external_id=application.external_id,
+    )
+    assert "Submit for review" not in member_client.get(review).content.decode()
+
+    application.refresh_from_db()
+    assert application.state == ApplicationState.PROVISIONED
+
+
 def test_unverified_contact_cannot_reach_the_wizard(client, org_a):
     """The ticket's OTP step is discharged by A4: an application cannot be
     started, let alone submitted, until both contacts are verified. This asserts

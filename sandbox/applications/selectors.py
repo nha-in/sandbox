@@ -109,9 +109,16 @@ def milestone_progress(application: Application) -> dict[str, Any]:
 
 
 def applications_for_organisation(organisation: Organisation) -> QuerySet[Application]:
-    return Application.objects.for_organisation(organisation).select_related(
-        "product",
-        "applicant",
+    """The enrollments an integrator can open. Exits are applications too, but
+    they are reached from the enrollment they exit, and have no registration
+    form for these screens to ask about."""
+    return (
+        Application.objects.for_organisation(organisation)
+        .filter(workflow_key="ABDM")
+        .select_related(
+            "product",
+            "applicant",
+        )
     )
 
 

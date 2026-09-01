@@ -77,6 +77,13 @@ def _is_editable(application: Application) -> bool:
     return application.state in _registration(application).editable_states
 
 
+def _can_submit(application: Application) -> bool:
+    """Editable is not submittable: a provisioned application's profile stays
+    correctable, but there is nothing left to send for review."""
+    workflow = get_workflow(application.workflow_key)
+    return "SUBMIT" in workflow.actions_available(application.state)
+
+
 STEPS = (
     ("product", "Product"),
     ("details", "Sandbox details"),
@@ -144,7 +151,7 @@ class ProductStepView(WizardMixin, FormView):
         if external_id is None:
             return None
         return get_object_or_404(
-            Application.objects.for_organisation(self.organisation),
+            applications_for_organisation(self.organisation),
             external_id=external_id,
         )
 
@@ -234,7 +241,7 @@ class ApplicationStepMixin(WizardMixin):
         # Lazy, because `self.organisation` is only set once OrganisationMixin's
         # dispatch has run — by which time every caller here is inside get/post.
         return get_object_or_404(
-            Application.objects.for_organisation(self.organisation),
+            applications_for_organisation(self.organisation),
             external_id=self.kwargs["external_id"],
         )
 
@@ -242,6 +249,7 @@ class ApplicationStepMixin(WizardMixin):
         context = super().get_context_data(**kwargs)
         context["application"] = self.application
         context["editable"] = _is_editable(self.application)
+        context["can_submit"] = _can_submit(self.application)
         return context
 
 
@@ -321,6 +329,17 @@ class DetailsStepView(ApplicationStepMixin, FormView):
     def form_valid(self, form):
         if not self._save(form):
             return self.form_invalid(form)
+        # A provisioned application is correcting a live profile, not filling in
+        # a draft; the review step has nothing to offer it.
+        if not _can_submit(self.application):
+            messages.success(self.request, _("Integration profile updated."))
+            return redirect(
+                url_for(
+                    "applications:overview",
+                    self.organisation,
+                    external_id=self.application.external_id,
+                ),
+            )
         return redirect(
             url_for(
                 "applications:step_review",
