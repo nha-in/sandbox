@@ -1,0 +1,49 @@
+{% extends "account/base_entrance.html" %}
+
+{% comment %}
+  allauth's signup screen with our own heading and intro. Everything below the
+  paragraph is allauth's markup unchanged, so an allauth upgrade that changes
+  how fields render still reaches this page.
+
+  Stock copy was "Sign Up" over "Already have an account? Then please sign in.",
+  which names the act but never the thing being joined. The first screen an
+  integrator sees should say what an account is for.
+{% endcomment %}
+{% load allauth i18n %}
+
+{% block head_title %}
+  {% trans "Register" %}
+{% endblock head_title %}
+{% block content %}
+  {% element h1 %}
+    {% translate "Register for the ABDM sandbox" %}
+  {% endelement %}
+  {% element p %}
+    {% translate "An account is yours personally. You will create or join an organisation next — applications belong to the organisation, not to you." %}
+  {% endelement %}
+  {% if not SOCIALACCOUNT_ONLY %}
+    {% url 'account_signup' as action_url %}
+    {% element form form=form method="post" action=action_url tags="entrance,signup" %}
+      {% slot body %}
+        {% csrf_token %}
+        {% element fields form=form unlabeled=True %}
+        {% endelement %}
+        {{ redirect_field }}
+      {% endslot %}
+      {% slot actions %}
+        {% element button tags="prominent,signup" type="submit" %}
+          {% translate "Create account" %}
+        {% endelement %}
+      {% endslot %}
+    {% endelement %}
+  {% endif %}
+  {% element p %}
+    {% setvar link %}
+    <a href="{{ login_url }}">
+  {% endsetvar %}
+  {% setvar end_link %}
+  </a>
+{% endsetvar %}
+{% blocktranslate %}Already registered? {{ link }}Sign in{{ end_link }}.{% endblocktranslate %}
+{% endelement %}
+{% endblock content %}

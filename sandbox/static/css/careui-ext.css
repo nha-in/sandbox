@@ -29,13 +29,6 @@
 
 /* ── Type scale ──────────────────────────────────────────────────────────── */
 
-/* careui ships `ui-page-title` and `ui-card-title` but nothing between them, so
-   a section heading falls back to the 13px body size and a screen reads as one
-   flat block. `allauth/elements/h2.html` already asks for this class and has
-   been rendering unstyled without it. */
-@utility ui-section-title {
-  @apply text-[14.5px] font-semibold text-foreground;
-}
 
 /* The line under a thing that qualifies it: a date, a blocker, a count. */
 @utility ui-meta {
