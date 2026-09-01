@@ -17,10 +17,30 @@
     <div class="ui-card mb-6">
       <div class="ui-card-header">
         <h1 class="ui-card-title">{{ application.product.name }}</h1>
-        <p class="ui-card-description">{{ organisation.name }} · {{ application.reference }}</p>
+        <p class="ui-card-description">
+          {{ organisation.name }} · {{ application.reference }}
+          {% if live_since %}
+            {% blocktranslate with when=live_since|date:"j M Y" day=days_live trimmed %}
+              · Sandbox live since {{ when }} · day {{ day }}
+            {% endblocktranslate %}
+          {% endif %}
+        </p>
       </div>
       <div class="ui-card-content">{% include "dashboard/partials/application_status.html" %}</div>
     </div>
+    {% if next_action %}
+      <div class="ui-card mb-6 border-primary/40">
+        <div class="ui-card-header">
+          <span class="ui-eyebrow">{% translate "Do this next" %}</span>
+          <h2 class="ui-card-title">{{ next_action.title }}</h2>
+          <p class="ui-card-description">{{ next_action.reason }}</p>
+        </div>
+        <div class="ui-card-footer">
+          <a class="ui-btn ui-btn--primary ui-btn--size-sm no-underline"
+             href="{{ next_action.url }}">{{ next_action.action_label }}</a>
+        </div>
+      </div>
+    {% endif %}
     <div class="ui-card mb-6">
       <div class="ui-card-header">
         <h2 class="ui-card-title">{% translate "Summary" %}</h2>
@@ -149,6 +169,27 @@
             <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
                href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Edit integration profile" %}</a>
           </div>
+        </div>
+      </div>
+    {% endif %}
+    {% if activity %}
+      <div class="ui-card mt-6">
+        <div class="ui-card-header">
+          <h2 class="ui-card-title">{% translate "Recent activity" %}</h2>
+          <p class="ui-card-description">{% translate "Everything recorded against this application, newest first." %}</p>
+        </div>
+        <div class="ui-card-content">
+          <ol class="divide-y divide-border">
+            {% for entry in activity %}
+              <li class="py-3 first:pt-0 last:pb-0">
+                <p class="font-medium text-foreground">{{ entry.summary }}</p>
+                <p class="ui-meta mt-0.5">
+                  {{ entry.actor }} · {{ entry.happened_at|date:"j M Y, H:i" }}
+                  {% if entry.consequence %}· {{ entry.consequence }}{% endif %}
+                </p>
+              </li>
+            {% endfor %}
+          </ol>
         </div>
       </div>
     {% endif %}

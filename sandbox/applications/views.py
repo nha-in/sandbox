@@ -32,13 +32,18 @@ from sandbox.applications.forms import ProductStepForm
 from sandbox.applications.models import RESTING_STATES
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
+from sandbox.applications.selectors import DECLARABLE_STATES
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import PENDING_STATES
+from sandbox.applications.selectors import activity
 from sandbox.applications.selectors import applications_for_organisation
 from sandbox.applications.selectors import coverage
 from sandbox.applications.selectors import current_form_data
+from sandbox.applications.selectors import days_live
 from sandbox.applications.selectors import journey_for
+from sandbox.applications.selectors import live_since
 from sandbox.applications.selectors import milestone_progress
+from sandbox.applications.selectors import next_action
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.services import create_draft
 from sandbox.applications.services import create_draft_with_new_product
@@ -92,10 +97,8 @@ STEPS = (
 )
 
 #: States in which an application has milestones worth counting. Everything
-#: before PROVISIONED has no sandbox to build against yet.
-#: you hold credentials, so you have something to build against and declare
-DECLARABLE_STATES = (ApplicationState.PROVISIONED,)
-
+#: before PROVISIONED has no sandbox to build against yet: you hold credentials,
+#: so you have something to build against and declare.
 _HAS_MILESTONES = DECLARABLE_STATES
 
 
@@ -410,6 +413,7 @@ class ApplicationIndexView(LoginRequiredMixin, OrganisationMixin, TemplateView):
             {
                 "application": application,
                 "is_editable": _is_editable(application),
+                "next_action": next_action(application),
                 "milestones": (
                     milestone_progress(application)
                     if application.state in _HAS_MILESTONES
@@ -507,6 +511,10 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
         context["coverage"] = (
             coverage(application) if application.state in DECLARABLE_STATES else []
         )
+        context["next_action"] = self._next_action_link(application)
+        context["activity"] = activity(application)
+        context["live_since"] = live_since(application)
+        context["days_live"] = days_live(application)
         # the answers as they stand, so "edit" is a correction not a rewrite
         form = _registration(application).form_class(
             initial=current_form_data(application, REGISTRATION),
@@ -514,6 +522,18 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
         context["profile"] = _summary_rows(form)
         context.update(_status_context(application))
         return context
+
+    def _next_action_link(self, application: Application) -> dict | None:
+        """`{% url %}` cannot unpack kwargs, so the route is resolved here."""
+        action = next_action(application)
+        if action is None:
+            return None
+        return {
+            "title": action.title,
+            "reason": action.reason,
+            "action_label": action.action_label,
+            "url": url_for(action.route, self.organisation, **action.route_kwargs),
+        }
 
 
 class ApplicationStatusView(ApplicationStepMixin, TemplateView):

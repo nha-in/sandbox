@@ -11,6 +11,7 @@ from typing import Any
 
 from django.db.models import Q
 from django.http import Http404
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from sandbox.applications.models import RESTING_STATES
@@ -209,6 +210,10 @@ def exit_documents(application: Application | None) -> dict[str, list]:
     return documents
 
 
+#: States in which an application has milestones worth counting and declaring:
+#: before PROVISIONED there is no sandbox to build against.
+DECLARABLE_STATES = (ApplicationState.PROVISIONED,)
+
 #: What a solution type still needs, per milestone.
 COVERED = "covered"
 DECLARED = "declared"
@@ -286,6 +291,98 @@ def coverage(application: Application) -> list[CoverageRow]:
             ),
         )
     return rows
+
+
+@dataclass(frozen=True, slots=True)
+class NextAction:
+    """The one thing worth doing now, and why it is worth doing."""
+
+    title: StrOrPromise
+    reason: StrOrPromise
+    action_label: StrOrPromise
+    route: str
+    route_kwargs: dict[str, Any]
+
+
+def _milestone_reason(application: Application, row: MilestoneRow) -> StrOrPromise:
+    """Name the solution type this milestone is the last one standing between.
+
+    Worth the extra query: "declare M3" is an instruction, while "M3 is the last
+    milestone HMIS needs" is the reason someone acts on it.
+    """
+    for coverage_row in coverage(application):
+        outstanding = [cell for cell in coverage_row.cells if cell.state == OUTSTANDING]
+        if len(outstanding) == 1 and outstanding[0].milestone == row.key.upper():
+            return _("%(milestone)s is the last milestone %(solution)s needs.") % {
+                "milestone": outstanding[0].milestone,
+                "solution": coverage_row.label,
+            }
+    return _("Declaring it opens whatever depends on it.")
+
+
+def _sandbox_action(application: Application) -> NextAction | None:
+    """What is left once there is a sandbox to build against."""
+    exit_application = exit_in_flight(application.product)
+    if exit_application is not None:
+        if exit_application.state == "SENT_BACK":
+            return NextAction(
+                title=_("Answer NHA on your exit request"),
+                reason=_("The round does not advance while it is with you."),
+                action_label=_("Open exit request"),
+                route="applications:exit",
+                route_kwargs={"external_id": application.external_id},
+            )
+        if exit_application.state != "DRAFT":
+            return None
+
+    rows = milestone_rows(application)
+    undeclared = [row for row in rows if row.unlocked and not row.declared]
+    if undeclared:
+        row = undeclared[0]
+        return NextAction(
+            title=_("Declare %(milestone)s complete") % {"milestone": row.title},
+            reason=_milestone_reason(application, row),
+            action_label=_("Declare"),
+            route="applications:declare_milestone",
+            route_kwargs={"external_id": application.external_id, "key": row.key},
+        )
+    if any(row.declared for row in rows):
+        return NextAction(
+            title=_("Request your exit to production"),
+            reason=_("Every milestone open to you is declared."),
+            action_label=_("Start exit request"),
+            route="applications:exit",
+            route_kwargs={"external_id": application.external_id},
+        )
+    return None
+
+
+def next_action(application: Application) -> NextAction | None:
+    """What to do next, or None when the answer is honestly "wait".
+
+    Derived, never stored. A screen that told someone to act while their
+    application sat with a reviewer would be inventing work for them, so the
+    states where nothing is theirs to do return None and the screen says so.
+    """
+    if application.state == ApplicationState.DRAFT:
+        return NextAction(
+            title=_("Finish your application"),
+            reason=_("Your answers are saved. Submit it when you are ready."),
+            action_label=_("Continue"),
+            route="applications:step_details",
+            route_kwargs={"external_id": application.external_id},
+        )
+    if application.state == ApplicationState.SENT_BACK:
+        return NextAction(
+            title=_("Answer the reviewer's comments"),
+            reason=_("Your application is back with you until you resubmit it."),
+            action_label=_("Open application"),
+            route="applications:step_review",
+            route_kwargs={"external_id": application.external_id},
+        )
+    if application.state not in DECLARABLE_STATES:
+        return None
+    return _sandbox_action(application)
 
 
 def document_detail(
@@ -422,3 +519,101 @@ def journey_for(state: str) -> list[JourneyStep]:
             status = "upcoming"
         steps.append(JourneyStep(key=key, label=str(label), status=status))
     return steps
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityEntry:
+    """One thing that happened, in the applicant's terms rather than the log's."""
+
+    happened_at: Any
+    summary: StrOrPromise
+    actor: str
+    consequence: StrOrPromise = ""
+
+
+#: Transitions worth showing an applicant. The rest are internal bookkeeping —
+#: a chain step that moved PROVISIONING to PROVISIONED tells them nothing that
+#: "Sandbox credentials issued" does not.
+_ACTIVITY_ACTIONS: dict[str, tuple[StrOrPromise, StrOrPromise]] = {
+    "SUBMIT": (_("Application submitted for review"), ""),
+    "APPROVE": (_("Application approved"), _("Your sandbox is being set up.")),
+    "SEND_BACK": (
+        _("Changes requested"),
+        _("The round does not advance while it is with you."),
+    ),
+    "REJECT": (_("Application rejected"), ""),
+    "WITHDRAW": (_("Application withdrawn"), ""),
+}
+
+
+def activity(application: Application, limit: int = 8) -> list[ActivityEntry]:
+    """What has happened to this application, newest first.
+
+    Merged from two tables because the applicant's history is spread over both:
+    the transition log holds decisions, and the submission log holds everything
+    they wrote. Neither alone reads as an account of the work.
+    """
+    entries: list[ActivityEntry] = []
+
+    for transition in application.transitions.select_related("actor"):
+        if transition.action not in _ACTIVITY_ACTIONS:
+            continue
+        summary, consequence = _ACTIVITY_ACTIONS[transition.action]
+        entries.append(
+            ActivityEntry(
+                happened_at=transition.created_date,
+                summary=summary,
+                actor=transition.actor.email if transition.actor else str(_("System")),
+                consequence=consequence,
+            ),
+        )
+
+    workflow = get_workflow(application.workflow_key)
+    for submission in application.submissions.select_related("submitted_by"):
+        if submission.form_key == "REGISTRATION":
+            summary = _("Integration profile updated")
+            consequence = _("Grants nothing until your next exit is reviewed.")
+        elif submission.form_key.startswith("MILESTONE_"):
+            summary = _("%(milestone)s declared complete") % {
+                "milestone": workflow.form(submission.form_key).label,
+            }
+            consequence = "" if submission.is_current else str(_("Superseded since."))
+        else:
+            continue
+        entries.append(
+            ActivityEntry(
+                happened_at=submission.created_date,
+                summary=summary,
+                actor=(
+                    submission.submitted_by.email
+                    if submission.submitted_by
+                    else str(_("System"))
+                ),
+                consequence=consequence,
+            ),
+        )
+
+    entries.sort(key=lambda entry: entry.happened_at, reverse=True)
+    return entries[:limit]
+
+
+def live_since(application: Application):
+    """When the sandbox actually started working, for "live since" and day counts.
+
+    The transition into PROVISIONED, not `created_date`: an application drafted
+    in March and provisioned in July has been usable for one of those months.
+    """
+    transition = (
+        application.transitions.filter(to_state=ApplicationState.PROVISIONED)
+        .order_by("created_date")
+        .first()
+    )
+    return transition.created_date if transition else None
+
+
+def days_live(application: Application) -> int | None:
+    """Day 1 is the day it was provisioned, which is how people count it."""
+    started = live_since(application)
+    if started is None:
+        return None
+    return (timezone.localdate() - timezone.localtime(started).date()).days + 1

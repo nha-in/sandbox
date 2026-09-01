@@ -52,6 +52,13 @@
                      href="{% url 'applications:overview' external_id=row.application.external_id %}{{ org_query }}">{% translate "Open" %}</a>
                 </span>
               </dd>
+              {% if row.next_action %}
+                <dd class="ui-meta mt-1 sm:col-start-2">
+                  {% blocktranslate with what=row.next_action.title trimmed %}
+                    Next: {{ what }}
+                  {% endblocktranslate %}
+                </dd>
+              {% endif %}
             </div>
           {% endfor %}
         </dl>
