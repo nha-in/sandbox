@@ -18,5 +18,5 @@
       </option>
     {% endfor %}
   </select>
-  {% for error in form.lgd_district_code.errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+  {% for error in form.lgd_district_code.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
 </div>

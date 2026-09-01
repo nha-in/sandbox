@@ -655,5 +655,9 @@ STORAGES = {
 #: take a code change to remove, not a stray variable. `local.py` turns it off.
 STAFF_MFA_REQUIRED = True
 
+#: Working days a submission should be decided within. Colours the queue's
+#: ageing column; gates nothing, and is not a promise made to any applicant.
+REVIEW_TARGET_DAYS = env.int("REVIEW_TARGET_DAYS", default=7)
+
 assert_isolated_local_environment(DEBUG, DATABASES, REDIS_URL)
 assert_staff_mfa_is_required(DEBUG, STAFF_MFA_REQUIRED)

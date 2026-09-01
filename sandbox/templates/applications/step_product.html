@@ -15,7 +15,7 @@
 {% block step_content %}
   <form method="post" class="flex flex-col gap-4">
     {% csrf_token %}
-    {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+    {% include "components/form_errors.html" %}
     {% comment %}
       One name box. On a new application it only makes sense with "New product"
       chosen, so :has() hides it otherwise — hiding is the enhancement, showing

@@ -7,6 +7,18 @@
   <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-sm">{{ application|state_label }}</span>
 {% endblock page_actions %}
 {% block content %}
+  {% if flags %}
+    <div class="mb-6 space-y-2">
+      {% for flag in flags %}
+        <div class="ui-alert ui-alert--warning" role="note">
+          <div class="flex-1">
+            <p class="font-medium">{{ flag.title }}</p>
+            <p class="mt-1">{{ flag.detail }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
   <div class="grid gap-6 lg:grid-cols-3">
     <div class="space-y-6 lg:col-span-2">
       <div class="ui-card">
@@ -92,23 +104,53 @@
           </div>
         </div>
       {% endif %}
+      {% if outcomes %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "What approving would enable" %}</h2>
+            <p class="ui-card-description">
+              {% translate "Coverage is computed from the claim, not asserted by the applicant." %}
+            </p>
+          </div>
+          <div class="ui-card-content">
+            <ul class="divide-y divide-border">
+              {% for outcome in outcomes %}
+                <li class="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+                  <span class="font-medium text-foreground">{{ outcome.label }}</span>
+                  <span class="flex items-center gap-2">
+                    <span class="ui-meta">{{ outcome.detail }}</span>
+                    {% if outcome.outcome == "goes_live" %}
+                      <span class="ui-badge ui-badge--success ui-badge--size-sm">{% translate "Would go live" %}</span>
+                    {% elif outcome.outcome == "already_live" %}
+                      <span class="ui-badge ui-badge--primary ui-badge--size-sm">{% translate "Unaffected" %}</span>
+                    {% else %}
+                      <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{% translate "Enables nothing" %}</span>
+                    {% endif %}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
       <div class="ui-card">
         <div class="ui-card-header">
           <h2 class="ui-card-title">{% translate "History" %}</h2>
+          <p class="ui-card-description">{% translate "Written for people. The state machine is still underneath." %}</p>
         </div>
         <div class="ui-card-content">
           <ol class="space-y-3">
             {% for entry in history %}
               <li class="flex items-start justify-between gap-4 text-sm">
                 <div>
-                  <span class="font-medium text-foreground">{{ entry.action }}</span>
-                  <span class="text-muted-foreground">{{ entry.from_state }} → {{ entry.to_state }}</span>
-                  {% if entry.comment %}<p class="mt-1 text-muted-foreground">{{ entry.comment }}</p>{% endif %}
+                  <span class="font-medium text-foreground">{{ entry.sentence }}</span>
+                  {% if entry.transition.comment %}<p class="mt-1 text-muted-foreground">{{ entry.transition.comment }}</p>{% endif %}
+                  <p class="ui-meta mt-0.5 font-mono">{{ entry.raw }}</p>
                 </div>
                 <div class="shrink-0 text-right text-xs text-muted-foreground">
-                  {{ entry.actor.email|default:_("system") }}
+                  {{ entry.transition.actor.email|default:_("system") }}
                   <br />
-                  {{ entry.created_date|date:"j M Y, H:i" }}
+                  {{ entry.transition.created_date|date:"j M Y, H:i" }}
                 </div>
               </li>
             {% empty %}

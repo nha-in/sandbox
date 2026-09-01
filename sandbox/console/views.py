@@ -7,6 +7,7 @@ would refuse.
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
@@ -24,6 +25,8 @@ from sandbox.applications.documents import download_url
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationState
+from sandbox.applications.selectors import approval_outcomes
+from sandbox.applications.selectors import current_form_data
 from sandbox.console.forms import DecisionForm
 from sandbox.console.forms import ReviewForm
 from sandbox.console.forms import RoleForm
@@ -31,9 +34,12 @@ from sandbox.console.forms import UserRolesForm
 from sandbox.console.mixins import ConsoleMixin
 from sandbox.console.selectors import PAGE_SIZE
 from sandbox.console.selectors import exit_review
+from sandbox.console.selectors import humanised_history
 from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
+from sandbox.console.selectors import queue_rows
 from sandbox.console.selectors import registered_solution_types
+from sandbox.console.selectors import reviewer_flags
 from sandbox.console.selectors import state_counts
 from sandbox.console.services import delete_role
 from sandbox.console.services import save_role
@@ -50,7 +56,6 @@ from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.registry import workflows_visible_to
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import decidable_actions
-from sandbox.workflow.selectors import history_for
 from sandbox.workflow.selectors import is_reviewable
 from sandbox.workflow.selectors import review_tally
 from sandbox.workflow.selectors import reviews_for_round
@@ -113,6 +118,13 @@ class QueueView(ConsoleMixin, ListView):
             self.request.GET.get("q", "").strip(),
         )
         context["applications"] = rows[:PAGE_SIZE]
+        context["rows"] = queue_rows(rows[:PAGE_SIZE])
+        context["over_target"] = sum(1 for row in context["rows"] if row.is_over_target)
+        context["longest_wait"] = max(
+            (row.waiting_days for row in context["rows"] if row.waiting_days),
+            default=0,
+        )
+        context["review_target_days"] = settings.REVIEW_TARGET_DAYS
         context["next_cursor"] = rows[PAGE_SIZE - 1].id if has_more else None
         # shaped here because a template cannot index a dict by a loop variable
         context["state_filters"] = [
@@ -162,7 +174,16 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                 "is_exit": is_exit,
                 "exit_review": exit_review(application) if is_exit else None,
                 "payload_groups": [] if is_exit else payload_groups(application),
-                "history": history_for(application),
+                "history": humanised_history(application),
+                "flags": reviewer_flags(application) if is_exit else [],
+                "outcomes": (
+                    approval_outcomes(
+                        application,
+                        current_form_data(application, "EXIT_CLAIM").get("covers", []),
+                    )
+                    if is_exit
+                    else []
+                ),
                 "reviews": reviews_for_round(application),
                 "tally": review_tally(application),
                 "round": current_round(application),

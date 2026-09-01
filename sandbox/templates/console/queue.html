@@ -4,6 +4,19 @@
 {% load careui %}
 
 {% block content %}
+  <p class="ui-meta mb-4">
+    {% blocktranslate count counter=rows|length trimmed %}
+      {{ counter }} shown
+    {% plural %}
+      {{ counter }} shown
+    {% endblocktranslate %}
+    {% if over_target %}
+      · <span class="font-semibold text-destructive">{% blocktranslate with count=over_target days=review_target_days trimmed %}{{ count }} past the {{ days }}-day target{% endblocktranslate %}</span>
+    {% endif %}
+    {% if longest_wait %}
+      · {% blocktranslate count days=longest_wait trimmed %}oldest waiting {{ days }} day{% plural %}oldest waiting {{ days }} days{% endblocktranslate %}
+    {% endif %}
+  </p>
   <div class="mb-6 flex flex-wrap gap-2">
     <a class="ui-badge {% if not selected_state %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
        href="{% url 'console:queue' %}{% if search %}?q={{ search }}{% endif %}">{% translate "All" %}</a>
@@ -39,26 +52,37 @@
         <tr>
           <th>{% translate "Reference" %}</th>
           <th>{% translate "Organisation" %}</th>
-          <th>{% translate "Product" %}</th>
+          <th>{% translate "Asking for" %}</th>
           <th>{% translate "State" %}</th>
+          <th class="text-right">{% translate "Waiting" %}</th>
         </tr>
       </thead>
       <tbody>
-        {% for application in applications %}
+        {% for row in rows %}
           <tr>
             <td>
               <a class="ui-prose-link"
-                 href="{% url 'console:application_detail' application.external_id %}">{{ application.reference }}</a>
+                 href="{% url 'console:application_detail' row.application.external_id %}">{{ row.application.reference }}</a>
+              {% if row.application.round > 1 %}
+                <span class="ui-meta block">{% blocktranslate with round=row.application.round %}Round {{ round }}{% endblocktranslate %}</span>
+              {% endif %}
             </td>
-            <td>{{ application.product.organisation.name }}</td>
-            <td>{{ application.product.name }}</td>
+            <td>{{ row.application.product.organisation.name }}</td>
+            <td>{{ row.asking_for }}</td>
             <td>
-              <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-xs">{{ application|state_label }}</span>
+              <span class="ui-badge ui-badge--{{ row.application.state|state_variant }} ui-badge--size-xs">{{ row.application|state_label }}</span>
+            </td>
+            <td class="text-right tabular-nums {% if row.is_over_target %}font-semibold text-destructive{% endif %}">
+              {% if row.waiting_days is not None %}
+                {% blocktranslate with days=row.waiting_days %}{{ days }}d{% endblocktranslate %}
+              {% else %}
+                —
+              {% endif %}
             </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="4" class="text-muted-foreground">{% translate "Nothing matches these filters." %}</td>
+            <td colspan="5" class="text-muted-foreground">{% translate "Nothing matches these filters." %}</td>
           </tr>
         {% endfor %}
       </tbody>

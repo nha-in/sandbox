@@ -11,7 +11,7 @@
 {% block step_content %}
   <form method="post" class="flex flex-col gap-4">
     {% csrf_token %}
-    {% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+    {% include "components/form_errors.html" %}
     {% for field in form %}
       {% ui_field field %}
     {% endfor %}

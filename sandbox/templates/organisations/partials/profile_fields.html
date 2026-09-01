@@ -1,6 +1,6 @@
 {% load i18n careui %}
 
-{% for error in form.non_field_errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+{% include "components/form_errors.html" %}
 {% if form.name %}
   {% ui_field form.name %}
   {% ui_field form.kind %}
@@ -19,6 +19,6 @@
   <label class="ui-label" for="{{ form.lgd_state_code.id_for_label }}">{{ form.lgd_state_code.label }}</label>
   {# htmx swaps the district options in place; "Load districts" does the same without JS. #}
   {% ui_widget form.lgd_state_code %}
-  {% for error in form.lgd_state_code.errors %}<p class="ui-form-message" role="alert">{{ error }}</p>{% endfor %}
+  {% for error in form.lgd_state_code.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
 </div>
 {% include "organisations/partials/district_select.html" %}

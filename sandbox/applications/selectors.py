@@ -649,8 +649,22 @@ def approval_outcomes(
     can see before sending that a claim missing one milestone enables nothing.
     An approval is additive and never revokes, which is why an already-live type
     still gets a row rather than disappearing.
+
+    Takes either half of the pair: the console holds the exit, which carries no
+    registration, so what was registered is read from the product's enrollment.
     """
-    registered = current_form_data(application, "REGISTRATION").get(
+    enrollment = (
+        application
+        if application.workflow_key == "ABDM"
+        else Application.objects.filter(
+            product=application.product,
+            workflow_key="ABDM",
+            deleted=False,
+        ).first()
+    )
+    if enrollment is None:
+        return []
+    registered = current_form_data(enrollment, "REGISTRATION").get(
         "solution_types",
         [],
     )
