@@ -21,6 +21,11 @@ urlpatterns = [
     ),
     path(
         "<uuid:external_id>/details/",
+        views.IntegrationProfileView.as_view(),
+        name="details",
+    ),
+    path(
+        "<uuid:external_id>/details/edit/",
         views.DetailsStepView.as_view(),
         name="step_details",
     ),

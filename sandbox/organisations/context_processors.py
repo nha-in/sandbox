@@ -27,6 +27,7 @@ NAV_SECTIONS: dict[str, str] = {
     "applications:rotate_credentials": "credentials",
     "applications:step_product": "applications",
     "applications:step_product_edit": "details",
+    "applications:details": "details",
     "applications:step_details": "details",
     "applications:step_review": "details",
     "applications:milestones": "milestones",

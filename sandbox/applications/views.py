@@ -536,6 +536,32 @@ class ApplicationOverviewView(ApplicationStepMixin, TemplateView):
         }
 
 
+class IntegrationProfileView(ApplicationStepMixin, TemplateView):
+    """What was declared at registration, read-only.
+
+    The nav's Details destination. It used to be the enrolment form itself, so
+    a product with a live sandbox and an exit in flight presented its settled
+    profile as an unfinished application, step chips and all.
+    """
+
+    template_name = "applications/details.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        application = self.application
+        form = _registration(application).form_class(
+            initial=current_form_data(application, REGISTRATION),
+        )
+        context.update(
+            {
+                "page_title": _("Integration profile"),
+                "profile": _summary_rows(form),
+                "editable": _is_editable(application),
+            },
+        )
+        return context
+
+
 class ApplicationStatusView(ApplicationStepMixin, TemplateView):
     """The self-polling fragment. Same truth as a full refresh, just smaller."""
 

@@ -674,3 +674,62 @@ def approval_outcomes(
             }
         outcomes.append(ApprovalOutcome(label=label, outcome=outcome, detail=detail))
     return outcomes
+
+
+@dataclass(frozen=True, slots=True)
+class ExitAttempt:
+    """One exit this product has requested, as its own row of history."""
+
+    application: Application
+    covers: tuple[str, ...]
+    requested_at: Any
+    decided_at: Any
+    is_open: bool
+
+
+def exit_history(product: Product) -> list[ExitAttempt]:
+    """Every exit this product has requested, newest first.
+
+    One row per exit application, not per round: a rejection and the
+    resubmission answering it are rounds of the same exit, while taking further
+    milestones live later is a new one.
+    """
+    applications = (
+        Application.objects.filter(
+            product=product,
+            workflow_key="ABDM_EXIT",
+            deleted=False,
+        )
+        .prefetch_related("submissions", "transitions")
+        .order_by("-created_date")
+    )
+
+    attempts = []
+    for application in applications:
+        claim: dict = next(
+            (
+                submission.data
+                for submission in application.submissions.all()
+                if submission.is_current and submission.form_key == "EXIT_CLAIM"
+            ),
+            {},
+        )
+        transitions = sorted(
+            application.transitions.all(),
+            key=lambda t: t.created_date,
+        )
+        submitted = next((t for t in transitions if t.action == "SUBMIT"), None)
+        decided = next(
+            (t for t in reversed(transitions) if t.action in {"APPROVE", "REJECT"}),
+            None,
+        )
+        attempts.append(
+            ExitAttempt(
+                application=application,
+                covers=tuple(claim.get("covers", [])),
+                requested_at=submitted.created_date if submitted else None,
+                decided_at=decided.created_date if decided else None,
+                is_open=application.state not in RESTING_STATES,
+            ),
+        )
+    return attempts

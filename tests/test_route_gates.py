@@ -199,6 +199,11 @@ ROUTES: dict[str, Route] = {
         query=_org_a,
         methods=("GET", "POST"),
     ),
+    "applications:details": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+    ),
     "applications:step_details": Route(
         Access.ORG_SCOPED,
         kwargs=_application_id,

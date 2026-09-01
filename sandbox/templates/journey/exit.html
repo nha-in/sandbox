@@ -8,7 +8,7 @@
   The exit is its own application, so the state read here is `exit_state`, not
   the sandbox application's.
 {% endcomment %}
-{% load i18n %}
+{% load i18n careui %}
 
 {% block title %}
   {% translate "Exit to production" %}
@@ -147,5 +147,45 @@
         </div>
       </div>
     {% endif %}
+  {% endif %}
+  {% if history %}
+    <div class="ui-card mt-6">
+      <div class="ui-card-header">
+        <h2 class="ui-card-title">{% translate "Exit history" %}</h2>
+        <p class="ui-card-description">
+          {% translate "Every exit this product has requested. A rejection and the resubmission answering it are rounds of one exit; taking further milestones live later is a new one." %}
+        </p>
+      </div>
+      <div class="ui-card-content">
+        <ul class="divide-y divide-border">
+          {% for attempt in history %}
+            <li class="py-3 first:pt-0 last:pb-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="ui-code-chip">{{ attempt.application.reference }}</span>
+                <span class="ui-badge ui-badge--{{ attempt.application.state|state_variant }} ui-badge--size-sm">{{ attempt.application|state_label }}</span>
+                {% if attempt.is_open %}
+                  <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{% translate "This exit" %}</span>
+                {% endif %}
+              </div>
+              <p class="ui-meta mt-1">
+                {% if attempt.covers %}
+                  {% blocktranslate with covered=attempt.covers|join:", " trimmed %}
+                    Covers {{ covered }}
+                  {% endblocktranslate %}
+                {% else %}
+                  {% translate "Nothing claimed yet" %}
+                {% endif %}
+                {% if attempt.requested_at %}
+                  · {% blocktranslate with when=attempt.requested_at|date:"j M Y" trimmed %}requested {{ when }}{% endblocktranslate %}
+                {% endif %}
+                {% if attempt.decided_at %}
+                  · {% blocktranslate with when=attempt.decided_at|date:"j M Y" trimmed %}decided {{ when }}{% endblocktranslate %}
+                {% endif %}
+              </p>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
   {% endif %}
 {% endblock content %}

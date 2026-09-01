@@ -1,0 +1,44 @@
+{% extends "layouts/app.html" %}
+
+{% comment %}
+  The integration profile as it stands. Read-only: editing it is a separate
+  act on the enrolment form, and one worth warning about, because widening
+  the profile changes what a later exit may claim.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {% translate "Integration profile" %}
+{% endblock title %}
+{% block content %}
+  <div class="mx-auto w-full max-w-3xl">
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <p class="ui-card-description">
+          {% blocktranslate with reference=application.reference %}What you told NHA you are building, submitted with {{ reference }}.{% endblocktranslate %}
+        </p>
+      </div>
+      <div class="ui-card-content">
+        <dl>
+          {% for label, value in profile %}
+            <div class="ui-kv">
+              <dt class="ui-kv-key">{{ label }}</dt>
+              <dd class="ui-kv-value">
+                {{ value|default:"—" }}
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+      </div>
+      <div class="ui-card-footer flex flex-wrap items-center justify-between gap-3">
+        <p class="ui-meta">
+          {% translate "Widening this grants nothing on its own — it changes only what a later exit may claim." %}
+        </p>
+        {% if editable %}
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
+             href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}">{% translate "Edit integration profile" %}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock content %}

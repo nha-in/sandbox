@@ -87,7 +87,7 @@
            {% if nav_section == 'overview' %}aria-current="page"{% endif %}>{% translate "Overview" %}</a>
         <a id="nav-details"
            class="ui-sidebar-link {% if nav_section == 'details' %}ui-sidebar-link--active{% endif %}"
-           href="{% url 'applications:step_details' external_id=application.external_id %}{{ org_query }}"
+           href="{% url 'applications:details' external_id=application.external_id %}{{ org_query }}"
            {% if nav_section == 'details' %}aria-current="page"{% endif %}>{% translate "Details" %}</a>
         <a id="nav-credentials"
            class="ui-sidebar-link {% if nav_section == 'credentials' %}ui-sidebar-link--active{% endif %}"

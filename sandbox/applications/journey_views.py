@@ -41,6 +41,7 @@ from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import document_detail
 from sandbox.applications.selectors import exit_documents
 from sandbox.applications.selectors import exit_grants
+from sandbox.applications.selectors import exit_history
 from sandbox.applications.selectors import exit_in_flight
 from sandbox.applications.selectors import milestone_graph
 from sandbox.applications.selectors import milestone_rows
@@ -361,6 +362,7 @@ class ExitView(ExitJourneyMixin, TemplateView):
                 "claim_covers": covers,
                 "wasa": wasa,
                 "outcomes": approval_outcomes(self.application, covers),
+                "history": exit_history(self.application.product),
             },
         )
         return context
