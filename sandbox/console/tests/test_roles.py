@@ -178,6 +178,41 @@ def test_every_role_change_is_audited(role_admin):
     assert event.data["permissions"] == ["view_abdm"]
 
 
+def test_the_editor_opens_with_what_the_role_already_grants(role_admin):
+    """`permissions` sits outside Meta.fields, so ModelForm does not seed it.
+    Unticked boxes on open meant saving any other edit stripped the role."""
+    role = Group.objects.create(name="ABDM review team")
+    role.permissions.add(_permission("view_abdm"), _permission("review_abdm"))
+
+    response = role_admin.get(
+        reverse("console:role_detail", kwargs={"pk": role.pk}),
+    )
+
+    ticked = {
+        permission["label"]
+        for group in response.context["form"].permission_groups()
+        for permission in group["permissions"]
+        if permission["checked"]
+    }
+    assert ticked == {
+        "Can see ABDM applications in the console",
+        "Can record a review on an ABDM application",
+    }
+
+
+def test_the_user_page_opens_with_the_roles_already_held(role_admin):
+    person = UserFactory.create(is_staff=True)
+    role = Group.objects.create(name="ABDM review team")
+    person.groups.add(role)
+
+    response = role_admin.get(
+        reverse("console:user_roles", kwargs={"external_id": person.external_id}),
+    )
+
+    # prepare_value() hands the widget pks, which is what ticks the boxes
+    assert list(response.context["form"]["roles"].value()) == [role.pk]
+
+
 def test_permissions_are_grouped_by_programme_and_named_plainly(role_admin):
     """A flat list of every programme's permissions is what this replaced, and
     Django's own label ("Workflow | workflow transition | ...") is not a label

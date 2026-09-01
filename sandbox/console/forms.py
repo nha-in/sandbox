@@ -58,6 +58,11 @@ class RoleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.fields["permissions"].queryset = assignable_permissions()  # type: ignore[attr-defined]
+        if self.instance.pk:
+            # `permissions` is declared outside Meta.fields, so ModelForm does
+            # not seed it: without this the editor opens with nothing ticked
+            # and saving silently strips the role.
+            self.fields["permissions"].initial = self.instance.permissions.all()
 
     def permission_groups(self) -> list[dict]:
         """The checkboxes, grouped by programme.
