@@ -59,6 +59,10 @@ OWNER_EMAIL = "integrator@example.com"
 DEVELOPER_EMAIL = "developer@example.com"
 OTHER_ORG_EMAIL = "rival@example.com"
 
+# Shared by every demo login so a fresh checkout needs nothing but this file.
+# Only ever reached under DEBUG — see `handle`.
+DEMO_PASSWORD = "Lilo@123"  # noqa: S105
+
 DEMO_USERS = [
     (ADMIN_EMAIL, "Sandbox Superuser", {"is_staff": True, "is_superuser": True}),
     (REVIEWER_EMAIL, "Sandbox Reviewer", {"is_staff": True}),
@@ -268,7 +272,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--password",
             default=None,
-            help="Password for every demo login. Generated and printed if omitted.",
+            help=(
+                "Password for every demo login. Defaults to the shared demo "
+                "password under DEBUG, and to a generated one otherwise."
+            ),
         )
 
     @transaction.atomic
@@ -277,7 +284,10 @@ class Command(BaseCommand):
             msg = "Refusing to seed outside DEBUG without --force."
             raise CommandError(msg)
 
-        password = options["password"] or secrets.token_urlsafe(9)
+        # a password this guessable must not reach a --force'd staging snapshot
+        password = options["password"] or (
+            DEMO_PASSWORD if settings.DEBUG else secrets.token_urlsafe(9)
+        )
 
         if options["fresh"]:
             self._retire()
