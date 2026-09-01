@@ -4,7 +4,7 @@
 {% load careui %}
 
 {% block page_actions %}
-  <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ application.get_state_display }}</span>
+  <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-sm">{{ application.get_state_display }}</span>
 {% endblock page_actions %}
 {% block content %}
   <div class="grid gap-6 lg:grid-cols-3">

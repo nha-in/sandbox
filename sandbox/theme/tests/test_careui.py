@@ -2,6 +2,7 @@ import pytest
 from django import forms
 
 from sandbox.theme.templatetags import careui
+from sandbox.workflow.registry import WORKFLOWS
 
 LONG_CHOICES = [(str(index), f"Option {index}") for index in range(10)]
 
@@ -154,3 +155,34 @@ def test_non_field_errors_are_exposed_to_templates():
     form.add_error(None, "Something went wrong.")
 
     assert "Something went wrong." in careui.ui_non_field_errors(form)
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("DRAFT", "neutral"),
+        ("SUBMITTED", "primary"),
+        ("PROVISIONED", "success"),
+        ("APPROVED", "success"),
+        ("SENT_BACK", "warning"),
+        ("PROVISIONING_FAILED", "destructive"),
+        ("REJECTED", "destructive"),
+    ],
+)
+def test_a_state_wears_the_variant_its_meaning_deserves(state, expected):
+    assert careui.state_variant(state) == expected
+
+
+def test_every_reachable_state_has_a_variant():
+    """Otherwise a state added to a workflow renders neutral and nobody notices
+    until PROVISIONING_FAILED looks like DRAFT on a screen."""
+    for key, workflow in WORKFLOWS.items():
+        reachable = {workflow.initial_state}
+        reachable |= {from_state for from_state, _ in workflow.transitions}
+        reachable |= {spec.to_state for spec in workflow.transitions.values()}
+        unmapped = sorted(reachable - set(careui.STATE_VARIANTS))
+        assert not unmapped, f"{key} has unmapped states: {unmapped}"
+
+
+def test_an_unknown_state_falls_back_rather_than_raising():
+    assert careui.state_variant("SOMETHING_NEW") == "neutral"

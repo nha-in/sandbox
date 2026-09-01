@@ -27,6 +27,16 @@
   @apply dark:bg-orange-500/5 dark:text-orange-300 dark:hover:border-orange-500/75 dark:hover:bg-orange-500/10;
 }
 
+/* ── Type scale ──────────────────────────────────────────────────────────── */
+
+/* careui ships `ui-page-title` and `ui-card-title` but nothing between them, so
+   a section heading falls back to the 13px body size and a screen reads as one
+   flat block. `allauth/elements/h2.html` already asks for this class and has
+   been rendering unstyled without it. */
+@utility ui-section-title {
+  @apply text-[14.5px] font-semibold text-foreground;
+}
+
 /* ── Multi-select ────────────────────────────────────────────────────────── */
 
 /* A `<select multiple>` is a list box, not a dropdown, and careui's `ui-select`

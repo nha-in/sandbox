@@ -7,6 +7,7 @@
   branch here — that question belongs to the list this page is reached from.
 {% endcomment %}
 {% load i18n %}
+{% load careui %}
 
 {% block title %}
   {{ application.reference }}
@@ -35,7 +36,7 @@
           <div>
             <dt class="ui-label">{% translate "Status" %}</dt>
             <dd>
-              <span class="ui-badge ui-badge--neutral ui-badge--size-sm">{{ application.get_state_display }}</span>
+              <span class="ui-badge ui-badge--{{ application.state|state_variant }} ui-badge--size-sm">{{ application.get_state_display }}</span>
             </dd>
           </div>
           <div>

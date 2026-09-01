@@ -58,6 +58,34 @@ _SUMMARY_NAMED = 3
 PICKER_EMPTY = _("Nothing selected")
 PICKER_MORE = _("and {count} more")
 
+# Workflow state → careui badge variant. Every state badge was `neutral`, which
+# left PROVISIONED and PROVISIONING_FAILED looking identical.
+#
+# One map covers both workflows: ABDM and ABDM_EXIT share DRAFT, SUBMITTED,
+# SENT_BACK, REJECTED and WITHDRAWN, and a shared name never means two things.
+# A state missing here is a design decision nobody made, so it falls back to
+# neutral rather than guessing. Public because a test asserts it covers every
+# state the workflows can reach.
+STATE_VARIANTS: dict[str, str] = {
+    # not started
+    "DRAFT": "neutral",
+    "WITHDRAWN": "neutral",
+    # in progress — with someone else, nothing for the reader to do
+    "SUBMITTED": "primary",
+    "SANDBOX_APPROVED": "primary",
+    "PROVISIONING": "primary",
+    "UNDER_REVIEW": "primary",
+    # done, live
+    "PROVISIONED": "success",
+    "APPROVED": "success",
+    # needs the reader
+    "SENT_BACK": "warning",
+    # failed or refused
+    "PROVISIONING_FAILED": "destructive",
+    "REJECTED": "destructive",
+}
+_DEFAULT_STATE_VARIANT = "neutral"
+
 
 def _control_class(widget: forms.Widget) -> str:
     for widget_type, css_class in _CONTROL_CLASSES:
@@ -180,3 +208,13 @@ def ui_field(
 @register.simple_tag
 def ui_non_field_errors(form) -> dict:
     return form.non_field_errors()
+
+
+@register.filter
+def state_variant(state: str) -> str:
+    """The badge variant a workflow state should wear.
+
+    Takes the stored value, not `get_state_display`: the label is translated and
+    the variant must not be.
+    """
+    return STATE_VARIANTS.get(state, _DEFAULT_STATE_VARIANT)
