@@ -63,6 +63,16 @@ class DocumentKind(enum.StrEnum):
     SUPPORTING = "SUPPORTING"
 
 
+#: What to call each kind on screen. `AUDIT_CERTIFICATE` is not a field label.
+DOCUMENT_KIND_LABELS: dict[DocumentKind, str] = {
+    DocumentKind.FUNCTIONAL_TEST_REPORT: "Functional test report",
+    DocumentKind.AUDIT_CERTIFICATE: "Safe-to-Host (WASA) certificate",
+    DocumentKind.UNDERTAKING: "Signed undertaking",
+    DocumentKind.GSTIN_CERTIFICATE: "GSTIN certificate",
+    DocumentKind.SUPPORTING: "Supporting document",
+}
+
+
 MILESTONE_LABELS: dict[Milestone, str] = {
     Milestone.M1: "M1 — ABHA creation & verification",
     Milestone.M2: "M2 — Health Information Provider (HIP)",

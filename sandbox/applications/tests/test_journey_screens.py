@@ -12,6 +12,8 @@ that is the path that has to keep working.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from django.test import Client
 from django.urls import reverse
@@ -228,9 +230,8 @@ def test_saving_the_claim_opens_an_exit_application(mock_s3, client_, applicatio
     _declare_m1(application)
 
     response = client_.post(
-        _url("applications:exit", application),
+        _url("applications:exit_claim", application),
         {
-            "step": "claim",
             "covers": ["M1"],
             "summary": "Two HIPs live, consent flows exercised.",
             DocumentKind.FUNCTIONAL_TEST_REPORT: upload(),
@@ -240,6 +241,8 @@ def test_saving_the_claim_opens_an_exit_application(mock_s3, client_, applicatio
     )
 
     assert response.status_code == HTTP_FOUND
+    # step one hands over to step two, not back to the status page
+    assert response["Location"].startswith(_url("applications:exit_wasa", application))
     exit_application = exit_in_flight(application.product)
     assert exit_application is not None
     assert exit_application.workflow_key == "ABDM_EXIT"
@@ -251,36 +254,111 @@ def test_saving_the_claim_opens_an_exit_application(mock_s3, client_, applicatio
     assert claim.documents.filter(deleted=False).count() == THREE_DOCUMENTS
 
 
-def test_a_fully_evidenced_exit_reaches_review(mock_s3, client_, application):
-    _declare_m1(application)
-    url = _url("applications:exit", application)
-    client_.post(
-        url,
+def _save_claim(client_, application, *, documents=True):
+    files: dict[str, Any] = (
         {
-            "step": "claim",
-            "covers": ["M1"],
-            "summary": "Two HIPs live.",
             DocumentKind.FUNCTIONAL_TEST_REPORT: upload(),
             DocumentKind.UNDERTAKING: upload(),
             DocumentKind.GSTIN_CERTIFICATE: upload(),
-        },
+        }
+        if documents
+        else {}
     )
-    client_.post(
-        url,
-        {
-            "step": "wasa",
-            "start": "2026-01-01",
-            "valid_upto": "2027-01-01",
-            DocumentKind.AUDIT_CERTIFICATE: upload(),
-        },
+    return client_.post(
+        _url("applications:exit_claim", application),
+        {"covers": ["M1"], "summary": "Two HIPs live.", **files},
     )
 
-    response = client_.post(url, {"step": "submit"})
+
+def _save_wasa(client_, application, *, documents=True):
+    files: dict[str, Any] = (
+        {DocumentKind.AUDIT_CERTIFICATE: upload()} if documents else {}
+    )
+    return client_.post(
+        _url("applications:exit_wasa", application),
+        {"start": "2026-01-01", "valid_upto": "2027-01-01", **files},
+    )
+
+
+def test_the_wasa_step_sends_you_back_until_the_claim_is_saved(client_, application):
+    """WASA declares `depends_on = EXIT_CLAIM`; the step order honours that
+    rather than writing it down a second time."""
+    _declare_m1(application)
+
+    response = client_.get(_url("applications:exit_wasa", application))
+
+    assert response.status_code == HTTP_FOUND
+    assert response["Location"].startswith(_url("applications:exit_claim", application))
+
+
+def test_the_review_step_sends_you_back_until_the_certificate_is_saved(
+    mock_s3,
+    client_,
+    application,
+):
+    _declare_m1(application)
+    _save_claim(client_, application)
+
+    response = client_.get(_url("applications:exit_review", application))
+
+    assert response.status_code == HTTP_FOUND
+    assert response["Location"].startswith(_url("applications:exit_wasa", application))
+
+
+def test_a_fully_evidenced_exit_reaches_review(mock_s3, client_, application):
+    _declare_m1(application)
+    _save_claim(client_, application)
+    _save_wasa(client_, application)
+
+    response = client_.post(_url("applications:exit_review", application))
 
     assert response.status_code == HTTP_FOUND
     exit_application = exit_in_flight(application.product)
     assert exit_application is not None
     assert exit_application.state == "SUBMITTED"
+
+
+def test_saving_the_certificate_does_not_request_the_exit(
+    mock_s3,
+    client_,
+    application,
+):
+    """Save and submit are different acts. Two screens ago they were the same
+    click, so someone uploading a certificate to come back to would have asked
+    NHA to review it."""
+    _declare_m1(application)
+    _save_claim(client_, application)
+
+    response = _save_wasa(client_, application)
+
+    assert response.status_code == HTTP_FOUND
+    assert response["Location"].startswith(
+        _url("applications:exit_review", application),
+    )
+    exit_application = exit_in_flight(application.product)
+    assert exit_application is not None
+    assert exit_application.state == ApplicationState.DRAFT
+
+
+def test_the_review_step_names_the_evidence_it_is_missing(
+    client_,
+    application,
+):
+    """The gate refuses an exit with no documents. Saying which are missing
+    before the refusal is the difference between a checklist and a rejection."""
+    _declare_m1(application)
+    _save_claim(client_, application, documents=False)
+    _save_wasa(client_, application, documents=False)
+
+    response = client_.get(_url("applications:exit_review", application))
+
+    assert response.status_code == HTTP_OK
+    assert all(row["files"] == [] for row in response.context["evidence"])
+    body = response.content.decode()
+    assert "Functional test report" in body
+    assert "Safe-to-Host (WASA) certificate" in body
+    # never the raw DocumentKind value
+    assert "FUNCTIONAL_TEST_REPORT" not in body
 
 
 def test_an_exit_with_no_evidence_is_refused_and_the_state_does_not_move(
@@ -291,23 +369,37 @@ def test_an_exit_with_no_evidence_is_refused_and_the_state_does_not_move(
     """The gate needs every required document, so submitting without them is
     refused — and the exit stays where the integrator can fix it."""
     _declare_m1(application)
-    url = _url("applications:exit", application)
-    client_.post(
-        url,
-        {"step": "claim", "covers": ["M1"], "summary": "Nothing attached."},
-    )
-    client_.post(
-        url,
-        {"step": "wasa", "start": "2026-01-01", "valid_upto": "2027-01-01"},
-    )
+    _save_claim(client_, application, documents=False)
+    _save_wasa(client_, application, documents=False)
 
-    response = client_.post(url, {"step": "submit"}, follow=True)
+    response = client_.post(
+        _url("applications:exit_review", application),
+        follow=True,
+    )
 
     assert response.status_code == HTTP_OK
     assert any("evidence" in str(m).lower() for m in response.context["messages"])
     exit_application = exit_in_flight(application.product)
     assert exit_application is not None
     assert exit_application.state == ApplicationState.DRAFT
+
+
+def test_a_submitted_exit_cannot_be_edited_through_the_wizard(
+    mock_s3,
+    client_,
+    application,
+):
+    """Once it is with NHA the steps have nothing to offer, and letting them
+    render would invite edits the engine would refuse."""
+    _declare_m1(application)
+    _save_claim(client_, application)
+    _save_wasa(client_, application)
+    client_.post(_url("applications:exit_review", application))
+
+    response = client_.get(_url("applications:exit_claim", application))
+
+    assert response.status_code == HTTP_FOUND
+    assert response["Location"].startswith(_url("applications:exit", application))
 
 
 def test_an_exit_cannot_cover_a_milestone_that_was_never_declared(
@@ -320,10 +412,10 @@ def test_an_exit_cannot_cover_a_milestone_that_was_never_declared(
     _declare_m1(application)
 
     response = client_.post(
-        _url("applications:exit", application),
-        {"step": "claim", "covers": ["M3"], "summary": "Trying anyway."},
+        _url("applications:exit_claim", application),
+        {"covers": ["M3"], "summary": "Trying anyway."},
     )
 
     assert response.status_code == HTTP_OK
-    assert response.context["claim_form"].errors
+    assert response.context["form"].errors
     assert exit_in_flight(application.product) is None

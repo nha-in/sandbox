@@ -1,0 +1,33 @@
+{% extends "journey/exit_base.html" %}
+
+{% load i18n careui %}
+
+{% block step_title %}
+  {% translate "Safe-to-Host (WASA) certificate" %}
+{% endblock step_title %}
+{% block step_description %}
+  {% translate "Issued by an empanelled audit agency. A valid certificate may be reused; a major or backend change needs a fresh one." %}
+{% endblock step_description %}
+{% block step_body %}
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    <div class="ui-card-content flex flex-col gap-5">
+      {% include "components/form_errors.html" with form=form %}
+      <div class="grid gap-5 sm:grid-cols-2">
+        {% ui_field form.start %}
+        {% ui_field form.valid_upto %}
+      </div>
+      {% for name, label in uploads %}
+        <div>
+          <label class="ui-label" for="id_{{ name }}">{{ label }}</label>
+          <input class="ui-input" id="id_{{ name }}" type="file" name="{{ name }}" />
+        </div>
+      {% endfor %}
+    </div>
+    <div class="ui-card-footer flex items-center justify-between gap-3">
+      <a class="ui-btn ui-btn--ghost no-underline"
+         href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
+      <button class="ui-btn ui-btn--primary" type="submit">{% translate "Save and continue" %}</button>
+    </div>
+  </form>
+{% endblock step_body %}

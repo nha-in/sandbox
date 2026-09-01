@@ -261,6 +261,26 @@ ROUTES: dict[str, Route] = {
         Access.ORG_SCOPED,
         kwargs=_application_id,
         query=_org_a,
+    ),
+    # The exit wizard writes to the exit application, so each step is scoped
+    # like any other write: a claim accepted for the wrong tenant would attach
+    # somebody else's evidence to a production request.
+    "applications:exit_claim": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "applications:exit_wasa": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
+        methods=("GET", "POST"),
+    ),
+    "applications:exit_review": Route(
+        Access.ORG_SCOPED,
+        kwargs=_application_id,
+        query=_org_a,
         methods=("GET", "POST"),
     ),
     # Recording a DHIS handoff writes to the application, so it is scoped like

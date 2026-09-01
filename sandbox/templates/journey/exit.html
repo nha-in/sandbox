@@ -1,14 +1,14 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  Several pages in one, chosen by the exit's state: locked (nothing declared
-  yet), the two forms, or the outcome. Separate URLs would let the integrator
-  reach a form the workflow would refuse.
+  Where the exit stands, and the way into the wizard that fills one in. The
+  forms live on their own screens: saving a step and asking NHA to review the
+  lot are different acts, and used to be three buttons on this page.
 
   The exit is its own application, so the state read here is `exit_state`, not
   the sandbox application's.
 {% endcomment %}
-{% load careui i18n %}
+{% load i18n %}
 
 {% block title %}
   {% translate "Exit to production" %}
@@ -69,92 +69,41 @@
     {% elif exit_state == "SENT_BACK" %}
       <div class="ui-alert mb-6" role="alert">
         <div class="flex-1 space-y-1">
-          <p>{% translate "NHA has asked for changes. Address their comments and submit again." %}</p>
+          <p>{% translate "NHA has asked for changes. Address their comments and request the exit again." %}</p>
         </div>
       </div>
     {% endif %}
-    <form class="mb-6" method="post" enctype="multipart/form-data" novalidate>
-      {% csrf_token %}
-      <input type="hidden" name="step" value="claim" />
-      <div class="ui-card">
-        <div class="ui-card-header">
-          <h2 class="ui-card-title">{% translate "1. What you are taking to production" %}</h2>
-        </div>
-        <div class="ui-card-content flex flex-col gap-5">
-          {% include "components/form_errors.html" with form=claim_form %}
-          <div>
-            <span class="ui-label">{{ claim_form.covers.label }}</span>
-            <span class="ui-hint">
-              {% translate "Only milestones you have already declared complete can be exited." %}
-            </span>
-            <div class="mt-2 flex flex-col gap-2">
-              {% for choice in claim_form.covers %}
-                <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
-                  {{ choice.tag }}{{ choice.choice_label }}
-                </label>
-              {% endfor %}
-            </div>
-            {% for error in claim_form.covers.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
-          </div>
-          {% ui_field claim_form.summary %}
-          {% for kind in required_documents.EXIT_CLAIM %}
-            <div>
-              <label class="ui-label" for="id_{{ kind }}">{{ kind }}</label>
-              <input class="ui-input"
-                     id="id_{{ kind }}"
-                     type="file"
-                     name="{{ kind }}" />
-            </div>
-          {% endfor %}
-        </div>
-        <div class="ui-card-footer flex items-center justify-end gap-3">
-          <button class="ui-btn ui-btn--secondary" type="submit">{% translate "Save declaration" %}</button>
-        </div>
+    <div class="ui-card">
+      <div class="ui-card-header">
+        <h2 class="ui-card-title">{% translate "Request production access" %}</h2>
+        <p class="ui-card-description">
+          {% translate "Three steps: what you are taking live, your Safe-to-Host certificate, then a review before it goes to NHA." %}
+        </p>
       </div>
-    </form>
-    {% if has_claim %}
-      <form class="mb-6" method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-        <input type="hidden" name="step" value="wasa" />
-        <div class="ui-card">
-          <div class="ui-card-header">
-            <h2 class="ui-card-title">{% translate "2. Safe-to-Host (WASA) certificate" %}</h2>
-            <p class="ui-card-description">
-              {% translate "Issued by an empanelled audit agency. A valid certificate may be reused; a major or backend change needs a fresh one." %}
-            </p>
+      <div class="ui-card-content">
+        <dl>
+          <div class="ui-kv">
+            <dt class="ui-kv-key">{% translate "Ready to exit" %}</dt>
+            <dd class="ui-kv-value">
+              {% for key, title in declared_covers %}<span class="block">{{ title }}</span>{% endfor %}
+            </dd>
           </div>
-          <div class="ui-card-content flex flex-col gap-5">
-            {% include "components/form_errors.html" with form=wasa_form %}
-            <div class="grid gap-5 sm:grid-cols-2">
-              {% ui_field wasa_form.start %}
-              {% ui_field wasa_form.valid_upto %}
-            </div>
-            {% for kind in required_documents.WASA %}
-              <div>
-                <label class="ui-label" for="id_{{ kind }}">{{ kind }}</label>
-                <input class="ui-input"
-                       id="id_{{ kind }}"
-                       type="file"
-                       name="{{ kind }}" />
-              </div>
-            {% endfor %}
-          </div>
-          <div class="ui-card-footer flex items-center justify-end gap-3">
-            <button class="ui-btn ui-btn--secondary" type="submit">{% translate "Save certificate" %}</button>
-          </div>
-        </div>
-      </form>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="step" value="submit" />
-        <div class="ui-card">
-          <div class="ui-card-footer flex items-center justify-between gap-3">
-            <a class="text-sm underline"
-               href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
-            <button class="ui-btn ui-btn--primary" type="submit">{% translate "Request exit" %}</button>
-          </div>
-        </div>
-      </form>
-    {% endif %}
+        </dl>
+      </div>
+      <div class="ui-card-footer flex items-center justify-between gap-3">
+        <a class="text-sm underline"
+           href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
+        {% if not has_claim %}
+          <a class="ui-btn ui-btn--primary no-underline"
+             href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Start exit request" %}</a>
+        {% elif not has_wasa %}
+          <a class="ui-btn ui-btn--primary no-underline"
+             href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Continue exit request" %}</a>
+        {% else %}
+          <a class="ui-btn ui-btn--primary no-underline"
+             href="{% url 'applications:exit_review' external_id=application.external_id %}{{ org_query }}">{% translate "Review and request exit" %}</a>
+        {% endif %}
+      </div>
+    </div>
   {% endif %}
 {% endblock content %}

@@ -48,6 +48,7 @@ from sandbox.programmes import abdm
 from sandbox.utils.errors import DomainError
 from sandbox.workflow import engine
 from sandbox.workflow.registry import get_workflow
+from sandbox.workflow.selectors import reviews_for_round
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -59,6 +60,36 @@ REQUIRED_EXIT_DOCUMENTS = {
     key: get_workflow("ABDM_EXIT").form(key).requires_document
     for key in ("EXIT_CLAIM", "WASA")
 }
+
+EXIT_WORKFLOW = "ABDM_EXIT"
+
+#: The exit wizard's steps. Filling the two forms and requesting the exit are
+#: three separate acts, so they are three screens: saving a certificate to come
+#: back to must not be the same click as asking NHA to review it.
+EXIT_STEPS = (
+    ("claim", _("What you are taking live")),
+    ("wasa", _("Safe-to-Host certificate")),
+    ("review", _("Review and request")),
+)
+
+
+def document_fields(form_key: str) -> list[tuple[str, str]]:
+    """Upload fields as (name, label). A bare `DocumentKind` is not a label."""
+    definition = get_workflow(EXIT_WORKFLOW).form(form_key)
+    return [
+        (kind, abdm.DOCUMENT_KIND_LABELS[abdm.DocumentKind(kind)])
+        for kind in definition.requires_document
+    ]
+
+
+def exit_evidence(exit_application: Application | None) -> list[dict]:
+    """The gate's checklist, so a missing file is seen before it refuses."""
+    attached = exit_documents(exit_application)
+    return [
+        {"label": label, "files": attached.get(name, [])}
+        for form_key in ("EXIT_CLAIM", "WASA")
+        for name, label in document_fields(form_key)
+    ]
 
 
 class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
@@ -190,15 +221,13 @@ class DeclareMilestoneView(ApplicationScopedMixin, FormView):
         return redirect(self.milestones_url())
 
 
-class ExitView(ApplicationScopedMixin, TemplateView):
-    """The gate, the two forms and the outcome — which one shows is state's call.
+class ExitJourneyMixin(ApplicationScopedMixin):
+    """What the exit status page and its three steps all need.
 
-    The exit is its own application: this screen hangs off the sandbox one
-    because that is where the integrator is, but everything it writes goes to
+    The exit is its own application: these screens hang off the sandbox one
+    because that is where the integrator is, but everything they write goes to
     the `ABDM_EXIT` row for the same product.
     """
-
-    template_name = "journey/exit.html"
 
     @cached_property
     def exit_application(self) -> Application | None:
@@ -212,89 +241,112 @@ class ExitView(ApplicationScopedMixin, TemplateView):
             if row.declared
         ]
 
-    def _claim_form(self, data=None):
+    def _current(self, form_key: str) -> dict:
+        if self.exit_application is None:
+            return {}
+        return current_form_data(self.exit_application, form_key)
+
+    def _unlocked(self, form_key: str) -> bool:
+        """Ask the form definition, so the step order cannot drift from it."""
+        exit_application = self.exit_application
+        if exit_application is None:
+            return False
+        definition = get_workflow(EXIT_WORKFLOW).form(form_key)
+        return definition.is_unlocked(engine.ApplicationContext(exit_application))
+
+    def is_editable(self) -> bool:
+        """A submitted exit is with NHA; only DRAFT and SENT_BACK take edits."""
+        exit_application = self.exit_application
+        if exit_application is None:
+            return True
+        editable = get_workflow(EXIT_WORKFLOW).form("EXIT_CLAIM").editable_states
+        return exit_application.state in editable
+
+    def claim_form(self, data=None):
         return abdm.ExitClaimForm(
             data,
             covers_choices=self.declared_covers(),
             initial=self._current("EXIT_CLAIM"),
         )
 
-    def _wasa_form(self, data=None):
+    def wasa_form(self, data=None):
         return abdm.WasaForm(data, initial=self._current("WASA"))
 
-    def _current(self, form_key: str) -> dict:
-        if self.exit_application is None:
-            return {}
-        return current_form_data(self.exit_application, form_key)
+    def exit_step_url(self, step: str) -> str:
+        return url_for(
+            f"applications:exit_{step}",
+            self.organisation,
+            external_id=self.application.external_id,
+        )
+
+    def exit_context(self) -> dict:
+        exit_application = self.exit_application
+        return {
+            **self.base_context(),
+            "declared_covers": self.declared_covers(),
+            "is_locked": not self.declared_covers(),
+            "exit_application": exit_application,
+            "exit_state": exit_application.state if exit_application else "",
+        }
+
+
+class ExitView(ExitJourneyMixin, TemplateView):
+    """Where an exit stands, and the way into the wizard that fills one in.
+
+    Deliberately not a form: the gate, an exit under review and an approved
+    exit all need somewhere to be, and none of them is a step.
+    """
+
+    template_name = "journey/exit.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        covers = self.declared_covers()
-        exit_application = self.exit_application
         context.update(
             {
-                **self.base_context(),
+                **self.exit_context(),
                 "page_title": _("Exit to production"),
-                "declared_covers": covers,
-                "is_locked": not covers,
-                "exit_application": exit_application,
-                "exit_state": exit_application.state if exit_application else "",
-                "claim_form": kwargs.get("claim_form") or self._claim_form(),
-                "wasa_form": kwargs.get("wasa_form") or self._wasa_form(),
                 "has_claim": bool(self._current("EXIT_CLAIM")),
-                "documents": exit_documents(exit_application),
-                "required_documents": REQUIRED_EXIT_DOCUMENTS,
+                "has_wasa": bool(self._current("WASA")),
             },
         )
         return context
 
+
+class ExitStepMixin(ExitJourneyMixin):
+    """One step of the exit wizard, and the reasons it may refuse to render.
+
+    Checked per handler rather than in `dispatch`, because the application
+    cannot be resolved until `OrganisationMixin.dispatch` has run.
+    """
+
+    step = ""
+
+    def refuse(self):
+        """Nothing declared, or nothing editable, means there is no step to do."""
+        if not self.declared_covers() or not self.is_editable():
+            return redirect(self.exit_url())
+        return None
+
+    # The concrete view supplies these; the mixin only gets to refuse first.
+    def get(self, request, *args, **kwargs):
+        return self.refuse() or super().get(request, *args, **kwargs)  # type: ignore[misc]
+
     def post(self, request, *args, **kwargs):
-        handlers = {
-            "claim": self._save_claim,
-            "wasa": self._save_wasa,
-            "submit": self._submit,
-        }
-        handler = handlers.get(request.POST.get("step", ""))
-        if handler is None:
-            # the route exists and the caller may use it; the body is just wrong
-            messages.error(request, _("That form could not be read. Try again."))
-            return redirect(self.exit_url())
-        try:
-            return handler(request)
-        except DomainError as error:
-            messages.error(request, error.message)
-            return redirect(self.exit_url())
+        return self.refuse() or super().post(request, *args, **kwargs)  # type: ignore[misc]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)  # type: ignore[misc]
+        context.update(
+            {
+                **self.exit_context(),
+                "steps": EXIT_STEPS,
+                "current_step": self.step,
+            },
+        )
+        return context
 
     def _open(self) -> Application:
         return open_exit(product=self.application.product, applicant=self.actor)
-
-    def _save_claim(self, request):
-        form = self._claim_form(request.POST)
-        if not form.is_valid():
-            return self.render_to_response(self.get_context_data(claim_form=form))
-        submission = engine.submit_form(
-            application=self._open(),
-            form_key="EXIT_CLAIM",
-            cleaned_data=form.cleaned_data,
-            user=self.actor,
-        )
-        self._attach(submission, request)
-        messages.success(request, _("Exit declaration saved."))
-        return redirect(self.exit_url())
-
-    def _save_wasa(self, request):
-        form = self._wasa_form(request.POST)
-        if not form.is_valid():
-            return self.render_to_response(self.get_context_data(wasa_form=form))
-        submission = engine.submit_form(
-            application=self._open(),
-            form_key="WASA",
-            cleaned_data=form.cleaned_data,
-            user=self.actor,
-        )
-        self._attach(submission, request)
-        messages.success(request, _("Safe-to-Host details saved."))
-        return redirect(self.exit_url())
 
     def _attach(self, submission, request) -> None:
         for kind in REQUIRED_EXIT_DOCUMENTS.get(submission.form_key, ()):
@@ -307,16 +359,127 @@ class ExitView(ApplicationScopedMixin, TemplateView):
                     actor=self.actor,
                 )
 
-    def _submit(self, request):
+    def _save(self, form, form_key: str):
+        """Write the step, carrying its uploads. Returns False to re-render."""
+        try:
+            submission = engine.submit_form(
+                application=self._open(),
+                form_key=form_key,
+                cleaned_data=form.cleaned_data,
+                user=self.actor,
+            )
+        except DomainError as error:
+            form.add_error(None, error.message)
+            return False
+        self._attach(submission, self.request)
+        return True
+
+
+class ExitClaimStepView(ExitStepMixin, FormView):
+    """Step 1: which declared milestones are going live, and the evidence."""
+
+    template_name = "journey/exit_claim.html"
+    step = "claim"
+
+    def get_form(self, form_class=None):
+        data = self.request.POST if self.request.method == "POST" else None
+        return self.claim_form(data)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = _("What you are taking live")
+        context["uploads"] = document_fields("EXIT_CLAIM")
+        return context
+
+    def form_valid(self, form):
+        if not self._save(form, "EXIT_CLAIM"):
+            return self.form_invalid(form)
+        messages.success(self.request, _("Exit declaration saved."))
+        return redirect(self.exit_step_url("wasa"))
+
+
+class ExitWasaStepView(ExitStepMixin, FormView):
+    """Step 2: the Safe-to-Host certificate the claim has to carry."""
+
+    template_name = "journey/exit_wasa.html"
+    step = "wasa"
+
+    def refuse(self):
+        # WASA declares its dependency on the claim; honour it rather than
+        # write the step order down a second time.
+        return super().refuse() or (
+            None if self._unlocked("WASA") else redirect(self.exit_step_url("claim"))
+        )
+
+    def get_form(self, form_class=None):
+        data = self.request.POST if self.request.method == "POST" else None
+        return self.wasa_form(data)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = _("Safe-to-Host certificate")
+        context["uploads"] = document_fields("WASA")
+        return context
+
+    def form_valid(self, form):
+        if not self._save(form, "WASA"):
+            return self.form_invalid(form)
+        messages.success(self.request, _("Safe-to-Host details saved."))
+        return redirect(self.exit_step_url("review"))
+
+
+class ExitReviewStepView(ExitStepMixin, TemplateView):
+    """Step 3: read it back, then request the exit. The only step that submits."""
+
+    template_name = "journey/exit_review.html"
+    step = "review"
+
+    def refuse(self):
+        refusal = super().refuse()
+        if refusal is not None:
+            return refusal
+        if not self._current("EXIT_CLAIM"):
+            return redirect(self.exit_step_url("claim"))
+        if not self._current("WASA"):
+            return redirect(self.exit_step_url("wasa"))
+        return None
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        exit_application = self.exit_application
+        claim = self._current("EXIT_CLAIM")
+        covers = dict(self.declared_covers())
+        context.update(
+            {
+                "page_title": _("Review and request exit"),
+                "covers": [covers.get(key, key) for key in claim.get("covers", [])],
+                "summary": claim.get("summary", ""),
+                "wasa": self._current("WASA"),
+                "evidence": exit_evidence(exit_application),
+                # a sent-back exit is answering comments it has to be able to read
+                "reviews": reviews_for_round(exit_application)
+                if exit_application
+                else [],
+            },
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        refusal = self.refuse()
+        if refusal is not None:
+            return refusal
         exit_application = self.exit_application
         if exit_application is None:
-            message = "there is no exit to submit yet"
-            raise DomainError(message, code="no_exit")
-        engine.transition(
-            application=exit_application,
-            action="SUBMIT",
-            actor=self.actor,
-        )
+            return redirect(self.exit_step_url("claim"))
+        try:
+            engine.transition(
+                application=exit_application,
+                action="SUBMIT",
+                actor=self.actor,
+            )
+        except DomainError as error:
+            messages.error(request, error.message)
+            return redirect(self.exit_step_url("review"))
         messages.success(request, _("Exit requested. NHA will review it."))
         return redirect(self.exit_url())
 
