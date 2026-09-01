@@ -1,0 +1,38 @@
+{% comment %}
+  One row of the exit checklist.
+
+  Context: number, title, description, url. Optional: done, action_label,
+  no_status (for the final step, which is an act rather than a thing to hand in).
+
+  The three steps stay visible whether or not they are reachable, because the
+  question this screen answers is "what is left", and a step you cannot see is
+  a step you cannot plan around.
+{% endcomment %}
+{% load i18n %}
+
+<div class="flex items-start gap-4 border-b border-border py-4 last:border-b-0">
+  <span class="ui-step-number {% if done %}ui-step-number--done{% endif %}">{{ number }}</span>
+  <div class="min-w-0 flex-1">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="font-medium text-foreground">{{ title }}</span>
+      {% if not no_status %}
+        {% if done %}
+          <span class="ui-badge ui-badge--success ui-badge--size-sm">{% translate "Ready" %}</span>
+        {% else %}
+          <span class="ui-badge ui-badge--warning ui-badge--size-sm">{% translate "Outstanding" %}</span>
+        {% endif %}
+      {% endif %}
+    </div>
+    <p class="ui-meta mt-1">{{ description }}</p>
+  </div>
+  <a class="ui-btn ui-btn--secondary ui-btn--size-sm shrink-0 no-underline"
+     href="{{ url }}">
+    {% if action_label %}
+      {{ action_label }}
+    {% elif done %}
+      {% translate "Edit" %}
+    {% else %}
+      {% translate "Start" %}
+    {% endif %}
+  </a>
+</div>

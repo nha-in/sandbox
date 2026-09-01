@@ -53,9 +53,7 @@
                 <form method="post">
                   {% csrf_token %}
                   <input type="hidden" name="solution_type" value="{{ row.value }}" />
-                  <button class="ui-btn ui-btn--ghost ui-btn--size-sm" type="submit">
-                    {% translate "Record DHIS registration" %}
-                  </button>
+                  <button class="ui-btn ui-btn--ghost ui-btn--size-sm" type="submit">{% translate "Record DHIS registration" %}</button>
                 </form>
               {% else %}
                 <span class="text-soft-foreground">

@@ -39,11 +39,15 @@
         <dl>
           <div class="ui-kv">
             <dt class="ui-kv-key">{% translate "Reference" %}</dt>
-            <dd class="ui-kv-value">{{ exit_application.reference }}</dd>
+            <dd class="ui-kv-value">
+              {{ exit_application.reference }}
+            </dd>
           </div>
           <div class="ui-kv">
             <dt class="ui-kv-key">{% translate "Round" %}</dt>
-            <dd class="ui-kv-value">{{ exit_application.round }}</dd>
+            <dd class="ui-kv-value">
+              {{ exit_application.round }}
+            </dd>
           </div>
         </dl>
       </div>
@@ -51,9 +55,7 @@
   {% elif is_locked %}
     <div class="ui-empty">
       <span class="font-medium text-muted-foreground">{% translate "Not ready to exit yet" %}</span>
-      <span>
-        {% translate "Declare at least one milestone complete before requesting production access." %}
-      </span>
+      <span>{% translate "Declare at least one milestone complete before requesting production access." %}</span>
       <a class="ui-btn ui-btn--secondary ui-btn--size-sm mt-3 no-underline"
          href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Go to milestones" %}</a>
     </div>
@@ -69,7 +71,13 @@
     {% elif exit_state == "SENT_BACK" %}
       <div class="ui-alert mb-6" role="alert">
         <div class="flex-1 space-y-1">
-          <p>{% translate "NHA has asked for changes. Address their comments and request the exit again." %}</p>
+          <p class="font-medium">{% translate "NHA has asked for changes" %}</p>
+          {% if send_back_comment %}
+            <blockquote class="border-l-2 border-border pl-3 text-muted-foreground italic">
+              {{ send_back_comment }}
+            </blockquote>
+          {% endif %}
+          <p>{% translate "Address the comments and request the exit again. Your round does not advance." %}</p>
         </div>
       </div>
     {% endif %}
@@ -77,32 +85,20 @@
       <div class="ui-card-header">
         <h2 class="ui-card-title">{% translate "Request production access" %}</h2>
         <p class="ui-card-description">
-          {% translate "Three steps: what you are taking live, your Safe-to-Host certificate, then a review before it goes to NHA." %}
+          {% translate "One request, three things to hand over. Everything stays editable until you send it to NHA." %}
         </p>
       </div>
       <div class="ui-card-content">
-        <dl>
-          <div class="ui-kv">
-            <dt class="ui-kv-key">{% translate "Ready to exit" %}</dt>
-            <dd class="ui-kv-value">
-              {% for key, title in declared_covers %}<span class="block">{{ title }}</span>{% endfor %}
-            </dd>
-          </div>
-        </dl>
+        {% url 'applications:exit_claim' external_id=application.external_id as claim_url %}
+        {% include "journey/partials/exit_step.html" with number=1 done=has_claim url=claim_url|add:org_query title=_("What you are taking live") description=_("Which declared milestones this exit covers, and the evidence for them.") %}
+        {% url 'applications:exit_wasa' external_id=application.external_id as wasa_url %}
+        {% include "journey/partials/exit_step.html" with number=2 done=has_wasa url=wasa_url|add:org_query title=_("Safe-to-Host certificate") description=_("Your security audit certificate, and the dates it is valid between.") %}
+        {% url 'applications:exit_review' external_id=application.external_id as review_url %}
+        {% include "journey/partials/exit_step.html" with number=3 no_status=True url=review_url|add:org_query title=_("Review and send to NHA") description=_("Check the request over, then send it. Once sent it locks until NHA responds.") action_label=_("Review") %}
       </div>
-      <div class="ui-card-footer flex items-center justify-between gap-3">
+      <div class="ui-card-footer">
         <a class="text-sm underline"
            href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Back to milestones" %}</a>
-        {% if not has_claim %}
-          <a class="ui-btn ui-btn--primary no-underline"
-             href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Start exit request" %}</a>
-        {% elif not has_wasa %}
-          <a class="ui-btn ui-btn--primary no-underline"
-             href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Continue exit request" %}</a>
-        {% else %}
-          <a class="ui-btn ui-btn--primary no-underline"
-             href="{% url 'applications:exit_review' external_id=application.external_id %}{{ org_query }}">{% translate "Review and request exit" %}</a>
-        {% endif %}
       </div>
     </div>
   {% endif %}

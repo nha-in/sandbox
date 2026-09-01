@@ -51,6 +51,7 @@ from sandbox.programmes import abdm
 from sandbox.utils.errors import DomainError
 from sandbox.workflow import engine
 from sandbox.workflow.registry import get_workflow
+from sandbox.workflow.selectors import latest_send_back_comment
 from sandbox.workflow.selectors import reviews_for_round
 
 if TYPE_CHECKING:
@@ -324,6 +325,9 @@ class ExitJourneyMixin(ApplicationScopedMixin):
             "is_locked": not self.declared_covers(),
             "exit_application": exit_application,
             "exit_state": exit_application.state if exit_application else "",
+            "send_back_comment": (
+                latest_send_back_comment(exit_application) if exit_application else ""
+            ),
         }
 
 

@@ -12,7 +12,8 @@
 {% endblock title %}
 {% block content %}
   <div class="mx-auto w-full max-w-2xl">
-    <ol class="mb-6 flex flex-wrap gap-2" aria-label="{% translate 'Exit steps' %}">
+    <ol class="mb-6 flex flex-wrap gap-2"
+        aria-label="{% translate 'Exit steps' %}">
       {% for value, label in steps %}
         <li class="ui-badge {% if value == current_step %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
             {% if value == current_step %}aria-current="step"{% endif %}>{{ forloop.counter }}. {{ label }}</li>
@@ -21,7 +22,13 @@
     {% if exit_state == "SENT_BACK" %}
       <div class="ui-alert mb-6" role="alert">
         <div class="flex-1 space-y-1">
-          <p>{% translate "NHA has asked for changes. Address their comments and request the exit again." %}</p>
+          <p class="font-medium">{% translate "NHA has asked for changes" %}</p>
+          {% if send_back_comment %}
+            <blockquote class="border-l-2 border-border pl-3 text-muted-foreground italic">
+              {{ send_back_comment }}
+            </blockquote>
+          {% endif %}
+          <p>{% translate "Address the comments and request the exit again." %}</p>
         </div>
       </div>
     {% elif exit_state == "REJECTED" %}

@@ -130,6 +130,21 @@ def reviews_for_round(
     ).select_related("reviewer")
 
 
+def latest_send_back_comment(application: Application) -> str:
+    """What the applicant has to answer, in the reviewer's own words.
+
+    Read from the transition rather than the review because the transition is
+    what actually moved the application; a review with no transition behind it
+    is an opinion nobody acted on.
+    """
+    transition = (
+        WorkflowTransition.objects.filter(application=application, action="SEND_BACK")
+        .exclude(comment="")
+        .first()
+    )
+    return transition.comment if transition else ""
+
+
 def review_tally(
     application: Application,
     round_number: int | None = None,

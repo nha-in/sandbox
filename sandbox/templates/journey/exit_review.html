@@ -41,7 +41,9 @@
         </div>
         <div class="ui-kv">
           <dt class="ui-kv-key">{% translate "Summary" %}</dt>
-          <dd class="ui-kv-value">{{ summary|default:"—" }}</dd>
+          <dd class="ui-kv-value">
+            {{ summary|default:"—" }}
+          </dd>
         </div>
       </dl>
     </div>
@@ -54,11 +56,15 @@
       <dl>
         <div class="ui-kv">
           <dt class="ui-kv-key">{% translate "Valid from" %}</dt>
-          <dd class="ui-kv-value">{{ wasa.start|default:"—" }}</dd>
+          <dd class="ui-kv-value">
+            {{ wasa.start|default:"—" }}
+          </dd>
         </div>
         <div class="ui-kv">
           <dt class="ui-kv-key">{% translate "Valid until" %}</dt>
-          <dd class="ui-kv-value">{{ wasa.valid_upto|default:"—" }}</dd>
+          <dd class="ui-kv-value">
+            {{ wasa.valid_upto|default:"—" }}
+          </dd>
         </div>
       </dl>
     </div>

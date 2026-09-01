@@ -20,9 +20,7 @@
       {% include "components/form_errors.html" with form=form %}
       <div>
         <span class="ui-label">{{ form.covers.label }}</span>
-        <span class="ui-hint">
-          {% translate "Only milestones you have already declared complete can be exited." %}
-        </span>
+        <span class="ui-hint">{% translate "Only milestones you have already declared complete can be exited." %}</span>
         <div class="mt-2 flex flex-col gap-2">
           {% for choice in form.covers %}
             <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">

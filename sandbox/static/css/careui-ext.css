@@ -352,3 +352,16 @@
 @utility ui-picker-panel {
   @apply max-h-64 overflow-y-auto border-t border-border px-3 py-2.5;
 }
+
+/* ── Step number ─────────────────────────────────────────────────────────── */
+
+/* The numeral beside a checklist row. Decorative: the row's own badge carries
+   the state for a screen reader, so this is not announced twice. */
+@utility ui-step-number {
+  @apply flex size-7 shrink-0 items-center justify-center rounded-full;
+  @apply border border-border bg-muted text-[13px] font-medium text-muted-foreground;
+}
+
+@utility ui-step-number--done {
+  @apply border-transparent bg-primary text-primary-foreground;
+}
