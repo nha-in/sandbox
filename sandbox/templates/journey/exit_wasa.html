@@ -9,7 +9,11 @@
   {% translate "Issued by an empanelled audit agency. A valid certificate may be reused; a major or backend change needs a fresh one." %}
 {% endblock step_description %}
 {% block step_body %}
-  <form method="post" enctype="multipart/form-data" novalidate>
+  {% comment %}
+    No `novalidate`: a file input cannot be refilled by the server, so a round
+    trip for a missing field silently clears whatever was chosen.
+  {% endcomment %}
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="ui-card-content flex flex-col gap-5">
       {% include "components/form_errors.html" with form=form %}
@@ -17,10 +21,17 @@
         {% ui_field form.start %}
         {% ui_field form.valid_upto %}
       </div>
-      {% for name, label in uploads %}
+      {% for upload in uploads %}
         <div>
-          <label class="ui-label" for="id_{{ name }}">{{ label }}</label>
-          <input class="ui-input" id="id_{{ name }}" type="file" name="{{ name }}" />
+          <label class="ui-label" for="id_{{ upload.name }}">{{ upload.label }}</label>
+          {% for document in upload.existing %}
+            <span class="ui-hint">{% blocktranslate with filename=document.filename %}{{ filename }} is already attached. Choose a file only to replace it.{% endblocktranslate %}</span>
+          {% endfor %}
+          <input class="ui-input"
+                 id="id_{{ upload.name }}"
+                 type="file"
+                 name="{{ upload.name }}"
+                 {% if not upload.existing %}required{% endif %} />
         </div>
       {% endfor %}
     </div>

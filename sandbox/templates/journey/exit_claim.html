@@ -9,7 +9,12 @@
   {% translate "Tell NHA which of your declared milestones this exit covers, and attach the evidence for them." %}
 {% endblock step_description %}
 {% block step_body %}
-  <form method="post" enctype="multipart/form-data" novalidate>
+  {% comment %}
+    No `novalidate`: a file input cannot be refilled by the server, so a round
+    trip for a missing field silently clears whatever was chosen. Let the
+    browser stop it here instead.
+  {% endcomment %}
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="ui-card-content flex flex-col gap-5">
       {% include "components/form_errors.html" with form=form %}
@@ -28,10 +33,17 @@
         {% for error in form.covers.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
       </div>
       {% ui_field form.summary %}
-      {% for name, label in uploads %}
+      {% for upload in uploads %}
         <div>
-          <label class="ui-label" for="id_{{ name }}">{{ label }}</label>
-          <input class="ui-input" id="id_{{ name }}" type="file" name="{{ name }}" />
+          <label class="ui-label" for="id_{{ upload.name }}">{{ upload.label }}</label>
+          {% for document in upload.existing %}
+            <span class="ui-hint">{% blocktranslate with filename=document.filename %}{{ filename }} is already attached. Choose a file only to replace it.{% endblocktranslate %}</span>
+          {% endfor %}
+          <input class="ui-input"
+                 id="id_{{ upload.name }}"
+                 type="file"
+                 name="{{ upload.name }}"
+                 {% if not upload.existing %}required{% endif %} />
         </div>
       {% endfor %}
     </div>

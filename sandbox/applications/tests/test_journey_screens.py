@@ -402,6 +402,32 @@ def test_a_submitted_exit_cannot_be_edited_through_the_wizard(
     assert response["Location"].startswith(_url("applications:exit", application))
 
 
+def test_the_upload_is_required_until_something_is_attached(
+    mock_s3,
+    client_,
+    application,
+):
+    """A file input cannot be refilled by the server, so a round trip for a
+    missing field silently clears it. The browser stops that — but only where
+    nothing carried forward, or it would demand the re-upload that carrying
+    forward exists to avoid."""
+    _declare_m1(application)
+    url = _url("applications:exit_claim", application)
+
+    fresh = client_.get(url)
+    assert all(not upload["existing"] for upload in fresh.context["uploads"])
+    assert "required" in fresh.content.decode()
+
+    _save_claim(client_, application)
+    again = client_.get(url)
+
+    carried = {
+        upload["name"]: upload["existing"] for upload in again.context["uploads"]
+    }
+    assert carried[DocumentKind.FUNCTIONAL_TEST_REPORT]
+    assert "is already attached" in again.content.decode()
+
+
 def test_an_exit_cannot_cover_a_milestone_that_was_never_declared(
     mock_s3,
     client_,

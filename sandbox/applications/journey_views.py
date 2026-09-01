@@ -92,6 +92,19 @@ def exit_evidence(exit_application: Application | None) -> list[dict]:
     ]
 
 
+def upload_fields(form_key: str, exit_application: Application | None) -> list[dict]:
+    """The upload inputs for one step, and what each already holds.
+
+    A carried-forward file must not be `required`: the browser would demand it
+    again, which is the re-upload the carry-forward exists to avoid.
+    """
+    attached = exit_documents(exit_application)
+    return [
+        {"name": name, "label": label, "existing": attached.get(name, [])}
+        for name, label in document_fields(form_key)
+    ]
+
+
 class ApplicationScopedMixin(LoginRequiredMixin, OrganisationMixin):
     """Resolves the application named in the URL, inside the caller's org.
 
@@ -388,7 +401,7 @@ class ExitClaimStepView(ExitStepMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = _("What you are taking live")
-        context["uploads"] = document_fields("EXIT_CLAIM")
+        context["uploads"] = upload_fields("EXIT_CLAIM", self.exit_application)
         return context
 
     def form_valid(self, form):
@@ -418,7 +431,7 @@ class ExitWasaStepView(ExitStepMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = _("Safe-to-Host certificate")
-        context["uploads"] = document_fields("WASA")
+        context["uploads"] = upload_fields("WASA", self.exit_application)
         return context
 
     def form_valid(self, form):
