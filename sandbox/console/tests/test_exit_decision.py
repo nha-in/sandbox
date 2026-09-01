@@ -63,13 +63,13 @@ def test_the_reviewer_sees_the_claim_they_are_deciding_on(admin_client_, under_r
     assert "HMIS" in body
 
 
-def test_the_buttons_come_from_the_exit_workflow(admin_client_, under_review):
+def test_the_choices_come_from_the_exit_workflow(admin_client_, under_review):
     response = admin_client_.get(detail_url(under_review))
 
-    offered = {row["value"] for row in response.context["decision_actions"]}
-    # Approve sits apart, with the EXIT_DECISION fields it writes
-    assert offered == {"REJECT", "SEND_BACK"}
-    assert response.context["approve_action"]["value"] == "APPROVE"
+    offered = {row["value"] for row in response.context["decision_choices"]}
+    assert offered == {"APPROVE", "REJECT", "SEND_BACK"}
+    # approving carries EXIT_DECISION, so that one option brings fields with it
+    assert response.context["approval_fields"] is True
     assert response.context["is_exit"] is True
 
 
@@ -82,8 +82,8 @@ def test_an_exit_awaiting_pickup_offers_only_start_review(admin_client_, under_r
     response = admin_client_.get(detail_url(under_review))
 
     assert response.context["can_start_review"] is True
-    assert response.context["decision_actions"] == []
-    assert response.context["approve_action"] is None
+    assert response.context["decision_choices"] == []
+    assert response.context["approval_fields"] is False
     assert response.context["can_review"] is False
     body = response.content.decode()
     assert "Start review" in body
@@ -113,8 +113,17 @@ def test_a_reviewer_can_pick_up_a_submitted_exit_and_then_review_it(
     # picking it up is not deciding it: still no verdict buttons, but now a panel
     picked_up = reviewer_client.get(detail_url(under_review))
     assert picked_up.context["can_review"] is True
-    assert picked_up.context["decision_actions"] == []
-    assert picked_up.context["approve_action"] is None
+    assert picked_up.context["decision_choices"] == []
+    assert picked_up.context["approval_fields"] is False
+
+
+def test_the_approval_fields_ship_hidden(admin_client_, under_review):
+    """They belong to one option. Rendered open beside Reject they read as
+    though every option consumed them, which is the bug this replaced."""
+    body = admin_client_.get(detail_url(under_review)).content.decode()
+
+    opening = body[body.index('id="approve-fields"') :]
+    assert "hidden" in opening[: opening.index(">")]
 
 
 def test_an_exit_with_no_registered_types_says_so_instead_of_a_dead_form(

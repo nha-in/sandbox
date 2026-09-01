@@ -169,20 +169,17 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                 "review_form": ReviewForm(),
                 "can_start_review": START_REVIEW in allowed,
                 "start_review_label": ACTION_LABELS[START_REVIEW],
-                "decision_actions": [
+                "decision_choices": [
                     {
                         "value": action,
                         "label": ACTION_LABELS[action],
                         "is_destructive": action in _DESTRUCTIVE_ACTIONS,
                     }
                     for action in decisions
-                    if not (approve_apart and action == "APPROVE")
                 ],
-                "approve_action": (
-                    {"value": "APPROVE", "label": ACTION_LABELS["APPROVE"]}
-                    if approve_apart and "APPROVE" in decisions
-                    else None
-                ),
+                # Approving an exit carries EXIT_DECISION, so the screen has
+                # fields that belong to one option alone and are revealed by it.
+                "approval_fields": approve_apart and "APPROVE" in decisions,
                 # An empty ceiling makes the required field unsatisfiable, so
                 # say why rather than render a form nobody can submit.
                 "approval_blocked": approve_apart and not ceiling,
@@ -193,8 +190,7 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                         get_workflow(application.workflow_key).review_permission,
                     )
                     and is_reviewable(application)
-                ),
-                # Status only. There is no reveal route on this surface, and no
+                ),                # Status only. There is no reveal route on this surface, and no
                 # staff-facing path to a secret anywhere in the system.
                 "provisioning": (
                     provisioning_progress(application)

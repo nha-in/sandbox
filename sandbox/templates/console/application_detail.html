@@ -179,7 +179,7 @@
         does not get this panel: their comment becomes their review row as part
         of deciding, so a second one would be a second door to the same table.
       {% endcomment %}
-      {% if can_review and not decision_actions and not approve_action %}
+      {% if can_review and not decision_choices %}
         <div class="ui-card">
           <div class="ui-card-header">
             <h2 class="ui-card-title">{% translate "Your review" %}</h2>
@@ -198,36 +198,46 @@
           </form>
         </div>
       {% endif %}
-      {% if decision_actions or approve_action %}
+      {% if decision_choices %}
         <div class="ui-card">
           <div class="ui-card-header">
             <h2 class="ui-card-title">{% translate "Decide" %}</h2>
             <p class="ui-card-description">{% translate "Your comment is recorded as your review." %}</p>
           </div>
           <form method="post"
+                id="decide-form"
                 action="{% url 'console:decide' application.external_id %}">
             {% csrf_token %}
             <div class="ui-card-content space-y-4">
-              <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
-              <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
-            </div>
-            {% if decision_actions %}
-              <div class="ui-card-footer flex flex-wrap justify-end gap-2">
-                {% for action in decision_actions %}
-                  <button class="ui-btn {% if action.is_destructive %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
-                          type="submit"
-                          name="action"
-                          value="{{ action.value }}">{{ action.label }}</button>
-                {% endfor %}
+              <div>
+                <label class="ui-label" for="decide-action">{% translate "Decision" %}</label>
+                <div class="ui-select-wrapper">
+                  <select class="ui-select" id="decide-action" name="action" required>
+                    <option value="">{% translate "Choose an action…" %}</option>
+                    {% for choice in decision_choices %}
+                      <option value="{{ choice.value }}"
+                              data-destructive="{{ choice.is_destructive|yesno:"1," }}">
+                        {{ choice.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
               </div>
-            {% endif %}
+              <div>
+                <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
+                <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
+              </div>
+            </div>
             {% comment %}
-              Approving an exit writes EXIT_DECISION with the move, so its
-              fields and its button belong together — beside Send back they
-              read as though every button consumed them.
+              Approving an exit writes EXIT_DECISION with the move. These
+              fields belong to that one option, so they appear with it: shown
+              beside every option they read as though each one consumed them.
             {% endcomment %}
-            {% if approve_action %}
-              <div class="border-t border-border">
+            {% if approval_fields %}
+              <div id="approve-fields"
+                   class="border-t border-border"
+                   data-blocked="{{ approval_blocked|yesno:"1," }}"
+                   hidden>
                 {% if approval_blocked %}
                   <div class="ui-card-content">
                     <div class="ui-alert ui-alert--warning" role="alert">
@@ -261,19 +271,51 @@
                       </label>
                     {% endwith %}
                   </div>
-                  <div class="ui-card-footer flex flex-col items-end gap-1">
-                    <button class="ui-btn ui-btn--default ui-btn--size-sm"
-                            type="submit"
-                            name="action"
-                            value="{{ approve_action.value }}">{{ approve_action.label }}</button>
-                    <span class="ui-hint">{% translate "Records your comment above and grants production access." %}</span>
-                  </div>
                 {% endif %}
               </div>
             {% endif %}
+            <div class="ui-card-footer flex flex-col items-end gap-1">
+              <button class="ui-btn ui-btn--default ui-btn--size-sm"
+                      id="decide-submit"
+                      type="submit">{% translate "Submit" %}</button>
+              <span class="ui-hint" id="decide-hint"></span>
+            </div>
           </form>
         </div>
       {% endif %}
     </div>
   </div>
 {% endblock content %}
+{% block inline_javascript %}
+  {{ block.super }}
+  <script>
+    (() => {
+      const action = document.getElementById("decide-action");
+      if (!action) return;
+      const fields = document.getElementById("approve-fields");
+      const submit = document.getElementById("decide-submit");
+      const hint = document.getElementById("decide-hint");
+      const blocked = fields ? fields.dataset.blocked === "1" : false;
+
+      const sync = () => {
+        const approving = action.value === "APPROVE";
+        if (fields) {
+          fields.hidden = !approving;
+          // Hiding alone is not enough: a required control that is hidden but
+          // still enabled makes the form unsubmittable with no visible reason.
+          fields.querySelectorAll("input, select, textarea").forEach((field) => {
+            field.disabled = !approving;
+          });
+        }
+        submit.disabled = approving && blocked;
+        submit.classList.toggle("ui-btn--destructive", action.selectedOptions[0]?.dataset.destructive === "1");
+        hint.textContent = approving && !blocked
+          ? "{% translate 'Records your comment above and grants production access.' %}"
+          : "";
+      };
+
+      action.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock inline_javascript %}

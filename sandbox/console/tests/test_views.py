@@ -1,6 +1,8 @@
-"""Console behaviour: what each actor may do, and that buttons match the engine."""
+"""Console behaviour: what each actor may do, and that choices match the engine."""
 
 from __future__ import annotations
+
+import re
 
 import pytest
 from django.urls import reverse
@@ -73,21 +75,21 @@ def test_queue_search_matches_reference(reviewer_client, submitted):
     assert other.reference not in body
 
 
-# Buttons match the engine
+# Choices match the engine
 
 
 def test_reviewer_can_opine_but_moves_nothing(reviewer_client, submitted):
     """`review_abdm` records opinions; transitions need their own."""
     response = reviewer_client.get(detail_url(submitted))
 
-    assert response.context["decision_actions"] == []
+    assert response.context["decision_choices"] == []
     assert response.context["can_review"] is True
 
 
-def test_admin_sees_the_decision_buttons(admin_client_, submitted):
+def test_admin_sees_the_decisions_on_offer(admin_client_, submitted):
     response = admin_client_.get(detail_url(submitted))
 
-    offered = {row["value"] for row in response.context["decision_actions"]}
+    offered = {row["value"] for row in response.context["decision_choices"]}
     assert offered == {"APPROVE", "REJECT", "SEND_BACK"}
 
 
@@ -105,11 +107,21 @@ def test_whoever_decides_gets_one_comment_box_not_two(admin_client_, submitted):
     assert review_url not in body
 
 
-def test_the_decision_buttons_read_as_words(admin_client_, submitted):
+def test_a_sandbox_decision_carries_no_extra_fields(admin_client_, submitted):
+    """Only the exit's APPROVE writes a decision form; the sandbox review has
+    nothing to reveal, so the card is the dropdown and a comment."""
+    response = admin_client_.get(detail_url(submitted))
+
+    assert response.context["approval_fields"] is False
+    assert 'id="approve-fields"' not in response.content.decode()
+
+
+def test_the_decisions_read_as_words(admin_client_, submitted):
+    """`value="SEND_BACK"` is the wire; the label is what a person reads."""
     body = admin_client_.get(detail_url(submitted)).content.decode()
 
-    assert ">Send back<" in body
-    assert ">SEND_BACK<" not in body
+    assert re.search(r">\s*Send back\s*<", body)
+    assert not re.search(r">\s*SEND_BACK\s*<", body)
 
 
 def test_draft_offers_no_decisions(admin_client_):
@@ -117,7 +129,7 @@ def test_draft_offers_no_decisions(admin_client_):
 
     response = admin_client_.get(detail_url(draft))
 
-    assert response.context["decision_actions"] == []
+    assert response.context["decision_choices"] == []
 
 
 # Actions
