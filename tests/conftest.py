@@ -12,6 +12,7 @@ import uuid
 import pytest
 from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
 from django.test import Client
 
@@ -32,6 +33,7 @@ REVIEWER = "reviewer"
 STAFF = "staff"
 DOCUMENT_A = "document_a"
 MILESTONE_M1 = "milestone_m1"
+ROLE = "role"
 
 ACTORS = (ANONYMOUS, ORG_MEMBER, MEMBER_OTHER_ORG, REVIEWER, STAFF)
 STAFF_ACTORS = (REVIEWER, STAFF)
@@ -161,7 +163,14 @@ def milestone_m1():
 
 
 @pytest.fixture
-def context(actors, application, document_a, milestone_m1):
+def role(db):
+    """A console role for the routes that edit one. Nobody in the matrix holds
+    `manage_roles`, which is the point of those rows."""
+    return Group.objects.create(name="ABDM review team")
+
+
+@pytest.fixture
+def context(actors, application, document_a, milestone_m1, role):
     """What a route's `kwargs` callable receives when it builds URL arguments.
 
     Organisations and products are reachable from these objects
@@ -172,6 +181,7 @@ def context(actors, application, document_a, milestone_m1):
         "application": application,
         DOCUMENT_A: document_a,
         MILESTONE_M1: milestone_m1,
+        ROLE: role,
     }
 
 

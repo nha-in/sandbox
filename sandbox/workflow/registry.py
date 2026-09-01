@@ -46,6 +46,14 @@ def named_permissions() -> frozenset[str]:
     return frozenset(names)
 
 
+def programme_for_permission(name: str) -> str:
+    """Which programme a permission belongs to, for grouping it on screen."""
+    for workflow in WORKFLOWS.values():
+        if name in workflow.permissions:
+            return workflow.programme
+    return ""
+
+
 def workflows_visible_to(user) -> tuple[str, ...]:
     """The workflow keys this actor may see at all — the console queue's scope."""
     return tuple(

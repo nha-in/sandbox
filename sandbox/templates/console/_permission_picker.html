@@ -1,0 +1,28 @@
+{% comment %}
+Permission checkboxes, grouped by programme. Rendered from `permission_groups`
+rather than by iterating the widget: Django flattens grouped choices back out,
+and a flat list of every programme's permissions is the thing being fixed.
+{% endcomment %}
+{% load i18n %}
+
+<div>
+    <span class="ui-label">{% translate "Permissions" %}</span>
+    <span class="ui-hint">{% translate "What this role may do." %}</span>
+    {% for group in form.permission_groups %}
+    <fieldset class="mt-4 min-w-0">
+        <legend class="ui-label">{{ group.programme }}</legend>
+        <div class="mt-2 flex flex-col gap-2">
+            {% for permission in group.permissions %}
+              <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                <input type="checkbox"
+                       name="permissions"
+                       value="{{ permission.id }}"
+                       {% if permission.checked %}checked{% endif %} />
+                {{ permission.label }}
+              </label>
+            {% endfor %}
+        </div>
+    </fieldset>
+    {% endfor %}
+    {% for error in form.permissions.errors %}<span class="ui-error">{{ error }}</span>{% endfor %}
+</div>

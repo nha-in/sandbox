@@ -69,6 +69,8 @@ DEMO_USERS = [
 
 # Authority is a permission, never a username string (A5/A6), and permissions
 # are per programme: this demo world has one, so both roles are ABDM's.
+# `manage_roles` is the exception — authority over authority, not over a
+# programme — and only the demo admin holds it.
 ADMIN_PERMISSIONS = (
     "view_abdm",
     "review_abdm",
@@ -76,6 +78,7 @@ ADMIN_PERMISSIONS = (
     "reject_abdm",
     "send_back_abdm",
     "retry_provisioning_abdm",
+    "manage_roles",
 )
 REVIEWER_PERMISSIONS = ("view_abdm", "review_abdm")
 

@@ -8,6 +8,11 @@ would refuse.
 from __future__ import annotations
 
 from django.contrib import messages
+from django.contrib.auth.models import Group
+from django.contrib.auth.models import Permission
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -21,6 +26,8 @@ from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationState
 from sandbox.console.forms import DecisionForm
 from sandbox.console.forms import ReviewForm
+from sandbox.console.forms import RoleForm
+from sandbox.console.forms import UserRolesForm
 from sandbox.console.mixins import ConsoleMixin
 from sandbox.console.selectors import PAGE_SIZE
 from sandbox.console.selectors import exit_review
@@ -28,10 +35,14 @@ from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
 from sandbox.console.selectors import registered_solution_types
 from sandbox.console.selectors import state_counts
+from sandbox.console.services import delete_role
+from sandbox.console.services import save_role
+from sandbox.console.services import set_user_roles
 from sandbox.integrations.selectors import CREDENTIAL_STATES
 from sandbox.integrations.selectors import provisioning_progress
 from sandbox.integrations.services import retry_provisioning
 from sandbox.programmes.abdm import ExitDecisionForm
+from sandbox.users.models import User
 from sandbox.utils.errors import DomainError
 from sandbox.workflow import engine
 from sandbox.workflow.models import ReviewDecision
@@ -340,5 +351,151 @@ class DocumentDownloadView(ConsoleMixin, View):
     """
 
     def get(self, request, external_id):
-        document = get_object_or_404(ApplicationDocument, external_id=external_id)
+        document = get_object_or_404(
+            ApplicationDocument.objects.filter(
+                submission__application__workflow_key__in=workflows_visible_to(
+                    request.user,
+                ),
+            ),
+            external_id=external_id,
+        )
         return redirect(download_url(document))
+
+
+class RoleMixin(ConsoleMixin):
+    """Editing a role is authority over authority, so it has its own gate."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.has_perm(
+            "users.manage_roles",
+        ):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def back_to_roles(self):
+        return redirect(reverse("console:roles"))
+
+
+class RoleListView(RoleMixin, ListView):
+    """Every console role, and the form that adds one."""
+
+    template_name = "console/roles.html"
+    context_object_name = "roles"
+
+    def get_queryset(self):
+        return (
+            Group.objects.prefetch_related("permissions")
+            .annotate(member_count=Count("user"))
+            .order_by("name")
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Roles"
+        context["form"] = kwargs.get("form") or RoleForm()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        form = RoleForm(request.POST)
+        if not form.is_valid():
+            self.object_list = self.get_queryset()
+            return self.render_to_response(self.get_context_data(form=form))
+        role = save_role(form=form, actor=request.user, creating=True)
+        messages.success(request, f"Role {role.name} created.")
+        return self.back_to_roles()
+
+
+class RoleDetailView(RoleMixin, DetailView):
+    """One role: rename it, and change what it grants."""
+
+    template_name = "console/role_detail.html"
+    context_object_name = "role"
+    model = Group
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = self.object.name
+        context["breadcrumbs"] = [
+            {"label": "Roles", "url": reverse("console:roles")},
+            {"label": self.object.name},
+        ]
+        context["form"] = kwargs.get("form") or RoleForm(instance=self.object)
+        context["members"] = self.object.user_set.order_by("email")
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if request.POST.get("action") == "delete":
+            name = self.object.name
+            delete_role(role=self.object, actor=request.user)
+            messages.success(request, f"Role {name} deleted.")
+            return self.back_to_roles()
+
+        form = RoleForm(request.POST, instance=self.object)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form))
+        save_role(form=form, actor=request.user, creating=False)
+        messages.success(request, "Role updated.")
+        return self.back_to_roles()
+
+
+class UserListView(RoleMixin, ListView):
+    """Console users and what each of them holds."""
+
+    template_name = "console/users.html"
+    context_object_name = "console_users"
+
+    def get_queryset(self):
+        people = User.objects.filter(is_staff=True).prefetch_related("groups")
+        search = self.request.GET.get("q", "").strip()
+        if search:
+            people = people.filter(
+                Q(email__icontains=search) | Q(name__icontains=search),
+            )
+        return people.order_by("email")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "Console users"
+        context["search"] = self.request.GET.get("q", "")
+        return context
+
+
+class UserRolesView(RoleMixin, DetailView):
+    """Give one person their roles. The direction an administrator works in."""
+
+    template_name = "console/user_detail.html"
+    context_object_name = "console_user"
+    slug_field = "external_id"
+    slug_url_kwarg = "external_id"
+
+    def get_queryset(self):
+        return User.objects.filter(is_staff=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = self.object.email
+        context["breadcrumbs"] = [
+            {"label": "Console users", "url": reverse("console:users")},
+            {"label": self.object.email},
+        ]
+        context["form"] = kwargs.get("form") or UserRolesForm(user=self.object)
+        context["granted"] = sorted(
+            Permission.objects.filter(group__user=self.object)
+            .distinct()
+            .values_list("name", flat=True),
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = UserRolesForm(request.POST, user=self.object)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form))
+        set_user_roles(
+            user=self.object,
+            roles=form.cleaned_data["roles"],
+            actor=request.user,
+        )
+        messages.success(request, f"Roles updated for {self.object.email}.")
+        return redirect(reverse("console:users"))

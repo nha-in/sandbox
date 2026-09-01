@@ -54,6 +54,11 @@ class User(AbstractUser):
 
     objects: ClassVar[UserManager] = UserManager()
 
+    class Meta:
+        # Not programme-scoped: it is authority over authority itself, and the
+        # role editor deliberately does not offer it (see console/forms.py).
+        permissions = [("manage_roles", "Can create and edit console roles")]
+
     def get_absolute_url(self) -> str:
         """Get URL for user's detail view.
 

@@ -43,6 +43,10 @@ NAV_SECTIONS: dict[str, str] = {
     "users:update": "settings",
     "console:queue": "queue",
     "console:application_detail": "queue",
+    "console:roles": "roles",
+    "console:role_detail": "roles",
+    "console:users": "users",
+    "console:user_roles": "users",
 }
 
 #: view name -> the settings tab that should read as current.
