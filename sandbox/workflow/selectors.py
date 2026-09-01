@@ -133,16 +133,20 @@ def reviews_for_round(
 def latest_send_back_comment(application: Application) -> str:
     """What the applicant has to answer, in the reviewer's own words.
 
-    Read from the transition rather than the review because the transition is
-    what actually moved the application; a review with no transition behind it
-    is an opinion nobody acted on.
+    Read from the review row, not the transition: `SEND_BACK` is review-driven,
+    and the engine refuses a comment on a review-driven transition so the text
+    has exactly one home.
+
+    The current round is the right one to quote — a send-back does not advance
+    it, so the application is still on the round whose comments it must answer.
     """
-    transition = (
-        WorkflowTransition.objects.filter(application=application, action="SEND_BACK")
+    review = (
+        reviews_for_round(application)
+        .filter(decision=ReviewDecision.SEND_BACK)
         .exclude(comment="")
         .first()
     )
-    return transition.comment if transition else ""
+    return review.comment if review else ""
 
 
 def review_tally(

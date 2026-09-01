@@ -4,13 +4,18 @@ import pytest
 from django.http import Http404
 
 from sandbox.applications.models import ApplicationState
+from sandbox.applications.selectors import DECLARED
 from sandbox.applications.selectors import application_detail
 from sandbox.applications.selectors import applications_for_organisation
 from sandbox.applications.selectors import console_queue
+from sandbox.applications.selectors import coverage
+from sandbox.applications.selectors import milestone_graph
 from sandbox.applications.selectors import products_available_for
 from sandbox.applications.tests.factories import ApplicationFactory
+from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
+from sandbox.workflow import engine
 
 pytestmark = pytest.mark.django_db
 
@@ -116,3 +121,58 @@ def test_products_available_ignores_another_kinds_application():
     available = products_available_for(organisation, "ABDM")
 
     assert list(available) == [product]
+
+
+def test_milestone_graph_hangs_dependents_off_their_prerequisite():
+    """M2 and M3 both name M1, and neither names the other."""
+    application = ApplicationFactory.create()
+
+    graph = milestone_graph(application)
+
+    roots = {group["root"].key for group in graph}
+    assert "m1" in roots
+    m1 = next(group for group in graph if group["root"].key == "m1")
+    assert [row.key for row in m1["dependents"]] == ["m2", "m3"]
+
+
+def test_a_milestone_that_depends_on_nothing_is_its_own_root():
+    application = ApplicationFactory.create()
+
+    graph = milestone_graph(application)
+
+    for group in graph:
+        assert group["root"].depends_on == ()
+
+
+def test_coverage_counts_what_a_solution_type_still_needs():
+    """HMIS needs three milestones; a fresh application has declared none."""
+    application = ApplicationFactory.create()
+
+    rows = coverage(application)
+
+    assert [row.solution_type for row in rows] == ["HMIS"]
+    assert rows[0].outstanding == len(rows[0].cells)
+    assert not rows[0].is_live
+
+
+def test_declaring_a_milestone_does_not_make_it_live():
+    """`outstanding` counts what is not in production, and only an approved exit
+    puts it there. Declaring moves the cell to DECLARED and nothing else — a
+    matrix that counted declarations would tell an integrator they were done."""
+    application = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+    MembershipFactory.create(
+        organisation=application.product.organisation,
+        user=application.applicant,
+    )
+    before = coverage(application)[0].outstanding
+
+    engine.submit_form(
+        application=application,
+        form_key="MILESTONE_M1",
+        cleaned_data={"notes": "Done."},
+        user=application.applicant,
+    )
+
+    row = coverage(application)[0]
+    assert row.outstanding == before
+    assert next(cell for cell in row.cells if cell.milestone == "M1").state == DECLARED

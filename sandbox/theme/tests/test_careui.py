@@ -1,6 +1,8 @@
 import pytest
 from django import forms
 
+from sandbox.applications.models import Application
+from sandbox.applications.models import ApplicationState
 from sandbox.theme.templatetags import careui
 from sandbox.workflow.registry import WORKFLOWS
 
@@ -186,3 +188,27 @@ def test_every_reachable_state_has_a_variant():
 
 def test_an_unknown_state_falls_back_rather_than_raising():
     assert careui.state_variant("SOMETHING_NEW") == "neutral"
+
+
+def test_every_reachable_state_has_a_label():
+    """The variant test's twin. Without it a state reachable by one workflow but
+    absent from `ApplicationState` renders as UNDER_REVIEW beside "Provisioned",
+    which is how this was found."""
+    labelled = set(ApplicationState.values) | set(careui.EXIT_STATE_LABELS)
+    for key, workflow in WORKFLOWS.items():
+        reachable = {workflow.initial_state}
+        reachable |= {from_state for from_state, _ in workflow.transitions}
+        reachable |= {spec.to_state for spec in workflow.transitions.values()}
+        unlabelled = sorted(reachable - labelled)
+        assert not unlabelled, f"{key} has unlabelled states: {unlabelled}"
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("UNDER_REVIEW", "Under review"),
+        ("SENT_BACK", "Sent back"),
+    ],
+)
+def test_a_state_badge_reads_as_words(state, expected):
+    assert careui.state_label(Application(state=state)) == expected

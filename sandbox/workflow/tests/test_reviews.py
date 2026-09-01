@@ -19,6 +19,7 @@ from sandbox.workflow.models import WorkflowReview
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import decidable_actions
 from sandbox.workflow.selectors import history_for
+from sandbox.workflow.selectors import latest_send_back_comment
 from sandbox.workflow.selectors import queue_by_state
 from sandbox.workflow.selectors import review_tally
 from sandbox.workflow.selectors import reviews_for_round
@@ -386,3 +387,40 @@ def test_history_is_newest_first(submitted, admin):
 def test_queue_by_state_finds_submitted_applications(submitted):
     assert submitted in queue_by_state(ApplicationState.SUBMITTED)
     assert submitted not in queue_by_state(ApplicationState.DRAFT)
+
+
+# The send-back comment, as the applicant sees it
+
+
+def test_the_send_back_comment_is_read_from_the_review(submitted, reviewer):
+    record_review(
+        application=submitted,
+        reviewer=reviewer,
+        decision=ReviewDecision.SEND_BACK,
+        comment="Add the HIU narrative.",
+    )
+
+    assert latest_send_back_comment(submitted) == "Add the HIU narrative."
+
+
+def test_a_send_back_with_nothing_written_reads_as_empty(submitted, reviewer):
+    """The screen falls back to its own wording rather than quoting silence."""
+    record_review(
+        application=submitted,
+        reviewer=reviewer,
+        decision=ReviewDecision.SEND_BACK,
+        comment="",
+    )
+
+    assert latest_send_back_comment(submitted) == ""
+
+
+def test_an_approval_is_not_quoted_as_a_send_back(submitted, reviewer):
+    record_review(
+        application=submitted,
+        reviewer=reviewer,
+        decision=ReviewDecision.APPROVE,
+        comment="Looks fine.",
+    )
+
+    assert latest_send_back_comment(submitted) == ""
