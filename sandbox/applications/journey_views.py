@@ -36,10 +36,13 @@ from django.views.generic import View
 from sandbox.applications.documents import attach_documents
 from sandbox.applications.documents import download_url
 from sandbox.applications.models import Application
+from sandbox.applications.selectors import attempt_or_404
+from sandbox.applications.selectors import attempts
 from sandbox.applications.selectors import current_form_data
 from sandbox.applications.selectors import document_detail
 from sandbox.applications.selectors import exit_documents
 from sandbox.applications.selectors import exit_grants
+from sandbox.applications.selectors import exit_history
 from sandbox.applications.selectors import exit_in_flight
 from sandbox.applications.selectors import milestone_rows
 from sandbox.applications.services import open_exit
@@ -92,6 +95,11 @@ def exit_evidence(exit_application: Application | None) -> list[dict]:
         for form_key in ("EXIT_CLAIM", "WASA")
         for name, label in document_fields(form_key)
     ]
+
+
+def _data_of(attempt, form_key: str) -> dict:
+    submission = attempt.forms.get(form_key)
+    return dict(submission.data) if submission else {}
 
 
 def upload_fields(form_key: str, exit_application: Application | None) -> list[dict]:
@@ -331,12 +339,85 @@ class ExitView(ExitJourneyMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        history = exit_history(self.application.product)
+        rows = [
+            {"exit": exit_application, "attempts": attempts(exit_application)}
+            for exit_application in history
+        ]
         context.update(
             {
                 **self.exit_context(),
                 "page_title": _("Exit to production"),
                 "has_claim": bool(self._current("EXIT_CLAIM")),
                 "has_wasa": bool(self._current("WASA")),
+                "history": rows,
+                # the banner asking for changes links straight at what was sent
+                "last_attempt_url": self._last_attempt_url(rows),
+            },
+        )
+        return context
+
+    def _last_attempt_url(self, rows: list[dict]) -> str:
+        exit_application = self.exit_application
+        if exit_application is None:
+            return ""
+        for row in rows:
+            if row["exit"].pk == exit_application.pk and row["attempts"]:
+                return url_for(
+                    "applications:exit_attempt",
+                    self.organisation,
+                    external_id=self.application.external_id,
+                    exit_id=exit_application.external_id,
+                    ordinal=row["attempts"][0].ordinal,
+                )
+        return ""
+
+
+class ExitAttemptView(ExitJourneyMixin, TemplateView):
+    """One attempt as NHA received it, read-only.
+
+    Answering a send-back means comparing what you sent with what was said
+    about it, and the wizard only ever shows the live draft.
+    """
+
+    template_name = "journey/exit_attempt.html"
+
+    @cached_property
+    def exit_application(self) -> Application:
+        """Any exit on this product, not just the open one — that is the point."""
+        exit_id = self.kwargs["exit_id"]
+        for candidate in exit_history(self.application.product):
+            if str(candidate.external_id) == str(exit_id):
+                return candidate
+        raise Http404
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        attempt = attempt_or_404(self.exit_application, self.kwargs["ordinal"])
+        claim = _data_of(attempt, "EXIT_CLAIM")
+        wasa = _data_of(attempt, "WASA")
+        covers = dict(self.declared_covers())
+        context.update(
+            {
+                **self.base_context(),
+                "page_title": _("Attempt %(ordinal)s") % {"ordinal": attempt.ordinal},
+                "attempt": attempt,
+                "exit_application": self.exit_application,
+                "exit_state": self.exit_application.state,
+                "covers": [covers.get(key, key) for key in claim.get("covers", [])],
+                "summary": claim.get("summary", ""),
+                "wasa": wasa,
+                "evidence": [
+                    {"label": label, "files": attempt.documents.get(name, [])}
+                    for form_key in ("EXIT_CLAIM", "WASA")
+                    for name, label in document_fields(form_key)
+                ],
+                "reviews": attempt.reviews,
+                "exit_url": url_for(
+                    "applications:exit",
+                    self.organisation,
+                    external_id=self.application.external_id,
+                ),
             },
         )
         return context

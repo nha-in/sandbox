@@ -1,0 +1,49 @@
+{% extends "layouts/app.html" %}
+
+{% load i18n %}
+{% load careui %}
+
+{% comment %}
+  One attempt as it went to NHA: the answers that were current at that moment,
+  the evidence attached to them, and what a reviewer said in reply.
+
+  Read-only by construction — there is no form and no POST here. What it shows
+  is settled history, and the only way to change anything is to send another
+  attempt from the wizard.
+{% endcomment %}
+{% block page_header %}
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <h1 class="ui-page-title">{{ page_title }}</h1>
+      <span class="ui-badge ui-badge--{{ exit_state|state_variant }} ui-badge--size-sm">{{ exit_application.get_state_display }}</span>
+    </div>
+    <a class="ui-btn ui-btn--ghost ui-btn--size-sm no-underline"
+       href="{{ exit_url }}">{% translate "Back to exit" %}</a>
+  </div>
+  <p class="ui-page-subtitle">
+    {% blocktranslate with reference=exit_application.reference sent=attempt.sent_at|date:"j M Y, H:i" %}Exit {{ reference }}, sent {{ sent }}.{% endblocktranslate %}
+  </p>
+{% endblock page_header %}
+{% block content %}
+  <div class="ui-card">
+    <div class="ui-card-content flex flex-col gap-6">
+      {% if attempt.reviews %}
+        <div>
+          <h2 class="ui-card-title mb-2">{% translate "What NHA said" %}</h2>
+          {% for review in attempt.reviews %}
+            <div class="ui-alert ui-alert--warning mb-2">
+              <p class="font-medium">{{ review.get_decision_display }}</p>
+              {% if review.comment %}<p>{{ review.comment }}</p>{% endif %}
+            </div>
+          {% empty %}
+          {% endfor %}
+        </div>
+      {% elif not attempt.outcome %}
+        <div class="ui-alert ui-alert--info">
+          <p>{% translate "This attempt is still with NHA." %}</p>
+        </div>
+      {% endif %}
+      {% include "journey/partials/exit_summary.html" with editable=False %}
+    </div>
+  </div>
+{% endblock content %}

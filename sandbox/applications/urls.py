@@ -67,6 +67,13 @@ urlpatterns = [
         name="declare_milestone",
     ),
     path("<uuid:external_id>/exit/", journey_views.ExitView.as_view(), name="exit"),
+    # A finished attempt, addressed by its place in the order it was sent:
+    # transitions are append-only and carry no external_id of their own.
+    path(
+        "<uuid:external_id>/exit/<uuid:exit_id>/attempt/<int:ordinal>/",
+        journey_views.ExitAttemptView.as_view(),
+        name="exit_attempt",
+    ),
     # The exit wizard. Three screens because saving a step and asking NHA to
     # review the lot are different acts and must be different clicks.
     path(

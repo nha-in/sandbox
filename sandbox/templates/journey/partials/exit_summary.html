@@ -1,0 +1,78 @@
+{% load i18n %}
+
+{% comment %}
+  What an exit says, rendered identically wherever it is read.
+
+  The review step and a past attempt must not drift: the promise of the attempt
+  screen is "this is what NHA saw", and two copies of this markup would make
+  that a claim rather than a fact. `editable` is the only difference — a past
+  attempt has nothing to change.
+{% endcomment %}
+<div>
+  <div class="mb-2 flex items-center justify-between gap-3">
+    <h2 class="ui-card-title">{% translate "What you are taking to production" %}</h2>
+    {% if editable %}
+      <a class="text-sm underline"
+         href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Change" %}</a>
+    {% endif %}
+  </div>
+  <dl>
+    <div class="ui-kv">
+      <dt class="ui-kv-key">{% translate "Milestones" %}</dt>
+      <dd class="ui-kv-value">
+        {% for cover in covers %}
+          {{ cover }}{% if not forloop.last %},{% endif %}
+        {% empty %}
+          —
+        {% endfor %}
+      </dd>
+    </div>
+    <div class="ui-kv">
+      <dt class="ui-kv-key">{% translate "Summary" %}</dt>
+      <dd class="ui-kv-value">
+        {{ summary|default:"—" }}
+      </dd>
+    </div>
+  </dl>
+</div>
+<div>
+  <div class="mb-2 flex items-center justify-between gap-3">
+    <h2 class="ui-card-title">{% translate "Safe-to-Host certificate" %}</h2>
+    {% if editable %}
+      <a class="text-sm underline"
+         href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Change" %}</a>
+    {% endif %}
+  </div>
+  <dl>
+    <div class="ui-kv">
+      <dt class="ui-kv-key">{% translate "Valid from" %}</dt>
+      <dd class="ui-kv-value">
+        {{ wasa.start|default:"—" }}
+      </dd>
+    </div>
+    <div class="ui-kv">
+      <dt class="ui-kv-key">{% translate "Valid until" %}</dt>
+      <dd class="ui-kv-value">
+        {{ wasa.valid_upto|default:"—" }}
+      </dd>
+    </div>
+  </dl>
+</div>
+<div>
+  <h2 class="ui-card-title mb-2">{% translate "Evidence" %}</h2>
+  <dl>
+    {% for row in evidence %}
+      <div class="ui-kv">
+        <dt class="ui-kv-key">{{ row.label }}</dt>
+        <dd class="ui-kv-value">
+          {% for document in row.files %}
+            <a class="ui-prose-link block truncate"
+               href="{% url 'applications:document_download' external_id=document.external_id %}{{ org_query }}">{{ document.filename }}</a>
+          {% empty %}
+            <span class="ui-badge ui-badge--destructive ui-badge--size-sm">{% translate "Missing" %}</span>
+          {% endfor %}
+        </dd>
+      </div>
+    {% endfor %}
+  </dl>
+</div>

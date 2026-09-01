@@ -23,11 +23,14 @@ from django.utils import timezone
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import exit_in_flight
+from sandbox.applications.services import open_exit
 from sandbox.applications.tests.conftest import upload
 from sandbox.applications.tests.factories import ApplicationFactory
 from sandbox.organisations.mixins import organisation_query
+from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.programmes.abdm import DocumentKind
 from sandbox.workflow import engine
+from sandbox.workflow.models import WorkflowTransition
 
 pytestmark = pytest.mark.django_db
 
@@ -507,3 +510,84 @@ def test_an_exit_cannot_cover_a_milestone_that_was_never_declared(
     assert response.status_code == HTTP_OK
     assert response.context["form"].errors
     assert exit_in_flight(application.product) is None
+
+
+# Exit history
+
+
+def _sent_exit(application, covers=("M1",), summary="as sent"):
+    """An exit with one attempt already sent, without going through the gate."""
+    _declare_m1(application)
+    exiting = open_exit(
+        product=application.product,
+        applicant=application.applicant,
+    )
+    engine.submit_form(
+        application=exiting,
+        form_key="EXIT_CLAIM",
+        cleaned_data={"covers": list(covers), "summary": summary},
+        user=application.applicant,
+    )
+    WorkflowTransition.objects.create(
+        application=exiting,
+        from_state="DRAFT",
+        to_state="SUBMITTED",
+        action="SUBMIT",
+        actor=application.applicant,
+    )
+    exiting.state = "SUBMITTED"
+    exiting.save(update_fields=["state"])
+    return exiting
+
+
+def test_the_exit_page_lists_every_attempt_it_has_sent(client_, application):
+    exiting = _sent_exit(application)
+
+    response = client_.get(_url("applications:exit", application))
+
+    history = response.context["history"]
+    assert [row["exit"].pk for row in history] == [exiting.pk]
+    assert [attempt.ordinal for attempt in history[0]["attempts"]] == [1]
+
+
+def test_an_attempt_shows_what_was_sent_and_offers_no_way_to_change_it(
+    client_,
+    application,
+):
+    exiting = _sent_exit(application, summary="exactly as sent")
+
+    response = client_.get(
+        _url(
+            "applications:exit_attempt",
+            application,
+            exit_id=exiting.external_id,
+            ordinal=1,
+        ),
+    )
+    body = response.content.decode()
+
+    assert response.status_code == HTTP_OK
+    assert response.context["summary"] == "exactly as sent"
+    assert "Request exit" not in body
+    assert ">Change<" not in body
+
+
+def test_another_organisations_exit_is_404_not_403(client_, application):
+    """A 403 would confirm the exit exists, which is the thing being hidden."""
+    other = ApplicationFactory.create(state=ApplicationState.PROVISIONED)
+    MembershipFactory.create(
+        organisation=other.product.organisation,
+        user=other.applicant,
+    )
+    theirs = _sent_exit(other)
+
+    response = client_.get(
+        _url(
+            "applications:exit_attempt",
+            application,
+            exit_id=theirs.external_id,
+            ordinal=1,
+        ),
+    )
+
+    assert response.status_code == HTTP_NOT_FOUND

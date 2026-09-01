@@ -23,6 +23,7 @@ from sandbox.programmes import abdm
 from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from uuid import UUID
 
     from django.db.models import QuerySet
@@ -183,6 +184,138 @@ def exit_documents(application: Application | None) -> dict[str, list]:
         for document in submission.documents.filter(deleted=False):
             documents.setdefault(document.kind, []).append(document)
     return documents
+
+
+def exit_history(product: Product) -> list[Application]:
+    """Every exit this product has ever filed, newest first.
+
+    Includes the in-flight one: an integrator answering a send-back is looking
+    for what they sent last time, and that lives on the exit they are still in.
+    """
+    return list(
+        Application.objects.filter(
+            product=product,
+            workflow_key="ABDM_EXIT",
+            deleted=False,
+        ).order_by("-created_date"),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Attempt:
+    """One time an exit went to NHA, and what it said when it did.
+
+    Reconstructed from the SUBMIT transition rather than grouped by round,
+    because a form is stamped with the round it was *written* in: answering a
+    send-back edits the claim while the exit is still on the old round, and it
+    is then sent as the next attempt. Grouping by round files that edit under
+    the attempt it replaced.
+    """
+
+    ordinal: int
+    sent_at: datetime
+    sent_by: Any
+    round: int
+    outcome: str
+    forms: dict[str, ApplicationFormSubmission]
+    documents: dict[str, list[ApplicationDocument]]
+    reviews: list[Any]
+
+
+#: What a reviewer's move says about the attempt it answered.
+_OUTCOME_ACTIONS = frozenset({"APPROVE", "REJECT", "SEND_BACK"})
+
+
+def attempts(application: Application) -> list[Attempt]:
+    """Every attempt on one exit, newest first. Three queries, whatever the count."""
+    moves = list(
+        application.transitions.select_related("actor").order_by("created_date"),
+    )
+    submissions = list(
+        application.submissions.prefetch_related("documents").order_by("created_date"),
+    )
+    reviews = list(
+        application.reviews.select_related("reviewer").order_by("decided_at"),
+    )
+
+    sent = [move for move in moves if move.action == "SUBMIT"]
+    built = []
+    for ordinal, move in enumerate(sent, start=1):
+        # the window this attempt owns: everything until the next one was sent
+        following = sent[ordinal].created_date if ordinal < len(sent) else None
+        built.append(
+            Attempt(
+                ordinal=ordinal,
+                sent_at=move.created_date,
+                sent_by=move.actor,
+                round=_round_at(moves, move.created_date, application.round),
+                outcome=_outcome_after(moves, move.created_date, following),
+                forms=_forms_as_at(submissions, move.created_date),
+                documents=_documents_as_at(submissions, move.created_date),
+                reviews=[
+                    review
+                    for review in reviews
+                    if review.decided_at > move.created_date
+                    and (following is None or review.decided_at <= following)
+                ],
+            ),
+        )
+    return list(reversed(built))
+
+
+def attempt_or_404(application: Application, ordinal: int) -> Attempt:
+    for attempt in attempts(application):
+        if attempt.ordinal == ordinal:
+            return attempt
+    raise Http404
+
+
+def _forms_as_at(
+    submissions: list[ApplicationFormSubmission],
+    when: datetime,
+) -> dict[str, ApplicationFormSubmission]:
+    """The latest revision of each form at or before `when` — what was sent."""
+    latest: dict[str, ApplicationFormSubmission] = {}
+    for submission in submissions:
+        if submission.created_date <= when:
+            latest[submission.form_key] = submission
+    return latest
+
+
+def _documents_as_at(
+    submissions: list[ApplicationFormSubmission],
+    when: datetime,
+) -> dict[str, list[ApplicationDocument]]:
+    documents: dict[str, list[ApplicationDocument]] = {}
+    for submission in _forms_as_at(submissions, when).values():
+        for document in submission.documents.all():
+            if not document.deleted:
+                documents.setdefault(document.kind, []).append(document)
+    return documents
+
+
+def _round_at(moves: list, when: datetime, fallback: int) -> int:
+    """`Application.round` as it stood at `when`, counted from the moves that
+    advanced it — the column only holds today's value."""
+    advanced = sum(
+        1
+        for move in moves
+        if move.created_date <= when
+        and move.action in {"SUBMIT", "RESUBMIT"}
+        and move.from_state in {"SENT_BACK", "REJECTED"}
+    )
+    return min(advanced + 1, fallback) if fallback else advanced + 1
+
+
+def _outcome_after(moves: list, when: datetime, until: datetime | None) -> str:
+    for move in moves:
+        if move.created_date <= when:
+            continue
+        if until is not None and move.created_date > until:
+            break
+        if move.action in _OUTCOME_ACTIONS:
+            return move.action
+    return ""
 
 
 def document_detail(

@@ -16,6 +16,7 @@ from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
 from django.test import Client
 
+from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationDocument
 from sandbox.applications.models import ApplicationFormSubmission
 from sandbox.applications.models import ApplicationState
@@ -25,6 +26,7 @@ from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.organisations.tests.factories import ProductFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import VerifiedUserFactory
+from sandbox.workflow.models import WorkflowTransition
 
 ANONYMOUS = "anonymous"
 ORG_MEMBER = "org_member"
@@ -32,6 +34,7 @@ MEMBER_OTHER_ORG = "member_other_org"
 REVIEWER = "reviewer"
 STAFF = "staff"
 DOCUMENT_A = "document_a"
+EXIT_APPLICATION = "exit_application"
 MILESTONE_M1 = "milestone_m1"
 ROLE = "role"
 
@@ -156,6 +159,35 @@ def document_a(org_a, org_member):
 
 
 @pytest.fixture
+def exit_application(application, org_member):
+    """An exit with one attempt already sent, so the attempt route has an
+    ordinal that resolves rather than 404ing for everybody alike."""
+    exiting = Application.objects.create(
+        reference="SBX-1997-00001",
+        workflow_key="ABDM_EXIT",
+        product=application.product,
+        applicant=org_member,
+        state="SUBMITTED",
+    )
+    ApplicationFormSubmission.objects.create(
+        application=exiting,
+        form_key="EXIT_CLAIM",
+        round=exiting.round,
+        data={"covers": ["M1"], "summary": "as sent"},
+        is_current=True,
+        submitted_by=org_member,
+    )
+    WorkflowTransition.objects.create(
+        application=exiting,
+        from_state="DRAFT",
+        to_state="SUBMITTED",
+        action="SUBMIT",
+        actor=org_member,
+    )
+    return exiting
+
+
+@pytest.fixture
 def milestone_m1():
     """The key a milestone URL names. Milestones come from the workflow, so
     there is no row to create — only the segment the route needs."""
@@ -170,7 +202,14 @@ def role(db):
 
 
 @pytest.fixture
-def context(actors, application, document_a, milestone_m1, role):
+def context(  # noqa: PLR0913, PLR0917 — one argument per object a route may name
+    actors,
+    application,
+    document_a,
+    exit_application,
+    milestone_m1,
+    role,
+):
     """What a route's `kwargs` callable receives when it builds URL arguments.
 
     Organisations and products are reachable from these objects
@@ -180,6 +219,7 @@ def context(actors, application, document_a, milestone_m1, role):
         **actors,
         "application": application,
         DOCUMENT_A: document_a,
+        EXIT_APPLICATION: exit_application,
         MILESTONE_M1: milestone_m1,
         ROLE: role,
     }

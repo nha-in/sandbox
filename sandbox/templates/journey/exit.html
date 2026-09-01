@@ -9,6 +9,7 @@
   the sandbox application's.
 {% endcomment %}
 {% load i18n %}
+{% load careui %}
 
 {% block title %}
   {% translate "Exit to production" %}
@@ -39,11 +40,15 @@
         <dl>
           <div class="ui-kv">
             <dt class="ui-kv-key">{% translate "Reference" %}</dt>
-            <dd class="ui-kv-value">{{ exit_application.reference }}</dd>
+            <dd class="ui-kv-value">
+              {{ exit_application.reference }}
+            </dd>
           </div>
           <div class="ui-kv">
             <dt class="ui-kv-key">{% translate "Round" %}</dt>
-            <dd class="ui-kv-value">{{ exit_application.round }}</dd>
+            <dd class="ui-kv-value">
+              {{ exit_application.round }}
+            </dd>
           </div>
         </dl>
       </div>
@@ -51,9 +56,7 @@
   {% elif is_locked %}
     <div class="ui-empty">
       <span class="font-medium text-muted-foreground">{% translate "Not ready to exit yet" %}</span>
-      <span>
-        {% translate "Declare at least one milestone complete before requesting production access." %}
-      </span>
+      <span>{% translate "Declare at least one milestone complete before requesting production access." %}</span>
       <a class="ui-btn ui-btn--secondary ui-btn--size-sm mt-3 no-underline"
          href="{% url 'applications:milestones' external_id=application.external_id %}{{ org_query }}">{% translate "Go to milestones" %}</a>
     </div>
@@ -64,12 +67,18 @@
           <p>
             {% translate "Your last exit request was rejected. A rejected exit needs a fresh security audit, so the Safe-to-Host certificate must be uploaded again." %}
           </p>
+          {% if last_attempt_url %}
+            <a class="text-sm underline" href="{{ last_attempt_url }}">{% translate "See what you sent, and why it was rejected" %}</a>
+          {% endif %}
         </div>
       </div>
     {% elif exit_state == "SENT_BACK" %}
       <div class="ui-alert mb-6" role="alert">
         <div class="flex-1 space-y-1">
           <p>{% translate "NHA has asked for changes. Address their comments and request the exit again." %}</p>
+          {% if last_attempt_url %}
+            <a class="text-sm underline" href="{{ last_attempt_url }}">{% translate "See what you sent, and what they asked for" %}</a>
+          {% endif %}
         </div>
       </div>
     {% endif %}
@@ -105,5 +114,39 @@
         {% endif %}
       </div>
     </div>
+  {% endif %}
+  {% if history %}
+    <section class="mt-8">
+      <h2 class="ui-section-title mb-1">{% translate "Everything you have sent" %}</h2>
+      <p class="ui-card-description mb-3">
+        {% translate "Each time an exit went to NHA, exactly as it stood when it was sent." %}
+      </p>
+      {% for row in history %}
+        <div class="ui-card mb-3">
+          <div class="ui-card-header flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="ui-code-chip">{{ row.exit.reference }}</span>
+              <span class="ui-badge ui-badge--{{ row.exit.state|state_variant }} ui-badge--size-xs">{{ row.exit.get_state_display }}</span>
+            </div>
+          </div>
+          <div class="ui-card-content">
+            {% for attempt in row.attempts %}
+              <div class="ui-kv">
+                <dt class="ui-kv-key">
+                  {% blocktranslate with ordinal=attempt.ordinal %}Attempt {{ ordinal }}{% endblocktranslate %}
+                </dt>
+                <dd class="ui-kv-value flex items-center justify-between gap-3">
+                  <span>{{ attempt.sent_at|date:"j M Y" }}</span>
+                  <a class="ui-prose-link"
+                     href="{% url 'applications:exit_attempt' external_id=application.external_id exit_id=row.exit.external_id ordinal=attempt.ordinal %}{{ org_query }}">{% translate "View" %}</a>
+                </dd>
+              </div>
+            {% empty %}
+              <p class="ui-card-description">{% translate "Not sent to NHA yet." %}</p>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </section>
   {% endif %}
 {% endblock content %}
