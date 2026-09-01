@@ -153,10 +153,34 @@
           {% endfor %}
         </div>
       </div>
-      {% if can_review %}
+      {% if can_start_review %}
         <div class="ui-card">
           <div class="ui-card-header">
-            <h2 class="ui-card-title">{% translate "Record a review" %}</h2>
+            <h2 class="ui-card-title">{{ start_review_label }}</h2>
+            <p class="ui-card-description">
+              {% blocktranslate with reference=application.reference %}Marks {{ reference }} as being looked at. It is not a decision.{% endblocktranslate %}
+            </p>
+          </div>
+          <form method="post"
+                action="{% url 'console:decide' application.external_id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="START_REVIEW" />
+            <div class="ui-card-footer flex justify-end">
+              <button class="ui-btn ui-btn--default ui-btn--size-sm" type="submit">{{ start_review_label }}</button>
+            </div>
+          </form>
+        </div>
+      {% endif %}
+      {% comment %}
+        A reviewer who cannot decide records an opinion here. Whoever decides
+        does not get this panel: their comment becomes their review row as part
+        of deciding, so a second one would be a second door to the same table.
+      {% endcomment %}
+      {% if can_review and not decision_actions and not approve_action %}
+        <div class="ui-card">
+          <div class="ui-card-header">
+            <h2 class="ui-card-title">{% translate "Your review" %}</h2>
+            <p class="ui-card-description">{% translate "Advisory. It does not move the application." %}</p>
           </div>
           <form method="post"
                 action="{% url 'console:record_review' application.external_id %}">
@@ -165,17 +189,17 @@
               {% ui_field review_form.decision %}
               {% ui_field review_form.comment %}
             </div>
-            <div class="ui-card-footer">
+            <div class="ui-card-footer flex justify-end">
               <button class="ui-btn ui-btn--secondary ui-btn--size-sm" type="submit">{% translate "Record" %}</button>
             </div>
           </form>
         </div>
       {% endif %}
-      {% if decision_actions %}
+      {% if decision_actions or approve_action %}
         <div class="ui-card">
           <div class="ui-card-header">
             <h2 class="ui-card-title">{% translate "Decide" %}</h2>
-            <p class="ui-card-description">{% translate "A comment is recorded as your review." %}</p>
+            <p class="ui-card-description">{% translate "Your comment is recorded as your review." %}</p>
           </div>
           <form method="post"
                 action="{% url 'console:decide' application.external_id %}">
@@ -183,36 +207,67 @@
             <div class="ui-card-content space-y-4">
               <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
               <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
-              {% if exit_review %}
-                {% with form=exit_review.decision_form %}
-                  <div>
-                    <span class="ui-label">{{ form.approved_solution_types.label }}</span>
-                    <span class="ui-hint">
-                      {% translate "Only what the applicant selected at registration can be approved." %}
-                    </span>
-                    <div class="mt-2 flex flex-col gap-2">
-                      {% for choice in form.approved_solution_types %}
-                        <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
-                          {{ choice.tag }}{{ choice.choice_label }}
-                        </label>
-                      {% endfor %}
+            </div>
+            {% if decision_actions %}
+              <div class="ui-card-footer flex flex-wrap justify-end gap-2">
+                {% for action in decision_actions %}
+                  <button class="ui-btn {% if action.is_destructive %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
+                          type="submit"
+                          name="action"
+                          value="{{ action.value }}">{{ action.label }}</button>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% comment %}
+              Approving an exit writes EXIT_DECISION with the move, so its
+              fields and its button belong together — beside Send back they
+              read as though every button consumed them.
+            {% endcomment %}
+            {% if approve_action %}
+              <div class="border-t border-border">
+                {% if approval_blocked %}
+                  <div class="ui-card-content">
+                    <div class="ui-alert ui-alert--warning" role="alert">
+                      <div class="flex-1 space-y-1">
+                        <p>
+                          {% translate "This exit cannot be approved: the applicant has selected no DHIS-eligible solution types. Send it back and ask them to update their integration profile." %}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  {% ui_field form.undertaking_hard_copy_received_on %}
-                  <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
-                    {{ form.m1_on_v3_confirmed }}{{ form.m1_on_v3_confirmed.label }}
-                  </label>
-                {% endwith %}
-              {% endif %}
-            </div>
-            <div class="ui-card-footer flex flex-wrap gap-2">
-              {% for action in decision_actions %}
-                <button class="ui-btn {% if action.is_destructive %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
-                        type="submit"
-                        name="action"
-                        value="{{ action.value }}">{{ action.value }}</button>
-              {% endfor %}
-            </div>
+                {% else %}
+                  <div class="ui-card-content space-y-4">
+                    <p class="text-sm font-medium text-foreground">{% translate "To approve, NHA also needs:" %}</p>
+                    {% with form=exit_review.decision_form %}
+                      <div>
+                        <span class="ui-label">{{ form.approved_solution_types.label }}</span>
+                        <span class="ui-hint">
+                          {% translate "Only what the applicant selected at registration can be approved." %}
+                        </span>
+                        <div class="mt-2 flex flex-col gap-2">
+                          {% for choice in form.approved_solution_types %}
+                            <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                              {{ choice.tag }}{{ choice.choice_label }}
+                            </label>
+                          {% endfor %}
+                        </div>
+                      </div>
+                      {% ui_field form.undertaking_hard_copy_received_on %}
+                      <label class="flex items-start gap-2.5 text-sm leading-snug text-muted-foreground select-none">
+                        {{ form.m1_on_v3_confirmed }}{{ form.m1_on_v3_confirmed.label }}
+                      </label>
+                    {% endwith %}
+                  </div>
+                  <div class="ui-card-footer flex flex-col items-end gap-1">
+                    <button class="ui-btn ui-btn--default ui-btn--size-sm"
+                            type="submit"
+                            name="action"
+                            value="{{ approve_action.value }}">{{ approve_action.label }}</button>
+                    <span class="ui-hint">{% translate "Records your comment above and grants production access." %}</span>
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
           </form>
         </div>
       {% endif %}

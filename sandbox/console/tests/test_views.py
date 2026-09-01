@@ -87,6 +87,27 @@ def test_admin_sees_the_decision_buttons(admin_client_, submitted):
     assert offered == {"APPROVE", "REJECT", "SEND_BACK"}
 
 
+def test_whoever_decides_gets_one_comment_box_not_two(admin_client_, submitted):
+    """Deciding records the comment as the decider's review, so a separate
+    "record a review" panel beside it was a second door to the same table."""
+    review_url = reverse(
+        "console:record_review",
+        kwargs={"external_id": submitted.external_id},
+    )
+
+    body = admin_client_.get(detail_url(submitted)).content.decode()
+
+    assert body.count('name="comment"') == 1
+    assert review_url not in body
+
+
+def test_the_decision_buttons_read_as_words(admin_client_, submitted):
+    body = admin_client_.get(detail_url(submitted)).content.decode()
+
+    assert ">Send back<" in body
+    assert ">SEND_BACK<" not in body
+
+
 def test_draft_offers_no_decisions(admin_client_):
     draft = ApplicationFactory.create(state=ApplicationState.DRAFT)
 

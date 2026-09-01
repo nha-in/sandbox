@@ -16,29 +16,12 @@ from sandbox.utils.errors import DomainError
 from sandbox.workflow.definitions import PERM_REVIEW
 from sandbox.workflow.models import ReviewDecision
 from sandbox.workflow.models import WorkflowReview
-from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.selectors import current_round
+from sandbox.workflow.selectors import is_reviewable
 
 if TYPE_CHECKING:
     from sandbox.applications.models import Application
     from sandbox.users.models import User
-
-
-def _is_reviewable(application: Application) -> bool:
-    """A state is reviewable if a review-driven decision can be taken from it.
-
-    Asked of the workflow rather than a list, so an application on a workflow
-    this module knows nothing about is not silently unreviewable.
-    """
-    try:
-        workflow = get_workflow(application.workflow_key)
-    except LookupError:
-        return False
-    return any(
-        spec.review_driven
-        for (state, _action), spec in workflow.transitions.items()
-        if state == application.state
-    )
 
 
 @transaction.atomic
@@ -54,7 +37,7 @@ def record_review(
     Re-reviewing within the same round updates that reviewer's row; the round
     turns over when the applicant resubmits, leaving the previous one readable.
     """
-    if not _is_reviewable(application):
+    if not is_reviewable(application):
         message = f"cannot review an application in state {application.state}"
         raise DomainError(message, code="illegal_review")
 

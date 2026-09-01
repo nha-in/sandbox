@@ -39,20 +39,31 @@ from sandbox.workflow.registry import get_workflow
 from sandbox.workflow.selectors import current_round
 from sandbox.workflow.selectors import decidable_actions
 from sandbox.workflow.selectors import history_for
+from sandbox.workflow.selectors import is_reviewable
 from sandbox.workflow.selectors import review_tally
 from sandbox.workflow.selectors import reviews_for_round
 from sandbox.workflow.services import record_review
 
-#: actions the detail page offers as a decision button. Everything else a
-#: workflow allows (WITHDRAW, the provisioning chain) is not the console's.
+#: actions the detail page offers as a decision button. `START_REVIEW` is not
+#: among them: claiming the work is not an opinion, and offering it beside the
+#: verdicts put the approval paperwork on screen to support "start review".
 DECISION_ACTIONS = frozenset(
     {
         "APPROVE",
         "REJECT",
         "SEND_BACK",
-        "START_REVIEW",
     },
 )
+
+START_REVIEW = "START_REVIEW"
+
+#: a button must never read START_REVIEW at a person
+ACTION_LABELS = {
+    "APPROVE": "Approve",
+    "REJECT": "Reject",
+    "SEND_BACK": "Send back",
+    START_REVIEW: "Start review",
+}
 
 #: actions rendered in the destructive style
 _DESTRUCTIVE_ACTIONS = frozenset({"REJECT"})
@@ -113,6 +124,14 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
         is_exit = application.workflow_key == EXIT_WORKFLOW
         # ConsoleMixin has already refused anonymous, so this is a real user.
         allowed = decidable_actions(application, self.request.user)  # type: ignore[arg-type]
+        decisions = [action for action in allowed if action in DECISION_ACTIONS]
+        # Approving an exit takes EXIT_DECISION with it, so that button has to
+        # sit with those fields rather than beside buttons that ignore them.
+        approve_spec = get_workflow(application.workflow_key).transitions.get(
+            (application.state, "APPROVE"),
+        )
+        approve_apart = bool(approve_spec and approve_spec.decision_form_key)
+        ceiling = registered_solution_types(application) if approve_apart else []
         context.update(
             {
                 "page_title": application.reference,
@@ -128,15 +147,31 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                 "tally": review_tally(application),
                 "round": current_round(application),
                 "review_form": ReviewForm(),
+                "can_start_review": START_REVIEW in allowed,
+                "start_review_label": ACTION_LABELS[START_REVIEW],
                 "decision_actions": [
                     {
                         "value": action,
+                        "label": ACTION_LABELS[action],
                         "is_destructive": action in _DESTRUCTIVE_ACTIONS,
                     }
-                    for action in allowed
-                    if action in DECISION_ACTIONS
+                    for action in decisions
+                    if not (approve_apart and action == "APPROVE")
                 ],
-                "can_review": self.request.user.has_perm("workflow.review_application"),
+                "approve_action": (
+                    {"value": "APPROVE", "label": ACTION_LABELS["APPROVE"]}
+                    if approve_apart and "APPROVE" in decisions
+                    else None
+                ),
+                # An empty ceiling makes the required field unsatisfiable, so
+                # say why rather than render a form nobody can submit.
+                "approval_blocked": approve_apart and not ceiling,
+                # A review is refused outside a state a verdict can be taken
+                # from; the panel used to be offered on the permission alone.
+                "can_review": (
+                    self.request.user.has_perm("workflow.review_application")
+                    and is_reviewable(application)
+                ),
                 # Status only. There is no reveal route on this surface, and no
                 # staff-facing path to a secret anywhere in the system.
                 "provisioning": (

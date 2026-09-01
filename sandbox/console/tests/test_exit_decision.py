@@ -11,7 +11,9 @@ from __future__ import annotations
 import pytest
 from django.urls import reverse
 
+from sandbox.applications.models import Application
 from sandbox.applications.services import open_exit
+from sandbox.applications.tests.factories import VALID_SANDBOX_DATA
 from sandbox.programmes.abdm import SolutionType
 from sandbox.workflow import engine
 from sandbox.workflow.models import ReviewDecision
@@ -65,8 +67,51 @@ def test_the_buttons_come_from_the_exit_workflow(admin_client_, under_review):
     response = admin_client_.get(detail_url(under_review))
 
     offered = {row["value"] for row in response.context["decision_actions"]}
-    assert offered == {"APPROVE", "REJECT", "SEND_BACK"}
+    # Approve sits apart, with the EXIT_DECISION fields it writes
+    assert offered == {"REJECT", "SEND_BACK"}
+    assert response.context["approve_action"]["value"] == "APPROVE"
     assert response.context["is_exit"] is True
+
+
+def test_an_exit_awaiting_pickup_offers_only_start_review(admin_client_, under_review):
+    """SUBMITTED has one legal move and it is not a verdict. The page used to
+    offer a review the service refuses and the approval fields beside it."""
+    under_review.state = "SUBMITTED"
+    under_review.save(update_fields=["state"])
+
+    response = admin_client_.get(detail_url(under_review))
+
+    assert response.context["can_start_review"] is True
+    assert response.context["decision_actions"] == []
+    assert response.context["approve_action"] is None
+    assert response.context["can_review"] is False
+    body = response.content.decode()
+    assert "Start review" in body
+    # never the raw action code at a person
+    assert "START_REVIEW<" not in body
+
+
+def test_an_exit_with_no_registered_types_says_so_instead_of_a_dead_form(
+    admin_client_,
+    under_review,
+):
+    """The ceiling is a required field. Empty, it can never validate — so the
+    console explains it rather than rendering a form nobody can submit."""
+    sandbox = Application.objects.get(
+        product=under_review.product,
+        workflow_key="ABDM",
+    )
+    engine.submit_form(
+        application=sandbox,
+        form_key="REGISTRATION",
+        cleaned_data={**VALID_SANDBOX_DATA, "solution_types": []},
+        user=sandbox.applicant,
+    )
+
+    response = admin_client_.get(detail_url(under_review))
+
+    assert response.context["approval_blocked"] is True
+    assert "cannot be approved" in response.content.decode()
 
 
 def test_the_admin_may_only_approve_what_was_registered(admin_client_, under_review):

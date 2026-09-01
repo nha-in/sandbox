@@ -49,6 +49,25 @@ def exit_queue() -> QuerySet[Application]:
     )
 
 
+def is_reviewable(application: Application) -> bool:
+    """A state is reviewable if a review-driven decision can be taken from it.
+
+    Asked of the workflow rather than a list, so an application on a workflow
+    this module knows nothing about is not silently unreviewable. The console
+    reads it too — a screen that offered a review the service refuses is how
+    "cannot review an application in state SUBMITTED" reached a reviewer.
+    """
+    try:
+        workflow = get_workflow(application.workflow_key)
+    except LookupError:
+        return False
+    return any(
+        spec.review_driven
+        for (state, _action), spec in workflow.transitions.items()
+        if state == application.state
+    )
+
+
 def decidable_actions(
     application: Application,
     actor: User | None,
