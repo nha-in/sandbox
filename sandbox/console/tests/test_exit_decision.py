@@ -91,6 +91,32 @@ def test_an_exit_awaiting_pickup_offers_only_start_review(admin_client_, under_r
     assert "START_REVIEW<" not in body
 
 
+def test_a_reviewer_can_pick_up_a_submitted_exit_and_then_review_it(
+    reviewer_client,
+    under_review,
+):
+    """Start review was gated on the permission to approve, so a reviewer saw
+    neither it nor the review panel: an exit they could do nothing with."""
+    under_review.state = "SUBMITTED"
+    under_review.save(update_fields=["state"])
+
+    assert reviewer_client.get(detail_url(under_review)).context["can_start_review"]
+
+    response = reviewer_client.post(
+        decide_url(under_review),
+        {"action": "START_REVIEW"},
+    )
+
+    assert response.status_code == HTTP_FOUND
+    under_review.refresh_from_db()
+    assert under_review.state == "UNDER_REVIEW"
+    # picking it up is not deciding it: still no verdict buttons, but now a panel
+    picked_up = reviewer_client.get(detail_url(under_review))
+    assert picked_up.context["can_review"] is True
+    assert picked_up.context["decision_actions"] == []
+    assert picked_up.context["approve_action"] is None
+
+
 def test_an_exit_with_no_registered_types_says_so_instead_of_a_dead_form(
     admin_client_,
     under_review,

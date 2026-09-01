@@ -603,10 +603,11 @@ class ABDMExitWorkflow(Workflow):
             guards=(GUARD_EXIT_GATE,),
             advances_round=True,
         ),
+        # picking an exit up is not deciding it, so whoever may review may do it
         ("SUBMITTED", "START_REVIEW"): TransitionSpec(
             "UNDER_REVIEW",
             ActorKind.STAFF,
-            PERM_APPROVE,
+            PERM_REVIEW,
         ),
         ("UNDER_REVIEW", "APPROVE"): TransitionSpec(
             "APPROVED",
