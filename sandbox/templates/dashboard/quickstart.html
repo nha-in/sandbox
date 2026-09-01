@@ -1,0 +1,61 @@
+{% comment %}
+  Prove the credentials work. Three languages, one call: exchange the client
+  credentials for a token.
+
+  `<details>` rather than tabs — the README allows either, and with JavaScript
+  off all three stay readable instead of one being stranded.
+
+  The secret is never interpolated. It is shown once, on a POST, and a snippet
+  is a thing people paste into chat logs and issue trackers.
+{% endcomment %}
+{% load i18n %}
+
+<div class="ui-card">
+  <div class="ui-card-header">
+    <h2 class="ui-card-title">{% translate "Prove your setup works" %}</h2>
+    <p class="ui-card-description">
+      {% translate "One call, in whichever language you are working in. Paste your own secret where the snippet says so." %}
+    </p>
+  </div>
+  <div class="ui-card-content space-y-2">
+    <details class="ui-picker" open>
+      <summary class="ui-picker-summary">cURL</summary>
+      <div class="ui-picker-panel">
+        <pre class="ui-code-block"><code>curl -X POST {{ gateway_base_url }}/v0.5/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{"clientId": "{{ credentials.client_id }}", "clientSecret": "&lt;your secret&gt;"}'</code></pre>
+      </div>
+    </details>
+    <details class="ui-picker">
+      <summary class="ui-picker-summary">Python</summary>
+      <div class="ui-picker-panel">
+        <pre class="ui-code-block"><code>import os, httpx
+
+response = httpx.post(
+    "{{ gateway_base_url }}/v0.5/sessions",
+    json={
+        "clientId": "{{ credentials.client_id }}",
+        "clientSecret": os.environ["ABDM_CLIENT_SECRET"],
+    },
+)
+response.raise_for_status()</code></pre>
+      </div>
+    </details>
+    <details class="ui-picker">
+      <summary class="ui-picker-summary">Node</summary>
+      <div class="ui-picker-panel">
+        <pre class="ui-code-block"><code>const response = await fetch("{{ gateway_base_url }}/v0.5/sessions", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    clientId: "{{ credentials.client_id }}",
+    clientSecret: process.env.ABDM_CLIENT_SECRET,
+  }),
+});</code></pre>
+      </div>
+    </details>
+    <p class="ui-meta">
+      {% translate "Read the secret from your environment rather than pasting it into a file — this is the one value we cannot show you again." %}
+    </p>
+  </div>
+</div>

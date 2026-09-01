@@ -385,3 +385,12 @@
 @utility ui-tick--on {
   @apply bg-primary;
 }
+
+/* ── Code block ──────────────────────────────────────────────────────────── */
+
+/* A snippet meant to be copied. Scrolls rather than wraps: a broken line in a
+   shell command is a command that does not run when pasted. */
+@utility ui-code-block {
+  @apply overflow-x-auto rounded-md bg-muted-background p-3;
+  @apply font-mono text-[12.5px] leading-relaxed text-foreground;
+}

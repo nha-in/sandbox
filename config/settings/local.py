@@ -98,3 +98,12 @@ AWS_S3_PUBLIC_ENDPOINT_URL = env.str(
 )
 # Your stuff...
 # ------------------------------------------------------------------------------
+
+# The endpoint the quickstart snippet tells an integrator to call. `.invalid` is
+# reserved and can never resolve, so a developer who copies it gets an obvious
+# failure rather than a plausible one. NHA supplies the real host before this
+# ships (handoff §6).
+SANDBOX_GATEWAY_BASE_URL = env.str(
+    "SANDBOX_GATEWAY_BASE_URL",
+    default="https://sandbox.abdm.invalid/gateway",
+)

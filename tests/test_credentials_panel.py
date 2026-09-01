@@ -8,9 +8,12 @@ the secret in plaintext in `sd_status.gen_securate` and emailed it as well.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from allauth.mfa.recovery_codes.internal import auth as recovery_codes_auth
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.urls import reverse
 
@@ -362,3 +365,21 @@ def _secret_from_response(response) -> str:
         system=ProvisionedSystem.KEYCLOAK,
     ).public_ref
     return next((value for value in values if value != client_id), "")
+
+
+def test_the_quickstart_never_interpolates_a_secret():
+    """A snippet is a thing people paste into chat logs and issue trackers.
+
+    Asserted against the template source, not a render: the secret exists for
+    one response only, so a passing render proves nothing about the round trip
+    where it does exist.
+    """
+    source = (
+        Path(settings.APPS_DIR) / "templates" / "dashboard" / "quickstart.html"
+    ).read_text()
+
+    for forbidden in ("revealed_secret", "client_secret", "initial_secret"):
+        assert forbidden not in source, (
+            f"quickstart.html references {forbidden}; the snippet must say "
+            "<your secret> and never carry the real one"
+        )

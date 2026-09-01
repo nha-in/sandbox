@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import cast
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404
@@ -607,6 +608,7 @@ class CredentialsView(ApplicationStepMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["page_title"] = _("Credentials")
+        context["gateway_base_url"] = settings.SANDBOX_GATEWAY_BASE_URL
         context.update(_credentials_context(self.application, self.request.user))
         return context
 

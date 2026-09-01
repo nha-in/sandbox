@@ -182,20 +182,25 @@ def role(db):
 
 
 @pytest.fixture
-def context(actors, application, document_a, milestone_m1, role, past_exit):
-    """What a route's `kwargs` callable receives when it builds URL arguments.
-
-    Organisations and products are reachable from these objects
-    (`application.product.organisation`), so they are not pre-loaded here.
-    """
+def objects(application, document_a, milestone_m1, role, past_exit):
+    """The rows a route's `kwargs` callable can name, in one bundle."""
     return {
-        **actors,
         "application": application,
         "past_exit": past_exit,
         DOCUMENT_A: document_a,
         MILESTONE_M1: milestone_m1,
         ROLE: role,
     }
+
+
+@pytest.fixture
+def context(actors, objects):
+    """What a route's `kwargs` callable receives when it builds URL arguments.
+
+    Organisations and products are reachable from these objects
+    (`application.product.organisation`), so they are not pre-loaded here.
+    """
+    return {**actors, **objects}
 
 
 @pytest.fixture

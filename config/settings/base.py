@@ -659,5 +659,10 @@ STAFF_MFA_REQUIRED = True
 #: ageing column; gates nothing, and is not a promise made to any applicant.
 REVIEW_TARGET_DAYS = env.int("REVIEW_TARGET_DAYS", default=7)
 
+#: The gateway an integrator's own software calls — not `WSO2_BASE_URL`, which
+#: is the admin API we provision through. Empty until NHA confirms it, and the
+#: quickstart hides itself rather than print an endpoint that would not answer.
+SANDBOX_GATEWAY_BASE_URL = env.str("SANDBOX_GATEWAY_BASE_URL", default="")
+
 assert_isolated_local_environment(DEBUG, DATABASES, REDIS_URL)
 assert_staff_mfa_is_required(DEBUG, STAFF_MFA_REQUIRED)
