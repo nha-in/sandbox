@@ -53,8 +53,8 @@ from sandbox.programmes import abdm
 from sandbox.utils.errors import DomainError
 from sandbox.workflow import engine
 from sandbox.workflow.registry import get_workflow
+from sandbox.workflow.selectors import deciding_reviews
 from sandbox.workflow.selectors import latest_send_back_comment
-from sandbox.workflow.selectors import reviews_for_round
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -515,7 +515,7 @@ class ExitReviewStepView(ExitStepMixin, TemplateView):
                 "wasa_expired": expired,
                 "evidence": exit_evidence(exit_application),
                 # a sent-back exit is answering comments it has to be able to read
-                "reviews": reviews_for_round(exit_application)
+                "reviews": deciding_reviews(exit_application)
                 if exit_application
                 else [],
             },
@@ -679,7 +679,7 @@ class PastExitView(ExitJourneyMixin, TemplateView):
                 "wasa": current_form_data(exit_application, "WASA"),
                 "documents": exit_documents(exit_application),
                 "granted": [labels.get(value, value) for value in approved],
-                "reviews": reviews_for_round(exit_application),
+                "reviews": deciding_reviews(exit_application),
                 "history": exit_application.transitions.select_related("actor"),
             },
         )

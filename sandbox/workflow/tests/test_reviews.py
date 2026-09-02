@@ -415,6 +415,25 @@ def test_a_send_back_with_nothing_written_reads_as_empty(submitted, reviewer):
     assert latest_send_back_comment(submitted) == ""
 
 
+def test_a_send_back_comment_survives_the_round_it_opens(submitted, reviewer):
+    """Sending back opens the next round, so the review that caused it sits in
+    the round just closed. Reading the current one returned nothing, and the
+    applicant was told to address comments the screen never showed."""
+    record_review(
+        application=submitted,
+        reviewer=reviewer,
+        decision=ReviewDecision.SEND_BACK,
+        comment="Add the HIU narrative.",
+    )
+    decider = grant(UserFactory.create(is_staff=True), "send_back_abdm")
+
+    transition(application=submitted, action="SEND_BACK", actor=decider)
+
+    submitted.refresh_from_db()
+    assert submitted.round == ROUND_TWO
+    assert latest_send_back_comment(submitted) == "Add the HIU narrative."
+
+
 def test_an_approval_is_not_quoted_as_a_send_back(submitted, reviewer):
     record_review(
         application=submitted,

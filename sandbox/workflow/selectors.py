@@ -130,18 +130,37 @@ def reviews_for_round(
     ).select_related("reviewer")
 
 
+def deciding_reviews(application: Application) -> QuerySet[WorkflowReview]:
+    """The opinions behind where the application now stands.
+
+    Sending back or rejecting opens the next round, so the reviews that caused
+    it belong to the round that has just closed — asking for the current one
+    returns nothing, which is how the applicant came to be told to address
+    comments that were never shown.
+
+    Read as "the latest round that carried reviews" rather than `round - 1`, so
+    it stays right for an application still being reviewed in its own round.
+    """
+    latest = (
+        WorkflowReview.objects.filter(application=application)
+        .order_by("-round")
+        .values_list("round", flat=True)
+        .first()
+    )
+    if latest is None:
+        return WorkflowReview.objects.none()
+    return reviews_for_round(application, latest)
+
+
 def latest_send_back_comment(application: Application) -> str:
     """What the applicant has to answer, in the reviewer's own words.
 
     Read from the review row, not the transition: `SEND_BACK` is review-driven,
     and the engine refuses a comment on a review-driven transition so the text
     has exactly one home.
-
-    The current round is the right one to quote — a send-back does not advance
-    it, so the application is still on the round whose comments it must answer.
     """
     review = (
-        reviews_for_round(application)
+        deciding_reviews(application)
         .filter(decision=ReviewDecision.SEND_BACK)
         .exclude(comment="")
         .first()
