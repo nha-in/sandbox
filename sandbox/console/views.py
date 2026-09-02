@@ -17,6 +17,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView
 from django.views.generic import ListView
 from django.views.generic import View
@@ -85,6 +86,29 @@ ACTION_LABELS = {
 #: the button style each decision carries. Send back is not destructive — the
 #: work comes back — but it is not the plain forward move either.
 _ACTION_VARIANTS = {"REJECT": "destructive", "SEND_BACK": "warning"}
+
+#: What each outcome costs the applicant. Stated beside the option itself,
+#: because the asymmetry between send back and reject is the thing a reviewer
+#: most needs before choosing (09-redesign §5.3).
+_EXIT_CONSEQUENCES = {
+    "APPROVE": _(
+        "Grants production for the solution types you tick below. Never revoked.",
+    ),
+    "REJECT": _(
+        "A new round, and a major fix voids the Safe-to-Host certificate — a "
+        "fresh audit before they can try again.",
+    ),
+    "SEND_BACK": _(
+        "Minutes for the applicant. The claim reopens, the round stays, and "
+        "the certificate is retained.",
+    ),
+}
+
+_ENROLMENT_CONSEQUENCES = {
+    "APPROVE": _("Provisioning starts and credentials are issued."),
+    "REJECT": _("Closes this application. They would start a new one."),
+    "SEND_BACK": _("Returns it for edits. The round does not advance."),
+}
 
 EXIT_WORKFLOW = "ABDM_EXIT"
 
@@ -195,6 +219,9 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                         "value": action,
                         "label": ACTION_LABELS[action],
                         "variant": _ACTION_VARIANTS.get(action, "default"),
+                        "consequence": (
+                            _EXIT_CONSEQUENCES if is_exit else _ENROLMENT_CONSEQUENCES
+                        ).get(action, ""),
                     }
                     for action in decisions
                 ],

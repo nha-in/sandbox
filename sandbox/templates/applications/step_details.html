@@ -6,7 +6,7 @@
   {% translate "Sandbox details" %}
 {% endblock step_title %}
 {% block step_description %}
-  {% blocktranslate with reference=application.reference %}Application {{ reference }}. Answers are saved as you go — you can stop half way and come back.{% endblocktranslate %}
+  {% blocktranslate with reference=application.reference %}Application {{ reference }}. What you pick here sets the ceiling on what you can ever take to production — a reviewer can narrow it, never widen it. Answers save as you go.{% endblocktranslate %}
 {% endblock step_description %}
 {% block step_content %}
   <form method="post" class="flex flex-col gap-4">

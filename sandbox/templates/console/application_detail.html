@@ -253,26 +253,32 @@
                 action="{% url 'console:decide' application.external_id %}">
             {% csrf_token %}
             <div class="ui-card-content space-y-4">
-              <div>
-                <label class="ui-label" for="decide-action">{% translate "Decision" %}</label>
-                <div class="ui-select-wrapper">
-                  <select class="ui-select" id="decide-action" name="action" required>
-                    <option value="">{% translate "Choose an action…" %}</option>
-                    {% for choice in decision_choices %}
-                      <option value="{{ choice.value }}" data-variant="{{ choice.variant }}">{{ choice.label }}</option>
-                    {% endfor %}
-                  </select>
+              {% comment %}
+                Radios rather than a dropdown: three outcomes with very
+                different costs to the integrator, each stating its own cost
+                where it is chosen. A list of all three consequences beside a
+                <select> made the reader match them up by hand.
+              {% endcomment %}
+              <fieldset>
+                <legend class="ui-label">{% translate "Decision" %}</legend>
+                <div class="mt-2 flex flex-col gap-2">
+                  {% for choice in decision_choices %}
+                    <label class="ui-outcome">
+                      <input type="radio"
+                             name="action"
+                             value="{{ choice.value }}"
+                             data-variant="{{ choice.variant }}"
+                             required />
+                      <span class="min-w-0">
+                        <span class="block font-medium text-foreground">{{ choice.label }}</span>
+                        {% if choice.consequence %}<span class="ui-meta mt-0.5 block">{{ choice.consequence }}</span>{% endif %}
+                      </span>
+                    </label>
+                  {% endfor %}
                 </div>
-              </div>
-              {% if exit_review %}
-                <ul class="ui-meta list-disc space-y-1 pl-4">
-                  <li>{% translate "Approving grants production access for the milestones claimed above, and never revokes an earlier grant." %}</li>
-                  <li>{% translate "Sending back leaves the round where it is; the applicant edits and resends, keeping their certificate." %}</li>
-                  <li>{% translate "Rejecting requires a fresh Safe-to-Host certificate before they can try again." %}</li>
-                </ul>
-              {% endif %}
+              </fieldset>
               <div>
-                <label class="ui-label" for="decide-comment">{% translate "Comment" %}</label>
+                <label class="ui-label" for="decide-comment">{% translate "Comment — recorded as your review" %}</label>
                 <textarea class="ui-textarea" id="decide-comment" name="comment" rows="3"></textarea>
               </div>
             </div>
@@ -282,6 +288,16 @@
               beside every option they read as though each one consumed them.
             {% endcomment %}
             {% if approval_fields %}
+              {% comment %}
+                Ships `hidden`: these fields belong to APPROVE alone, and open
+                beside Reject they read as though every option consumed them.
+
+                Known gap, not an oversight — with JavaScript off they stay
+                hidden while still required, so an approver gets a form that
+                will not submit and no message saying why. Fixing that properly
+                means a `<details>` per outcome or an `hx-get` fragment, which
+                is a bigger change than this branch should smuggle in.
+              {% endcomment %}
               <div id="approve-fields"
                    class="border-t border-border"
                    data-blocked="{{ approval_blocked|yesno:"1," }}"
@@ -336,8 +352,10 @@
   {{ block.super }}
   <script>
     (() => {
-      const action = document.getElementById("decide-action");
-      if (!action) return;
+      const form = document.getElementById("decide-form");
+      if (!form) return;
+      const radios = [...form.querySelectorAll('input[name="action"]')];
+      if (!radios.length) return;
       const fields = document.getElementById("approve-fields");
       const submit = document.getElementById("decide-submit");
       const hint = document.getElementById("decide-hint");
@@ -345,7 +363,8 @@
       const variants = ["ui-btn--default", "ui-btn--destructive", "ui-btn--warning"];
 
       const sync = () => {
-        const approving = action.value === "APPROVE";
+        const chosen = radios.find((radio) => radio.checked);
+        const approving = chosen?.value === "APPROVE";
         if (fields) {
           fields.hidden = !approving;
           // Hiding alone is not enough: a required control that is hidden but
@@ -355,7 +374,7 @@
           });
         }
         submit.disabled = approving && blocked;
-        const variant = action.selectedOptions[0]?.dataset.variant || "default";
+        const variant = chosen?.dataset.variant || "default";
         submit.classList.remove(...variants);
         submit.classList.add(`ui-btn--${variant}`);
         hint.textContent = approving && !blocked ?
@@ -363,7 +382,7 @@
           "";
       };
 
-      action.addEventListener("change", sync);
+      radios.forEach((radio) => radio.addEventListener("change", sync));
       sync();
     })();
   </script>

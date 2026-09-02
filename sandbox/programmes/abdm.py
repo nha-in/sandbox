@@ -271,6 +271,10 @@ class RegistrationForm(forms.Form):
         choices=RegistrationSolutionType.choices,
         widget=forms.CheckboxSelectMultiple,
         label=_("Solution type"),
+        help_text=_(
+            "Pick every type this product is. Only five of these can ever be "
+            "enabled on DHIS; the rest are for NHA's records.",
+        ),
     )
     solution_type_others = forms.CharField(
         required=False,
@@ -292,6 +296,10 @@ class RegistrationForm(forms.Form):
     use_case_narrative = forms.CharField(
         widget=forms.Textarea,
         label=_("Intent behind applying for sandbox"),
+        help_text=_(
+            "Reviewers read this first. Two or three plain sentences beat a "
+            "paragraph of marketing.",
+        ),
     )
 
     def clean(self):

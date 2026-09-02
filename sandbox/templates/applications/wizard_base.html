@@ -7,11 +7,15 @@
 {% endblock title %}
 {% block content %}
   <div class="mx-auto w-full max-w-2xl">
-    <ol class="mb-6 flex flex-wrap gap-2"
+    <ol class="mb-6 flex flex-wrap items-center gap-2"
         aria-label="{% translate 'Enrolment steps' %}">
       {% for value, label in steps %}
-        <li class="ui-badge {% if value == current_step %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
-            {% if value == current_step %}aria-current="step"{% endif %}>{{ forloop.counter }}. {{ label }}</li>
+        <li class="flex items-center gap-2 text-sm {% if value == current_step %}font-medium text-foreground{% else %}text-muted-foreground{% endif %}"
+            {% if value == current_step %}aria-current="step"{% endif %}>
+          <span class="ui-step-number {% if value == current_step %}ui-step-number--done{% endif %}">{{ forloop.counter }}</span>
+          {{ label }}
+          {% if not forloop.last %}<span class="ml-1 text-soft-foreground" aria-hidden="true">›</span>{% endif %}
+        </li>
       {% endfor %}
     </ol>
     <p class="mb-4 text-sm text-muted-foreground">

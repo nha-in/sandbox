@@ -394,3 +394,13 @@
   @apply overflow-x-auto rounded-md bg-muted-background p-3;
   @apply font-mono text-[12.5px] leading-relaxed text-foreground;
 }
+
+/* ── Outcome choice ──────────────────────────────────────────────────────── */
+
+/* A radio whose whole card is the target, for choices that carry a
+   consequence. The cost of the option belongs beside the option. */
+@utility ui-outcome {
+  @apply flex cursor-pointer items-start gap-3 rounded-md border border-border p-3;
+  @apply hover:bg-soft-background has-[:checked]:border-primary has-[:checked]:bg-primary/5;
+  @apply has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50;
+}
