@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 
 PAGE_SIZE = 25
 
+#: A draft has not been submitted to NHA: it is the applicant's unfinished work,
+#: not a reviewer's to read. Excluded here rather than hidden in the template, or
+#: a hand-typed `?state=DRAFT` would still list them.
+NOT_FOR_REVIEW = (ApplicationState.DRAFT,)
+
 
 def _matching(search: str, visible: Sequence[str]) -> QuerySet[Application]:
     """One definition of "matches the search", so the badges and the table can
@@ -38,7 +43,9 @@ def _matching(search: str, visible: Sequence[str]) -> QuerySet[Application]:
     `visible` is the actor's programmes: a team holds no authority over another
     programme's applications and has no business reading their evidence either.
     """
-    applications = Application.objects.filter(workflow_key__in=visible)
+    applications = Application.objects.filter(workflow_key__in=visible).exclude(
+        state__in=NOT_FOR_REVIEW,
+    )
     if search:
         applications = applications.filter(
             Q(reference__icontains=search)
@@ -89,7 +96,11 @@ def state_counts(visible: Sequence[str], search: str = "") -> dict[str, int]:
         .values("state")
         .annotate(total=Count("id"))
     }
-    return {state: counted.get(state, 0) for state in ApplicationState.values}
+    return {
+        state: counted.get(state, 0)
+        for state in ApplicationState.values
+        if state not in NOT_FOR_REVIEW
+    }
 
 
 #: states where the ball is in a reviewer's court. Deliberately not "everything

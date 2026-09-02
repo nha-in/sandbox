@@ -33,6 +33,7 @@ from sandbox.console.forms import ReviewForm
 from sandbox.console.forms import RoleForm
 from sandbox.console.forms import UserRolesForm
 from sandbox.console.mixins import ConsoleMixin
+from sandbox.console.selectors import NOT_FOR_REVIEW
 from sandbox.console.selectors import PAGE_SIZE
 from sandbox.console.selectors import asking_for
 from sandbox.console.selectors import exit_review
@@ -126,11 +127,16 @@ class QueueView(ConsoleMixin, ListView):
     template_name = "console/queue.html"
     context_object_name = "applications"
 
+    def selected_state(self) -> str:
+        # There is no "everything" tab: a reviewer opening the console is here
+        # for what has been submitted to them, not for a census.
+        return self.request.GET.get("state") or ApplicationState.SUBMITTED
+
     def get_queryset(self):
         after = self.request.GET.get("after")
         return queue(
             visible=workflows_visible_to(self.request.user),
-            state=self.request.GET.get("state", ""),
+            state=self.selected_state(),
             search=self.request.GET.get("q", "").strip(),
             after=int(after) if after and after.isdigit() else None,
         )[: PAGE_SIZE + 1]
@@ -156,8 +162,9 @@ class QueueView(ConsoleMixin, ListView):
         context["state_filters"] = [
             {"value": value, "label": label, "count": counts.get(value, 0)}
             for value, label in ApplicationState.choices
+            if value not in NOT_FOR_REVIEW
         ]
-        context["selected_state"] = self.request.GET.get("state", "")
+        context["selected_state"] = self.selected_state()
         context["search"] = self.request.GET.get("q", "")
         context["page_title"] = "Review queue"
         return context

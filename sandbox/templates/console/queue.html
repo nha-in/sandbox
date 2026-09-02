@@ -18,8 +18,6 @@
     {% endif %}
   </p>
   <div class="mb-6 flex flex-wrap gap-2">
-    <a class="ui-badge {% if not selected_state %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
-       href="{% url 'console:queue' %}{% if search %}?q={{ search }}{% endif %}">{% translate "All" %}</a>
     {% for filter in state_filters %}
       {% if filter.count or selected_state == filter.value %}
         <a class="ui-badge {% if selected_state == filter.value %}ui-badge--primary{% else %}ui-badge--neutral{% endif %} ui-badge--size-sm"
@@ -31,7 +29,7 @@
   </div>
   <form method="get" class="mb-6 flex flex-wrap items-end gap-3">
     {# the tabs above own the state; carry it or searching would clear it #}
-    {% if selected_state %}<input type="hidden" name="state" value="{{ selected_state }}" />{% endif %}
+    <input type="hidden" name="state" value="{{ selected_state }}" />
     <div class="grow sm:max-w-xs">
       <label class="ui-label" for="q">{% translate "Search" %}</label>
       <input class="ui-input"
@@ -41,7 +39,8 @@
              placeholder="{% translate 'SBX-2026-00001 or organisation' %}" />
     </div>
     <button class="ui-btn ui-btn--default ui-btn--size-default" type="submit">{% translate "Search" %}</button>
-    {% if selected_state or search %}
+    {% if search %}
+      {# back to the queue as it opens, not to an empty state that no longer exists #}
       <a class="ui-btn ui-btn--ghost ui-btn--size-default"
          href="{% url 'console:queue' %}">{% translate "Clear" %}</a>
     {% endif %}

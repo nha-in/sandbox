@@ -44,15 +44,30 @@ def detail_url(application):
 # Queue
 
 
-def test_queue_lists_applications(reviewer_client, submitted):
+def test_the_queue_opens_on_what_was_submitted(reviewer_client, submitted):
+    """There is no "everything" tab: a reviewer arrives for work sent to them."""
     response = reviewer_client.get(reverse("console:queue"))
 
     assert response.status_code == HTTP_OK
+    assert response.context["selected_state"] == ApplicationState.SUBMITTED
     assert submitted.reference in response.content.decode()
 
 
-def test_queue_filters_by_state(reviewer_client, submitted):
+def test_a_draft_is_not_the_console_to_read(reviewer_client, submitted):
+    """Unsubmitted work is the applicant's. Excluded from the queryset, not
+    just untabbed, so a hand-typed state cannot surface it either."""
     draft = ApplicationFactory.create(state=ApplicationState.DRAFT)
+
+    body = reviewer_client.get(
+        reverse("console:queue"),
+        {"state": ApplicationState.DRAFT},
+    ).content.decode()
+
+    assert draft.reference not in body
+
+
+def test_queue_filters_by_state(reviewer_client, submitted):
+    sent_back = ApplicationFactory.create(state=ApplicationState.SENT_BACK)
 
     body = reviewer_client.get(
         reverse("console:queue"),
@@ -60,7 +75,7 @@ def test_queue_filters_by_state(reviewer_client, submitted):
     ).content.decode()
 
     assert submitted.reference in body
-    assert draft.reference not in body
+    assert sent_back.reference not in body
 
 
 def test_queue_search_matches_reference(reviewer_client, submitted):
@@ -79,8 +94,8 @@ def test_searching_inside_a_state_stays_inside_it(reviewer_client, submitted):
     """The tabs own the state and the box owns the text. The box has to carry
     the state or searching silently widens the queue back to everything."""
     organisation = submitted.product.organisation
-    draft = ApplicationFactory.create(
-        state=ApplicationState.DRAFT,
+    sent_back = ApplicationFactory.create(
+        state=ApplicationState.SENT_BACK,
         product__organisation=organisation,
     )
 
@@ -90,7 +105,7 @@ def test_searching_inside_a_state_stays_inside_it(reviewer_client, submitted):
     ).content.decode()
 
     assert submitted.reference in body
-    assert draft.reference not in body
+    assert sent_back.reference not in body
 
 
 def test_the_selected_state_keeps_its_tab_when_it_matches_nothing(
@@ -327,15 +342,16 @@ def test_payload_is_rendered_as_labels_not_json(reviewer_client, submitted):
 
 def test_state_badges_show_their_own_count(reviewer_client, submitted):
     """Regression: the template rendered the whole counts dict on every badge."""
-    ApplicationFactory.create(state=ApplicationState.DRAFT)
+    ApplicationFactory.create(state=ApplicationState.SENT_BACK)
 
     response = reviewer_client.get(reverse("console:queue"))
     filters = {f["value"]: f["count"] for f in response.context["state_filters"]}
 
     assert filters[ApplicationState.SUBMITTED] == 1
-    assert filters[ApplicationState.DRAFT] == 1
+    assert filters[ApplicationState.SENT_BACK] == 1
     assert filters[ApplicationState.REJECTED] == 0
-    assert "'DRAFT':" not in response.content.decode()
+    assert ApplicationState.DRAFT not in filters
+    assert "'SENT_BACK':" not in response.content.decode()
 
 
 def test_a_state_with_nothing_in_it_gets_no_tab(reviewer_client, submitted):
@@ -347,9 +363,9 @@ def test_a_state_with_nothing_in_it_gets_no_tab(reviewer_client, submitted):
 
 
 def test_state_badges_count_only_what_the_search_shows(reviewer_client, submitted):
-    """A badge reading "Draft 1" beside a filtered table with no drafts sends a
-    reviewer hunting for a row that is not there."""
-    ApplicationFactory.create(state=ApplicationState.DRAFT)
+    """A badge reading "Sent back 1" beside a filtered table with none of them
+    sends a reviewer hunting for a row that is not there."""
+    ApplicationFactory.create(state=ApplicationState.SENT_BACK)
 
     response = reviewer_client.get(
         reverse("console:queue"),
@@ -358,4 +374,4 @@ def test_state_badges_count_only_what_the_search_shows(reviewer_client, submitte
 
     counts = {row["value"]: row["count"] for row in response.context["state_filters"]}
     assert counts[ApplicationState.SUBMITTED] == 1
-    assert counts[ApplicationState.DRAFT] == 0
+    assert counts[ApplicationState.SENT_BACK] == 0
