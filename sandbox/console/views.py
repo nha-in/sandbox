@@ -102,15 +102,15 @@ _EXIT_CONSEQUENCES = {
         "fresh audit before they can try again.",
     ),
     "SEND_BACK": _(
-        "Minutes for the applicant. The claim reopens, the round stays, and "
-        "the certificate is retained.",
+        "Minutes for the applicant. The claim reopens and the certificate is "
+        "retained — they confirm it still stands.",
     ),
 }
 
 _ENROLMENT_CONSEQUENCES = {
     "APPROVE": _("Provisioning starts and credentials are issued."),
     "REJECT": _("Closes this application. They would start a new one."),
-    "SEND_BACK": _("Returns it for edits. The round does not advance."),
+    "SEND_BACK": _("Returns it for edits. They resubmit for another look."),
 }
 
 EXIT_WORKFLOW = "ABDM_EXIT"
