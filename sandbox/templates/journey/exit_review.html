@@ -100,7 +100,7 @@
     </div>
   {% endif %}
   <div class="ui-card-footer flex items-center justify-between gap-3">
-    <a class="ui-btn ui-btn--ghost no-underline"
+    <a class="ui-btn ui-btn--ghost ui-btn--size-default no-underline"
        href="{% url 'applications:exit_wasa' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
     <form method="post" class="flex flex-col items-end gap-3">
       {% csrf_token %}
@@ -116,7 +116,7 @@
           {% for error in affirmation_form.still_valid.errors %}<p class="ui-error mt-1">{{ error }}</p>{% endfor %}
         </div>
       {% endif %}
-      <button class="ui-btn ui-btn--default"
+      <button class="ui-btn ui-btn--default ui-btn--size-default"
               type="submit"
               {% if wasa_expired %}disabled{% endif %}>{% translate "Request exit" %}</button>
     </form>

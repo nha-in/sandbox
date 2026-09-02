@@ -13,7 +13,11 @@
     No `novalidate`: a file input cannot be refilled by the server, so a round
     trip for a missing field silently clears whatever was chosen.
   {% endcomment %}
-  <form method="post" enctype="multipart/form-data">
+  {% comment %}
+    `ui-card`'s gap-6 only separates its own children, and a form wrapping the
+    content and the footer swallows it.
+  {% endcomment %}
+  <form method="post" enctype="multipart/form-data" class="flex flex-col gap-6">
     {% csrf_token %}
     <div class="ui-card-content flex flex-col gap-5">
       {% include "components/form_errors.html" with form=form %}
@@ -36,9 +40,9 @@
       {% endfor %}
     </div>
     <div class="ui-card-footer flex items-center justify-between gap-3">
-      <a class="ui-btn ui-btn--ghost no-underline"
+      <a class="ui-btn ui-btn--ghost ui-btn--size-default no-underline"
          href="{% url 'applications:exit_claim' external_id=application.external_id %}{{ org_query }}">{% translate "Back" %}</a>
-      <button class="ui-btn ui-btn--default" type="submit">{% translate "Save and continue" %}</button>
+      <button class="ui-btn ui-btn--default ui-btn--size-default" type="submit">{% translate "Save and continue" %}</button>
     </div>
   </form>
 {% endblock step_body %}

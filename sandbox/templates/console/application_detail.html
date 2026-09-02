@@ -232,7 +232,12 @@
             <h2 class="ui-card-title">{% translate "Your review" %}</h2>
             <p class="ui-card-description">{% translate "Advisory. It does not move the application." %}</p>
           </div>
+          {% comment %}
+            `ui-card`'s gap-6 only separates its own children, and a form
+            wrapping the content and the footer swallows it.
+          {% endcomment %}
           <form method="post"
+                class="flex flex-col gap-6"
                 action="{% url 'console:record_review' application.external_id %}">
             {% csrf_token %}
             <div class="ui-card-content space-y-4">
@@ -253,6 +258,7 @@
           </div>
           <form method="post"
                 id="decide-form"
+                class="flex flex-col gap-6"
                 action="{% url 'console:decide' application.external_id %}">
             {% csrf_token %}
             <div class="ui-card-content space-y-4">

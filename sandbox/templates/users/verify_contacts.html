@@ -18,58 +18,78 @@
           {% endif %}
         </p>
       </div>
-      <div class="ui-card-content flex flex-col gap-6">
+      <div class="ui-card-content flex flex-col gap-5">
         {% for item in items %}
-          <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between gap-4">
-              <span>{{ item.label }}: {{ item.identity|default:"—" }}</span>
+          <div class="flex flex-col gap-3 {% if not forloop.first %}border-t border-border pt-5{% endif %}">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <span class="ui-label">{{ item.label }}</span>
+                <p class="truncate text-sm text-foreground">{{ item.identity|default:"—" }}</p>
+              </div>
               {% if item.verified %}
-                <span class="ui-badge ui-badge--success">{% translate "Verified" %}</span>
+                <span class="ui-badge ui-badge--success ui-badge--size-sm shrink-0">{% translate "Verified" %}</span>
               {% else %}
-                <span class="ui-badge ui-badge--warning">{% translate "Not verified" %}</span>
+                <span class="ui-badge ui-badge--warning ui-badge--size-sm shrink-0">{% translate "Not verified" %}</span>
               {% endif %}
             </div>
             {% if not item.verified and item.identity %}
-              <form method="post" class="flex items-end gap-2">
+              {% comment %}
+                Code on its own row, the two actions splitting the one below it.
+                Sharing a single row left all three crowding each other while
+                the card's width went unused.
+              {% endcomment %}
+              <form method="post" class="flex flex-col gap-3">
                 {% csrf_token %}
                 <input type="hidden" name="channel" value="{{ item.channel }}" />
-                <label class="flex-1">
-                  <span class="sr-only">{% translate "Verification code" %}</span>
-                  <input type="text"
-                         name="code"
-                         inputmode="numeric"
-                         autocomplete="one-time-code"
-                         maxlength="6"
-                         class="ui-input w-full"
-                         placeholder="{% translate '6-digit code' %}" />
-                </label>
-                <button type="submit" name="verify" class="ui-btn ui-btn--default">{% translate "Verify" %}</button>
-                <button type="submit"
-                        name="send"
-                        class="ui-btn ui-btn--secondary"
-                        {% if item.cooldown %}disabled{% endif %}>
-                  {% if item.cooldown %}
-                    {% blocktranslate with seconds=item.cooldown %}Resend in {{ seconds }}s{% endblocktranslate %}
-                  {% else %}
-                    {% translate "Send code" %}
-                  {% endif %}
-                </button>
+                <label class="sr-only" for="code-{{ item.channel }}">{% translate "Verification code" %}</label>
+                <input id="code-{{ item.channel }}"
+                       type="text"
+                       name="code"
+                       inputmode="numeric"
+                       autocomplete="one-time-code"
+                       maxlength="6"
+                       class="ui-input w-full text-center tracking-[0.4em]"
+                       placeholder="000000" />
+                <div class="flex items-center gap-3">
+                  {% comment %}
+                    `ui-btn` alone has no height — the size modifier carries it,
+                    so without one these sat shorter than the field above.
+                  {% endcomment %}
+                  <button type="submit"
+                          name="verify"
+                          class="ui-btn ui-btn--default ui-btn--size-default flex-1">{% translate "Verify" %}</button>
+                  {% comment %}
+                    The wait is a sentence, not a button label: swapping the
+                    label to "Resend in 45s" resized the button on every tick.
+                  {% endcomment %}
+                  <button type="submit"
+                          name="send"
+                          class="ui-btn ui-btn--secondary ui-btn--size-default flex-1"
+                          {% if item.cooldown %}disabled{% endif %}>{% translate "Send code" %}</button>
+                </div>
+                {% if item.cooldown %}
+                  <p class="ui-hint">
+                    {% blocktranslate with seconds=item.cooldown %}You can ask for another code in {{ seconds }}s.{% endblocktranslate %}
+                  </p>
+                {% endif %}
               </form>
             {% endif %}
           </div>
         {% endfor %}
-        {% if all_verified %}
+      </div>
+      {% if all_verified %}
+        <div class="ui-card-footer">
           {% if is_organisation_member %}
-            <a class="ui-btn ui-btn--default"
+            <a class="ui-btn ui-btn--default ui-btn--size-default ui-btn--block"
                href="{% url 'applications:index' %}{{ org_query }}">{% translate "Continue to your applications" %}</a>
           {% elif not request.user.is_staff %}
-            <a class="ui-btn ui-btn--default"
+            <a class="ui-btn ui-btn--default ui-btn--size-default ui-btn--block"
                href="{% url 'organisations:create' %}">{% translate "Create your organisation" %}</a>
           {% else %}
-            <a class="ui-btn ui-btn--default" href="{% url 'console:queue' %}">{% translate "Go to the console" %}</a>
+            <a class="ui-btn ui-btn--default ui-btn--size-default ui-btn--block" href="{% url 'console:queue' %}">{% translate "Go to the console" %}</a>
           {% endif %}
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 {% endblock content %}
