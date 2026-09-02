@@ -258,6 +258,8 @@ def test_reviewer_can_record_a_review(reviewer_client, submitted):
 
 
 def test_the_tally_is_rendered(admin_client_, reviewer_client, submitted):
+    """Labelled, not the stored value: SEND_BACK beside "Provisioned" reads as
+    a different kind of thing entirely."""
     reviewer_client.post(
         reverse("console:record_review", kwargs={"external_id": submitted.external_id}),
         {"decision": ReviewDecision.SEND_BACK, "comment": "Needs the payer flow."},
@@ -265,7 +267,9 @@ def test_the_tally_is_rendered(admin_client_, reviewer_client, submitted):
 
     body = admin_client_.get(detail_url(submitted)).content.decode()
 
-    assert "SEND_BACK: 1" in body
+    # The raw value still appears as the radio's `value`, which is what the
+    # form posts; what must not appear is SEND_BACK as something to read.
+    assert "Send back: 1" in body
     assert "Needs the payer flow." in body
 
 

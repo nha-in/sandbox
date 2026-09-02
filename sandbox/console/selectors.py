@@ -11,6 +11,7 @@ from django.db.models import Count
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.utils.translation import ngettext
 
 from sandbox.applications.models import Application
 from sandbox.applications.models import ApplicationDocument
@@ -352,3 +353,42 @@ def humanised_history(application: Application) -> list[HistoryEntry]:
             ),
         )
     return entries
+
+
+def asking_for(application: Application) -> StrOrPromise:
+    """What this application wants, in a few words.
+
+    Shorter than the queue's version on purpose: beside the organisation name
+    in a page title, the full list of solution types buries the one word that
+    tells a reviewer which of the two workflows they are looking at.
+    """
+    if application.workflow_key == "ABDM_EXIT":
+        return _("exit to production")
+    return _("sandbox access")
+
+
+def review_subtitle(application: Application) -> StrOrPromise:
+    """Reference, round and age — the facts a reviewer orients by.
+
+    The age is the same read the queue ages on, so a row that looked urgent
+    there does not look ordinary once opened.
+    """
+    parts: list[str] = [application.reference]
+    if application.round > 1:
+        parts.append(str(_("Round %(round)s") % {"round": application.round}))
+    submitted = _submitted_at(application)
+    if submitted is not None:
+        waiting = (timezone.localdate() - timezone.localtime(submitted).date()).days
+        parts.append(
+            str(
+                ngettext(
+                    "submitted %(days)s day ago",
+                    "submitted %(days)s days ago",
+                    waiting,
+                )
+                % {"days": waiting},
+            )
+            if waiting
+            else str(_("submitted today")),
+        )
+    return " · ".join(parts)

@@ -34,12 +34,14 @@ from sandbox.console.forms import RoleForm
 from sandbox.console.forms import UserRolesForm
 from sandbox.console.mixins import ConsoleMixin
 from sandbox.console.selectors import PAGE_SIZE
+from sandbox.console.selectors import asking_for
 from sandbox.console.selectors import exit_review
 from sandbox.console.selectors import humanised_history
 from sandbox.console.selectors import payload_groups
 from sandbox.console.selectors import queue
 from sandbox.console.selectors import queue_rows
 from sandbox.console.selectors import registered_solution_types
+from sandbox.console.selectors import review_subtitle
 from sandbox.console.selectors import reviewer_flags
 from sandbox.console.selectors import state_counts
 from sandbox.console.services import delete_role
@@ -190,7 +192,14 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
         ceiling = registered_solution_types(application) if approve_apart else []
         context.update(
             {
-                "page_title": application.reference,
+                # Who and what, not the reference: a reviewer arrived here by
+                # clicking that reference and already knows it.
+                "page_title": _("%(organisation)s — %(asking_for)s")
+                % {
+                    "organisation": application.product.organisation.name,
+                    "asking_for": asking_for(application),
+                },
+                "page_subtitle": review_subtitle(application),
                 "breadcrumbs": [
                     {"label": "Queue", "url": reverse("console:queue")},
                     {"label": application.reference},
@@ -209,7 +218,10 @@ class ApplicationDetailView(ConsoleMixin, DetailView):
                     else []
                 ),
                 "reviews": reviews_for_round(application),
-                "tally": review_tally(application),
+                "tally": [
+                    {"label": ReviewDecision(decision).label, "count": count}
+                    for decision, count in review_tally(application).items()
+                ],
                 "round": current_round(application),
                 "review_form": ReviewForm(),
                 "can_start_review": START_REVIEW in allowed,

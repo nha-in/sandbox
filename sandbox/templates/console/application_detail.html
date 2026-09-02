@@ -186,13 +186,13 @@
         </div>
         <div class="ui-card-content space-y-4">
           <div class="flex flex-wrap gap-2">
-            {% for decision, count in tally.items %}
-              <span class="ui-badge ui-badge--neutral ui-badge--size-xs">{{ decision }}: {{ count }}</span>
+            {% for entry in tally %}
+              <span class="ui-badge ui-badge--neutral ui-badge--size-xs">{{ entry.label }}: {{ entry.count }}</span>
             {% endfor %}
           </div>
           {% for review in reviews %}
             <div class="border-t border-border pt-3 text-sm">
-              <p class="font-medium text-foreground">{{ review.reviewer.email }} · {{ review.decision }}</p>
+              <p class="font-medium text-foreground">{{ review.reviewer.email }} · {{ review.get_decision_display }}</p>
               <p class="text-muted-foreground">{{ review.comment }}</p>
             </div>
           {% empty %}
