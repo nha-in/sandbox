@@ -166,6 +166,20 @@ def registered_solution_types(exit_application: Application) -> list[tuple[str, 
     ]
 
 
+def evidence_rows(exit_application: Application) -> list[dict[str, Any]]:
+    """Evidence with the names the applicant uploaded it under.
+
+    `exit_documents` keys on the stored kind, and the console was printing that
+    key: the reviewer read AUDIT_CERTIFICATE while the applicant, on the same
+    document, read "Safe-to-Host (WASA) certificate".
+    """
+    rows: list[dict[str, Any]] = []
+    for kind, documents in exit_documents(exit_application).items():
+        label = abdm.DOCUMENT_KIND_LABELS.get(abdm.DocumentKind(kind), kind)
+        rows.extend({"label": label, "document": document} for document in documents)
+    return rows
+
+
 def exit_review(exit_application: Application) -> dict[str, Any]:
     """What the reviewer decides on: the claim, the WASA, and the evidence."""
     claim = current_form_data(exit_application, "EXIT_CLAIM")
@@ -173,7 +187,7 @@ def exit_review(exit_application: Application) -> dict[str, Any]:
         "covers": claim.get("covers", []),
         "summary": claim.get("summary", ""),
         "wasa": current_form_data(exit_application, "WASA"),
-        "documents": exit_documents(exit_application),
+        "documents": evidence_rows(exit_application),
         "decision_form": abdm.ExitDecisionForm(
             registered_choices=registered_solution_types(exit_application),
         ),
@@ -330,11 +344,22 @@ _HISTORY_SENTENCES: dict[str, StrOrPromise] = {
 }
 
 
+#: The weight each move carries, so a rejection does not read like a submission.
+_HISTORY_VARIANTS = {
+    "APPROVE": "success",
+    "REJECT": "destructive",
+    "SEND_BACK": "warning",
+    "SUBMIT": "primary",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class HistoryEntry:
     transition: Any
     sentence: StrOrPromise
     raw: str
+    #: careui badge variant, so the dot beside an entry carries its weight
+    variant: str
 
 
 def humanised_history(application: Application) -> list[HistoryEntry]:
@@ -350,6 +375,7 @@ def humanised_history(application: Application) -> list[HistoryEntry]:
                     transition.action,
                 ),
                 raw=f"{raw} · {transition.action}",
+                variant=_HISTORY_VARIANTS.get(transition.action, "neutral"),
             ),
         )
     return entries

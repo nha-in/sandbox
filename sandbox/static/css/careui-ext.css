@@ -404,3 +404,27 @@
   @apply hover:bg-soft-background has-[:checked]:border-primary has-[:checked]:bg-primary/5;
   @apply has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50;
 }
+
+/* ── History dot ─────────────────────────────────────────────────────────── */
+
+/* The marker beside a timeline entry. Decorative: the sentence next to it
+   already says what happened, so it is not announced. */
+@utility ui-history-dot {
+  @apply mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground/40;
+}
+
+@utility ui-history-dot--primary {
+  @apply bg-primary;
+}
+
+@utility ui-history-dot--success {
+  @apply bg-green-600;
+}
+
+@utility ui-history-dot--warning {
+  @apply bg-orange-500;
+}
+
+@utility ui-history-dot--destructive {
+  @apply bg-destructive;
+}

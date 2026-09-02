@@ -86,17 +86,18 @@
             </dl>
             <h3 class="ui-label mt-4">{% translate "Evidence" %}</h3>
             <ul class="ui-file-list">
-              {% for kind, documents in exit_review.documents.items %}
-                {% for document in documents %}
-                  <li class="ui-file-item">
-                    {# new tab: a PDF opens in the viewer, and the review it belongs to stays open behind it #}
-                    <a class="truncate"
-                       target="_blank"
-                       rel="noopener"
-                       href="{% url 'console:document_download' document.external_id %}">{{ kind }} — {{ document.filename }}</a>
-                    <span class="shrink-0 tabular-nums">{{ document.size|filesizeformat }}</span>
-                  </li>
-                {% endfor %}
+              {% for row in exit_review.documents %}
+                <li class="ui-file-item">
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium text-foreground">{{ row.label }}</span>
+                    <span class="ui-meta block truncate">{{ row.document.filename }} · {{ row.document.size|filesizeformat }}</span>
+                  </span>
+                  {# new tab: a PDF opens in the viewer, and the review it belongs to stays open behind it #}
+                  <a class="shrink-0 underline"
+                     target="_blank"
+                     rel="noopener"
+                     href="{% url 'console:document_download' row.document.external_id %}">{% translate "Open" %}</a>
+                </li>
               {% empty %}
                 <li class="text-sm text-muted-foreground">{% translate "No documents attached." %}</li>
               {% endfor %}
@@ -141,16 +142,18 @@
         <div class="ui-card-content">
           <ol class="space-y-3">
             {% for entry in history %}
-              <li class="flex items-start justify-between gap-4 text-sm">
-                <div>
+              <li class="flex items-start gap-3 text-sm">
+                <span class="ui-history-dot ui-history-dot--{{ entry.variant }}"></span>
+                <div class="min-w-0 flex-1">
                   <span class="font-medium text-foreground">{{ entry.sentence }}</span>
                   {% if entry.transition.comment %}<p class="mt-1 text-muted-foreground">{{ entry.transition.comment }}</p>{% endif %}
-                  <p class="ui-meta mt-0.5 font-mono">{{ entry.raw }}</p>
-                </div>
-                <div class="shrink-0 text-right text-xs text-muted-foreground">
-                  {{ entry.transition.actor.email|default:_("system") }}
-                  <br />
-                  {{ entry.transition.created_date|date:"j M Y, H:i" }}
+                  <p class="ui-meta mt-0.5">
+                    {{ entry.transition.actor.email|default:_("system") }} ·
+                    {% blocktranslate with ago=entry.transition.created_date|timesince trimmed %}
+                      {{ ago }} ago
+                    {% endblocktranslate %}
+                    · <span class="font-mono">{{ entry.raw }}</span>
+                  </p>
                 </div>
               </li>
             {% empty %}
