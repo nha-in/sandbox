@@ -1,6 +1,14 @@
 {% extends "layouts/settings.html" %}
 
-{% load i18n %}
+{% comment %}
+  Your account, and the controls that protect it.
+
+  The name is edited here rather than on a page of its own: one field behind a
+  round trip was a screen that existed only to hold a single input. Email is
+  not editable here — changing it needs a verification code, which is allauth's
+  own flow, so this links to it instead of pretending otherwise.
+{% endcomment %}
+{% load careui i18n %}
 
 {% block title %}
   {{ object.name|default:object.email }}
@@ -8,34 +16,64 @@
 {% block settings_content %}
   <div class="ui-card">
     <div class="ui-card-header">
-      <h1 class="ui-card-title">{{ object.name|default:object.email }}</h1>
-      <p class="ui-card-description">{% translate "Your account details." %}</p>
+      <h2 class="ui-card-title">{% translate "Your profile" %}</h2>
+      <p class="ui-card-description">{% translate "Your account, separate from the organisations you belong to." %}</p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="ui-card-content flex flex-col gap-4">
+        {% include "components/form_errors.html" %}
+        {% ui_field form.name %}
+        <div>
+          <span class="ui-label">{% translate "Email" %}</span>
+          <p class="text-sm text-foreground">{{ object.email }}</p>
+          <span class="ui-hint">{% translate "Changing this needs a new verification code." %}</span>
+        </div>
+      </div>
+      <div class="ui-card-footer flex flex-wrap items-center justify-between gap-3">
+        <a class="text-sm underline" href="{% url 'account_email' %}">{% translate "Manage email addresses" %}</a>
+        <button type="submit" class="ui-btn ui-btn--default ui-btn--size-sm">{% translate "Save" %}</button>
+      </div>
+    </form>
+  </div>
+  <div class="ui-card mt-6">
+    <div class="ui-card-header">
+      <h2 class="ui-card-title">{% translate "Security" %}</h2>
     </div>
     <div class="ui-card-content">
-      <dl class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <dt class="ui-label">{% translate "Name" %}</dt>
-          <dd class="text-sm text-foreground">
-            {{ object.name|default:"—" }}
-          </dd>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3 first:pt-0 last:border-b-0 last:pb-0">
+        <div class="min-w-0">
+          <p class="font-medium text-foreground">{% translate "Two-factor authentication" %}</p>
+          <p class="ui-meta mt-0.5">
+            {% if has_totp %}
+              {% translate "On. Required for NHA staff, recommended for everyone else." %}
+            {% else %}
+              {% translate "Off. Required for NHA staff, recommended for everyone else." %}
+            {% endif %}
+          </p>
         </div>
-        <div>
-          <dt class="ui-label">{% translate "Email" %}</dt>
-          <dd class="text-sm text-foreground">
-            {{ object.email }}
-          </dd>
-        </div>
-      </dl>
-    </div>
-    {% if object == request.user %}
-      <div class="ui-card-footer">
-        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-           href="{% url 'users:update' %}">{% translate "Edit profile" %}</a>
-        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-           href="{% url 'account_email' %}">{% translate "Email addresses" %}</a>
-        <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-           href="{% url 'mfa_index' %}">{% translate "Two-factor authentication" %}</a>
+        <span class="flex shrink-0 items-center gap-3">
+          {% if has_totp %}
+            <span class="ui-badge ui-badge--success ui-badge--size-sm">{% translate "On" %}</span>
+          {% endif %}
+          <a class="ui-btn ui-btn--secondary ui-btn--size-sm no-underline"
+             href="{% url 'mfa_index' %}">
+            {% if has_totp %}
+              {% translate "Manage" %}
+            {% else %}
+              {% translate "Set up" %}
+            {% endif %}
+          </a>
+        </span>
       </div>
-    {% endif %}
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0 last:pb-0">
+        <div class="min-w-0">
+          <p class="font-medium text-foreground">{% translate "Password" %}</p>
+          <p class="ui-meta mt-0.5">{% translate "Used with your email address to sign in." %}</p>
+        </div>
+        <a class="ui-btn ui-btn--secondary ui-btn--size-sm shrink-0 no-underline"
+           href="{% url 'account_change_password' %}">{% translate "Change" %}</a>
+      </div>
+    </div>
   </div>
 {% endblock settings_content %}

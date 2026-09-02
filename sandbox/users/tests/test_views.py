@@ -4,6 +4,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import pytest
+from allauth.mfa.models import Authenticator
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.models import AnonymousUser
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
     from sandbox.users.models import User
 
 pytestmark = pytest.mark.django_db
+
+HTTP_REDIRECT = 302
 
 
 class TestUserUpdateView:
@@ -138,3 +141,37 @@ def test_unverified_user_is_not_offered_the_way_out(client):
     response = client.get(reverse("users:verify_contacts"))
 
     assert response.context["all_verified"] is False
+
+
+class TestProfileEditing:
+    """The name is edited on the account page itself, not a page of its own.
+
+    Verified users throughout: `VerificationRequiredMiddleware` bounces an
+    unverified one before the view runs, so an unverified fixture would test
+    the middleware and quietly report nothing about this screen.
+    """
+
+    def test_saving_a_name_updates_the_account(self, client):
+        user = VerifiedUserFactory.create()
+        client.force_login(user)
+
+        response = client.post(user.get_absolute_url(), {"name": "Priya Nair"})
+
+        user.refresh_from_db()
+        assert response.status_code == HTTP_REDIRECT
+        assert user.name == "Priya Nair"
+
+    def test_the_security_panel_reports_whether_two_factor_is_on(self, client):
+        """Read from allauth's own table, because that is what the login checks."""
+        user = VerifiedUserFactory.create()
+        client.force_login(user)
+
+        assert client.get(user.get_absolute_url()).context["has_totp"] is False
+
+        Authenticator.objects.create(
+            user=user,
+            type=Authenticator.Type.TOTP,
+            data={},
+        )
+
+        assert client.get(user.get_absolute_url()).context["has_totp"] is True

@@ -1,5 +1,6 @@
 from allauth.account.forms import SignupForm
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from django import forms
 from django.contrib.auth import forms as admin_forms
 from django.forms import CharField
 from django.forms import EmailField
@@ -53,3 +54,14 @@ class UserSocialSignupForm(SocialSignupForm):
     Default fields will be added automatically.
     See UserSignupForm otherwise.
     """
+
+
+class UserProfileForm(forms.ModelForm):
+    """The account screen's own form. Email is not here: changing it needs a
+    verification round trip, which is allauth's email screen."""
+
+    name = CharField(label=_("Name"), max_length=255, required=False)
+
+    class Meta:
+        model = User
+        fields = ["name"]

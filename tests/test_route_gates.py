@@ -169,7 +169,13 @@ ROUTES: dict[str, Route] = {
     "users:verify_contacts": Route(Access.AUTHENTICATED),
     "users:redirect": Route(Access.AUTHENTICATED),
     "users:update": Route(Access.AUTHENTICATED),
-    "users:detail": Route(Access.SELF_ONLY, kwargs=_member_external_id),
+    # POST since the name is edited on the page itself: another user's id must
+    # refuse the write, not only the read.
+    "users:detail": Route(
+        Access.SELF_ONLY,
+        kwargs=_member_external_id,
+        methods=("GET", "POST"),
+    ),
     # The front door: any signed-in user with no tenant needs to be able to make
     # one, or their account is a dead end.
     "organisations:create": Route(Access.AUTHENTICATED, methods=("GET",)),
@@ -465,8 +471,11 @@ def _assert_self_resource(actor, response, where):
 
 
 def _assert_self_only(actor, response, where):
+    # Not `== 200`: a self-only route may now take a POST, and a successful
+    # write redirects. The gate's question is whether the owner is refused,
+    # and a redirect is not a refusal — same shape as `_assert_org_scoped`.
     if actor == ORG_MEMBER:
-        assert response.status_code == HTTP_OK, where
+        assert response.status_code not in DENIED_CODES, where
     else:
         assert response.status_code == HTTP_NOT_FOUND, f"{where}: {NOT_FOUND_REQUIRED}"
 

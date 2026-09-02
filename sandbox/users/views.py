@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from allauth.mfa.models import Authenticator
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
@@ -15,6 +16,7 @@ from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
 from sandbox.integrations.ports import NotificationChannel
+from sandbox.users.forms import UserProfileForm
 from sandbox.users.models import User
 from sandbox.users.services import request_otp
 from sandbox.users.services import seconds_until_resend
@@ -39,6 +41,29 @@ class UserDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self) -> QuerySet[User]:
         assert self.request.user.is_authenticated  # type guard
         return User.objects.filter(external_id=self.request.user.external_id)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form"] = UserProfileForm(instance=self.object)
+        # Read from allauth's own table rather than a flag of our own: it is
+        # the thing the login actually checks.
+        context["has_totp"] = Authenticator.objects.filter(
+            user=self.object,
+            type=Authenticator.Type.TOTP,
+        ).exists()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        """Editing your name is the screen's own act, not a second page."""
+        self.object = self.get_object()
+        form = UserProfileForm(request.POST, instance=self.object)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("Your profile has been updated."))
+            return redirect(self.object.get_absolute_url())
+        context = self.get_context_data(object=self.object)
+        context["form"] = form
+        return self.render_to_response(context)
 
 
 user_detail_view = UserDetailView.as_view()
