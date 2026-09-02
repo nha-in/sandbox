@@ -70,6 +70,34 @@ def test_phone_verification_goes_out_over_sms_and_never_by_email():
     assert mail.outbox == []  # a phone number must never be emailed
 
 
+def test_sms_uses_the_temporary_static_code():
+    """TEMPORARY: no SMS provider exists, so the code is pinned to
+    OTP_SMS_STATIC_CODE. Delete this test when SMS delivery is wired up."""
+    user = UserFactory.create(phone=PHONE)
+    challenge = request_otp(identity=PHONE, channel=NotificationChannel.SMS)
+
+    assert _sent_code() == "12345"
+    verify_otp(
+        user=user,
+        identity=PHONE,
+        channel=NotificationChannel.SMS,
+        challenge=challenge,
+        code="12345",
+    )
+
+    user.refresh_from_db()
+    assert user.phone_verified_at is not None
+
+
+@override_settings(OTP_SMS_STATIC_CODE="")
+def test_sms_codes_are_random_once_the_static_code_is_unset():
+    request_otp(identity=PHONE, channel=NotificationChannel.SMS)
+
+    code = _sent_code()
+    assert code != "12345"
+    assert len(code) == 6  # noqa: PLR2004
+
+
 def test_an_otp_is_logged_as_delivered_without_recording_the_code():
     """Legacy's `notification_audit` kept the rendered body, code and all."""
     user = UserFactory.create(email="applicant@example.com")

@@ -57,6 +57,10 @@ def send_otp(
 
     transaction_id = uuid.uuid4().hex
     code = f"{secrets.randbelow(1_000_000):06d}"
+    if channel is NotificationChannel.SMS and settings.OTP_SMS_STATIC_CODE:
+        # TEMPORARY: SMS delivery is not wired up, so the code would never
+        # reach anyone. See OTP_SMS_STATIC_CODE in settings.
+        code = settings.OTP_SMS_STATIC_CODE
     ttl = settings.OTP_TTL_SECONDS
     cache.set(
         _CHALLENGE_KEY.format(transaction_id=transaction_id),

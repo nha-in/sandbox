@@ -592,6 +592,10 @@ OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
 OTP_ISSUE_MAX = env.int("OTP_ISSUE_MAX", default=5)
 OTP_ISSUE_WINDOW_SECONDS = env.int("OTP_ISSUE_WINDOW_SECONDS", default=600)
 OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=90)
+# TEMPORARY: no SMS provider is wired up yet, so SMS codes accept this fixed
+# value instead of a random one. Set to "" to restore random codes once SMS
+# delivery exists.
+OTP_SMS_STATIC_CODE = env.str("OTP_SMS_STATIC_CODE", default="12345")
 
 # UPLOADS
 # ------------------------------------------------------------------------------
