@@ -178,7 +178,7 @@ def test_re_running_the_teardown_is_harmless(
     application = approve()
     _tear_down(application, django_capture_on_commit_callbacks)
 
-    deprovision_keycloak.delay(application.pk, "cid")
+    deprovision_keycloak.delay(application.pk)
 
     assert set(_states(application).values()) == {ProvisionedResourceState.DISABLED}
 

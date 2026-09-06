@@ -7,9 +7,10 @@ systems instead of creating a second set. Legacy ran all of this inline in the
 approval request with no ledger, so a retry produced duplicate clients and
 subscriptions, and a half-provisioned application still read as approved.
 
-Every task takes the correlation id explicitly and rebinds it. `ContextVar` does
-not survive `on_commit` → broker → worker, so without this the approval and the
-provisioning it caused would carry different ids and could not be joined.
+The correlation id travels as a message header, bound before every task body
+by `config.celery_app`. A `ContextVar` does not survive `on_commit` → broker →
+worker, so it has to cross as data — but as a header rather than an argument,
+which is what stops a task from being written that quietly forgets to carry it.
 """
 
 from __future__ import annotations
@@ -45,7 +46,6 @@ from sandbox.notifications.hooks import send
 from sandbox.notifications.models import TemplateKey
 from sandbox.organisations.models import ProvisioningRun
 from sandbox.utils.correlation import get_correlation_id
-from sandbox.utils.correlation import set_correlation_id
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -173,21 +173,15 @@ def _fail(
 def _step(
     task: Task,
     application_id: int,
-    correlation_id: str,
     system: ProvisionedSystem,
     call: Callable[[ApplicationInstance], None],
 ) -> int:
-    """Shared shape of every step: rebind, skip what is settled, call, or fail.
+    """Shared shape of every step: skip what is settled, call, or fail.
 
     `ImproperlyConfigured` is caught alongside the adapter errors on purpose — a
     missing API-name list is not a transient fault, and retrying it five times
     over half an hour only delays the operator finding out.
     """
-    # Rebound per task, not per chain: each link is its own message, and a
-    # worker is a long-lived process, so the ContextVar arrives holding whatever
-    # the *previous* task left in it. Without this the outbound calls `http.py`
-    # stamps would carry another application's id.
-    set_correlation_id(correlation_id)
     application = ApplicationInstance.objects.get(pk=application_id)
 
     # An earlier link already closed this attempt; later links must not carry
@@ -224,7 +218,7 @@ def _step(
 
 
 @shared_task(bind=True, max_retries=None)
-def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
+def provision_keycloak(task: Task, application_id: int) -> int:
     """First link in the chain: the client every later step is named after."""
 
     def run(application: ApplicationInstance) -> None:
@@ -244,13 +238,7 @@ def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> 
             secret_ref=store_secret(created.initial_secret),
         )
 
-    return _step(
-        task,
-        application_id,
-        correlation_id,
-        ProvisionedSystem.KEYCLOAK,
-        run,
-    )
+    return _step(task, application_id, ProvisionedSystem.KEYCLOAK, run)
 
 
 def _live_secret_ref(client: ProvisionedResource) -> str:
@@ -272,7 +260,7 @@ def _live_secret_ref(client: ProvisionedResource) -> str:
 
 
 @shared_task(bind=True, max_retries=None)
-def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
+def provision_wso2(task: Task, application_id: int) -> int:
     def run(application: ApplicationInstance) -> None:
         client = _ledger_row(application, ProvisionedSystem.KEYCLOAK)
         if client is None:
@@ -301,11 +289,11 @@ def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
             public_ref=created.name,
         )
 
-    return _step(task, application_id, correlation_id, ProvisionedSystem.WSO2, run)
+    return _step(task, application_id, ProvisionedSystem.WSO2, run)
 
 
 @shared_task(bind=True, max_retries=None)
-def provision_hiecm(task: Task, application_id: int, correlation_id: str) -> int:
+def provision_hiecm(task: Task, application_id: int) -> int:
     def run(application: ApplicationInstance) -> None:
         client = _ledger_row(application, ProvisionedSystem.KEYCLOAK)
         if client is None:
@@ -329,13 +317,12 @@ def provision_hiecm(task: Task, application_id: int, correlation_id: str) -> int
             public_ref=bridge_id,
         )
 
-    return _step(task, application_id, correlation_id, ProvisionedSystem.HIECM, run)
+    return _step(task, application_id, ProvisionedSystem.HIECM, run)
 
 
 @shared_task
-def complete_provisioning(application_id: int, correlation_id: str) -> int:
+def complete_provisioning(application_id: int) -> int:
     """Only the ledger decides this — never "the chain got this far"."""
-    set_correlation_id(correlation_id)
     application = ApplicationInstance.objects.get(pk=application_id)
 
     done = set(
@@ -412,11 +399,16 @@ def enqueue_chain(
     )
 
     def _send() -> None:
+        # `.si`, not `.s`: an immutable signature ignores the previous task's
+        # return value, so each link states the application it is for instead
+        # of inheriting it. With `.s` the chain only holds together because
+        # every exit path in `_step` happens to `return application_id`, and a
+        # link that returned anything else would hand the next one a bad pk.
         (
-            provision_keycloak.s(application_id, correlation_id)
-            | provision_wso2.s(correlation_id)
-            | provision_hiecm.s(correlation_id)
-            | complete_provisioning.s(correlation_id)
+            provision_keycloak.si(application_id)
+            | provision_wso2.si(application_id)
+            | provision_hiecm.si(application_id)
+            | complete_provisioning.si(application_id)
         ).delay()
 
     transaction.on_commit(_send)
@@ -457,11 +449,9 @@ def _teardown_failed(
 def _teardown_step(
     task: Task,
     application_id: int,
-    correlation_id: str,
     system: ProvisionedSystem,
     call: Callable[[ApplicationInstance, ProvisionedResource], None],
 ) -> int:
-    set_correlation_id(correlation_id)
     application = ApplicationInstance.objects.get(pk=application_id)
 
     # Missing means nothing was ever created and DISABLED means a previous run
@@ -490,23 +480,17 @@ def _teardown_step(
 
 
 @shared_task(bind=True, max_retries=None)
-def deprovision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
+def deprovision_keycloak(task: Task, application_id: int) -> int:
     """First, because it is the only step that actually stops token issuance."""
 
     def run(_application: ApplicationInstance, row: ProvisionedResource) -> None:
         get_idp_admin().disable_client(row.external_ref)
 
-    return _teardown_step(
-        task,
-        application_id,
-        correlation_id,
-        ProvisionedSystem.KEYCLOAK,
-        run,
-    )
+    return _teardown_step(task, application_id, ProvisionedSystem.KEYCLOAK, run)
 
 
 @shared_task(bind=True, max_retries=None)
-def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
+def deprovision_wso2(task: Task, application_id: int) -> int:
     def run(application: ApplicationInstance, row: ProvisionedResource) -> None:
         # The same source provisioning subscribed from. If the configured set has
         # changed since, the difference is left behind for P4's sweep rather than
@@ -516,39 +500,26 @@ def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> in
             api_names_for(application.application_type),
         )
 
-    return _teardown_step(
-        task,
-        application_id,
-        correlation_id,
-        ProvisionedSystem.WSO2,
-        run,
-    )
+    return _teardown_step(task, application_id, ProvisionedSystem.WSO2, run)
 
 
 @shared_task(bind=True, max_retries=None)
-def deprovision_hiecm(task: Task, application_id: int, correlation_id: str) -> int:
+def deprovision_hiecm(task: Task, application_id: int) -> int:
     def run(_application: ApplicationInstance, row: ProvisionedResource) -> None:
         get_bridge_registry().deactivate_bridge(row.external_ref)
 
-    return _teardown_step(
-        task,
-        application_id,
-        correlation_id,
-        ProvisionedSystem.HIECM,
-        run,
-    )
+    return _teardown_step(task, application_id, ProvisionedSystem.HIECM, run)
 
 
 def enqueue_teardown(application: ApplicationInstance) -> None:
     """Schedule the reverse chain for after the caller's transaction commits."""
     application_id = application.pk
-    correlation_id = get_correlation_id()
 
     def _send() -> None:
         (
-            deprovision_keycloak.s(application_id, correlation_id)
-            | deprovision_wso2.s(correlation_id)
-            | deprovision_hiecm.s(correlation_id)
+            deprovision_keycloak.si(application_id)
+            | deprovision_wso2.si(application_id)
+            | deprovision_hiecm.si(application_id)
         ).delay()
 
     transaction.on_commit(_send)

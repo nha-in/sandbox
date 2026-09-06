@@ -30,7 +30,6 @@ from sandbox.integrations.tasks import provision_wso2
 from sandbox.notifications.models import Message
 from sandbox.notifications.models import TemplateKey
 from sandbox.organisations.models import ProvisioningRun
-from sandbox.utils.correlation import get_correlation_id
 from sandbox.utils.correlation import set_correlation_id
 
 pytestmark = pytest.mark.django_db
@@ -231,7 +230,7 @@ def test_a_retryable_failure_retries_instead_of_closing_the_attempt(under_review
     always_fail(ExternalSystem.KEYCLOAK, code="REALM_DOWN", retryable=True)
 
     with pytest.raises(Retry):
-        provision_keycloak.delay(under_review.pk, "cid")
+        provision_keycloak.delay(under_review.pk)
 
     assert _run(under_review).status == ProvisioningRun.Status.RUNNING
     assert not ProvisionedResource.objects.filter(application=under_review).exists()
@@ -256,7 +255,7 @@ def test_completion_refuses_an_incomplete_ledger(under_review):
     """
     ProvisioningRun.objects.create(application=under_review)
 
-    complete_provisioning.delay(under_review.pk, "cid")
+    complete_provisioning.delay(under_review.pk)
 
     run = _run(under_review)
     assert run.status == ProvisioningRun.Status.FAILED
@@ -412,7 +411,7 @@ def test_an_expired_parked_secret_is_re_minted_rather_than_dead_ending(under_rev
     never succeed: Keycloak is already ACTIVE so it is skipped, and nothing else
     mints a replacement secret.
     """
-    provision_keycloak.delay(under_review.pk, "cid")
+    provision_keycloak.delay(under_review.pk)
 
     row = ProvisionedResource.objects.get(
         application=under_review,
@@ -422,7 +421,7 @@ def test_an_expired_parked_secret_is_re_minted_rather_than_dead_ending(under_rev
     stale_secret = resolve_secret(expired_ref, ExternalSystem.KEYCLOAK)
     discard_secret(expired_ref)
 
-    provision_wso2.delay(under_review.pk, "cid")
+    provision_wso2.delay(under_review.pk)
 
     row.refresh_from_db()
     assert row.secret_ref != expired_ref
@@ -433,22 +432,6 @@ def test_an_expired_parked_secret_is_re_minted_rather_than_dead_ending(under_rev
 
 
 # ── Correlation ──────────────────────────────────────────────────────────────
-
-
-def test_each_task_rebinds_the_correlation_id_it_was_given(under_review):
-    """The reason every task takes the id as an argument.
-
-    A `ContextVar` does not cross `on_commit` → broker → worker, and a worker is
-    a long-lived process, so the one a task inherits belongs to whatever ran
-    before it. Seeding a different id here is what makes this a rebind test
-    rather than an initialisation one: `get_correlation_id` mints a fresh id
-    only when the var is empty, so a missing rebind would go unnoticed.
-    """
-    set_correlation_id("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-
-    provision_keycloak.delay(under_review.pk, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-
-    assert get_correlation_id() == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 
 def test_the_chain_carries_the_id_the_approval_was_made_under(
