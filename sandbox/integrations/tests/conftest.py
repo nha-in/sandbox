@@ -1,10 +1,13 @@
-"""One approved ABDM application, and the actors who get it there.
+"""An application one action short of a decision, and the two actors involved.
 
-The provisioning chain used to hang off `sandbox/workflow/`, so its tests drove
-it with `transition(...)` and a Django permission codename. Both are gone: the
-chain is an `ActionResult.effects` entry now, which means these tests have to
-walk the application through the registry's own actions, and the reviewer holds
-a `ReviewRole` rather than a `Permission`.
+`approve` and `reject` are callables rather than fixtures because what they
+cause is the subject: a test arms a fake to fail, *then* calls them. Both run
+the chain the decision schedules, since an effect that stayed queued would
+prove nothing.
+
+The chain used to hang off `sandbox/workflow/`, so its tests drove it with
+`transition(...)` and a Django permission codename. Both are gone — the chain
+is an `ActionResult.effects` entry, and the reviewer holds a `ReviewRole`.
 """
 
 from __future__ import annotations
@@ -12,18 +15,10 @@ from __future__ import annotations
 import pytest
 from django.utils import timezone
 
-from sandbox.experiences.models import ApplicationFormSubmission
-from sandbox.experiences.models import ReviewRole
-from sandbox.experiences.models import ReviewRoleAssignment
-from sandbox.experiences.registry import registry
-from sandbox.experiences.services import create_application
 from sandbox.experiences.services import perform_application_action
-from sandbox.organisations.models import Membership
-from sandbox.organisations.models import Role
-from sandbox.organisations.tests.factories import OrganisationFactory
+from sandbox.experiences.tests.factories import application_under_review
+from sandbox.experiences.tests.factories import review_role_holder
 from sandbox.users.tests.factories import UserFactory
-
-APPLICATION_TYPE = "abdm_production_access"
 
 #: What `ApprovalForm` would have cleaned. Passed straight to the action, since
 #: these tests are about what approval *causes*, not about its form.
@@ -49,52 +44,13 @@ def owner(db):
 @pytest.fixture
 def reviewer(db):
     """A decision maker: the standing role that carries approve, reject and retry."""
-    user = UserFactory.create(email="reviewer@nha.gov.in")
-    ReviewRoleAssignment.objects.create(
-        user=user,
-        role=ReviewRole.objects.get(key="decision_maker"),
-    )
-    return user
+    return review_role_holder("decision_maker", email="reviewer@nha.gov.in")
 
 
 @pytest.fixture
-def application(owner):
-    organisation = OrganisationFactory(onboarded=True, name="Sunrise Health Systems")
-    Membership.objects.create(
-        organisation=organisation,
-        user=owner,
-        role=Role.OWNER,
-    )
-    application = create_application(
-        application_type=APPLICATION_TYPE,
-        organisation=organisation,
-        user=owner,
-    )
-    for form_definition in registry.get(APPLICATION_TYPE).forms:
-        ApplicationFormSubmission.objects.create(
-            application=application,
-            form_key=form_definition.key,
-            data={},
-            submitted_by=owner,
-        )
-    return application
-
-
-@pytest.fixture
-def under_review(application, owner, reviewer):
+def under_review(owner, reviewer):
     """Submitted and picked up — one action short of every decision."""
-    perform_application_action(
-        application=application,
-        action_key="submit",
-        user=owner,
-    )
-    perform_application_action(
-        application=application,
-        action_key="start_review",
-        user=reviewer,
-    )
-    application.refresh_from_db()
-    return application
+    return application_under_review(owner, reviewer)
 
 
 @pytest.fixture

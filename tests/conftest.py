@@ -8,6 +8,12 @@ here rather than left to break collection for the whole suite.
 
 The previous conftest, with the five-actor fixture set, is at 552692c^ and is
 the reference for the step-5 rewrite.
+
+`integrations/test_chains.py` has left this list: it was re-pointed at the
+registry and `ProvisioningRun`, and it skips on its own when WireMock is absent.
+While it sat here that skip could not fire, so CI's `WIREMOCK_REQUIRED=1` guard
+was moot — "nobody started the container" and "the exit evidence passed" looked
+identical.
 """
 
 from __future__ import annotations
@@ -26,6 +32,4 @@ collect_ignore = [
     "test_template_syntax.py",
     # replace with experience's equivalent
     "test_merge_production_dotenvs_in_dotenv.py",
-    # rewrite with the step-5 re-anchor onto Sandbox.status
-    "integrations/test_chains.py",
 ]

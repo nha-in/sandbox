@@ -14,24 +14,22 @@ evidence of the latter, and that needs the access B3-B6 are still waiting on.
 from __future__ import annotations
 
 import pytest
-from django.contrib.auth.models import Permission
 from django.test import override_settings
-from sandbox.applications.models import ApplicationState
-from sandbox.applications.tests.factories import ApplicationFactory
-from sandbox.workflow import engine as workflow_engine
-from sandbox.workflow.engine import transition
 
-from sandbox.integrations.hooks import register_workflow_hooks
+from sandbox.experiences.services import perform_application_action
+from sandbox.experiences.tests.factories import application_under_review
+from sandbox.experiences.tests.factories import review_role_holder
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
-from sandbox.integrations.services import retry_provisioning
-from sandbox.organisations.tests.factories import MembershipFactory
-from sandbox.users.models import User
+from sandbox.integrations.tasks import enqueue_chain
+from sandbox.integrations.tasks import enqueue_teardown
+from sandbox.organisations.models import ProvisioningRun
 from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
+APPLICATION_TYPE = "abdm_production_access"
 REALM = "abdm-sandbox"
 DEVPORTAL = "/api/am/devportal/v3"
 HIECM_API = "/api/v3"
@@ -134,78 +132,74 @@ def _pointing_at(url: str):
         },
         KEYCLOAK_BASE_URL=url,
         KEYCLOAK_REALM=REALM,
-        KEYCLOAK_ROLE_NAMES={"SANDBOX": ("hip",)},
+        KEYCLOAK_ROLE_NAMES={APPLICATION_TYPE: ("hip",)},
         WSO2_BASE_URL=url,
         WSO2_DEVPORTAL_PATH=DEVPORTAL,
-        WSO2_API_NAMES={"SANDBOX": ("HealthIdAPI", "GatewayAPI")},
+        WSO2_API_NAMES={APPLICATION_TYPE: ("HealthIdAPI", "GatewayAPI")},
         HIECM_BASE_URL=url,
         HIECM_API_PATH=HIECM_API,
     )
 
 
-@pytest.fixture(autouse=True)
-def _hooks():
-    workflow_engine.clear_hooks()
-    register_workflow_hooks()
-    yield
-    workflow_engine.clear_hooks()
+@pytest.fixture
+def owner(db):
+    return UserFactory.create(email="owner@vendor.in")
 
 
 @pytest.fixture
-def application():
-    return ApplicationFactory.create()
+def reviewer(db):
+    return review_role_holder("decision_maker", email="reviewer@nha.gov.in")
 
 
 @pytest.fixture
-def owner(application):
-    user = UserFactory.create()
-    MembershipFactory.create(organisation=application.product.organisation, user=user)
-    return user
+def application(owner, reviewer):
+    return application_under_review(owner, reviewer)
 
 
-def _staff(*codenames: str) -> User:
-    user = UserFactory.create(is_staff=True)
-    for codename in codenames:
-        user.user_permissions.add(Permission.objects.get(codename=codename))
-    return User.objects.get(pk=user.pk)
-
-
-def _approve(application, owner, callbacks) -> None:
-    transition(application=application, action="SUBMIT", actor=owner)
+def _approve(application, reviewer, callbacks) -> None:
     with callbacks(execute=True):
-        transition(
+        perform_application_action(
             application=application,
-            action="APPROVE",
-            actor=_staff("approve_abdm"),
+            action_key="approve",
+            user=reviewer,
+            cleaned_data={
+                "production_client_id": "PROD-CLIENT-1001",
+                "approved_milestones": ["m1"],
+                "certificate_reference": "CERT-2026-1001",
+                "effective_date": None,
+            },
         )
     application.refresh_from_db()
 
 
-def _rerun_chain(application) -> None:
-    from sandbox.integrations.tasks import complete_provisioning  # noqa: PLC0415
-    from sandbox.integrations.tasks import provision_hiecm  # noqa: PLC0415
-    from sandbox.integrations.tasks import provision_keycloak  # noqa: PLC0415
-    from sandbox.integrations.tasks import provision_wso2  # noqa: PLC0415
+def _run(application) -> ProvisioningRun:
+    return application.provisioning_runs.order_by("-started_at").first()
 
-    for task in (provision_keycloak, provision_wso2, provision_hiecm):
-        task.delay(application.pk, "rerun")
-    complete_provisioning.delay(application.pk, "rerun")
+
+def _rerun_chain(application, callbacks) -> None:
+    """Through `enqueue_chain`, so the re-run happens inside an open attempt.
+
+    Calling the tasks directly would be stopped by `_step`'s guard, and would
+    prove nothing reached the wire for the wrong reason.
+    """
+    with callbacks(execute=True):
+        enqueue_chain(application)
 
 
 def test_the_chain_provisions_through_real_adapters(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     """Baseline: the adapters actually complete against a real HTTP server."""
     _stub_everything(wiremock)
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
 
-    assert application.state == ApplicationState.PROVISIONED
+    assert _run(application).status == ProvisioningRun.Status.READY
     assert wiremock.count("POST", KEYCLOAK_CREATE) == 1
     assert wiremock.count("POST", WSO2_CREATE) == 1
     assert wiremock.count("PUT", HIECM_CREATE) == 1
@@ -215,15 +209,15 @@ def test_re_running_a_finished_chain_creates_nothing_twice(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     """The headline. Not "the ledger says so" — the wire says so."""
     _stub_everything(wiremock)
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
-        _rerun_chain(application)
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
+        _rerun_chain(application, django_capture_on_commit_callbacks)
 
     assert wiremock.count("POST", KEYCLOAK_CREATE) == 1
     assert wiremock.count("POST", WSO2_CREATE) == 1
@@ -235,7 +229,7 @@ def test_a_chain_killed_at_the_last_step_resumes_without_duplicating(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     """Fail HIE-CM, then let the console retry finish only what was missing.
@@ -269,17 +263,16 @@ def test_a_chain_killed_at_the_last_step_resumes_without_duplicating(
     )
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
-        assert application.state == ApplicationState.PROVISIONING_FAILED
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
+        assert _run(application).status == ProvisioningRun.Status.FAILED
 
         with django_capture_on_commit_callbacks(execute=True):
-            retry_provisioning(
+            perform_application_action(
                 application=application,
-                actor=_staff("retry_provisioning_abdm"),
+                action_key="retry_provisioning",
+                user=reviewer,
             )
 
-    application.refresh_from_db()
-    assert application.state == ApplicationState.PROVISIONED
     # The two systems that succeeded were never asked a second time.
     assert wiremock.count("POST", KEYCLOAK_CREATE) == 1
     assert wiremock.count("POST", WSO2_CREATE) == 1
@@ -290,20 +283,20 @@ def test_the_teardown_disables_each_resource_exactly_once(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     _stub_everything(wiremock)
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
+        # Driven directly: no action reaches teardown on an approved
+        # application, which plan 12 §6's `approved`-reachable action closes.
         with django_capture_on_commit_callbacks(execute=True):
-            transition(application=application, action="WITHDRAW", actor=owner)
+            enqueue_teardown(application)
 
         assert wiremock.count("PUT", KEYCLOAK_DISABLE) == 1
         assert wiremock.count("PATCH", HIECM_CREATE) == 1
-
-        from sandbox.integrations.tasks import enqueue_teardown  # noqa: PLC0415
 
         with django_capture_on_commit_callbacks(execute=True):
             enqueue_teardown(application)
@@ -319,7 +312,7 @@ def test_a_read_never_rotates_the_keycloak_secret(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     """Legacy's `getSecret` was a POST, so every read rotated the live secret.
@@ -330,7 +323,7 @@ def test_a_read_never_rotates_the_keycloak_secret(
     _stub_everything(wiremock)
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
 
     secret_calls = [
         entry for entry in wiremock.journal() if entry["url"].endswith("/client-secret")
@@ -343,14 +336,14 @@ def test_the_ledger_records_what_the_wire_returned(
     wiremock,
     wiremock_url,
     application,
-    owner,
+    reviewer,
     django_capture_on_commit_callbacks,
 ):
     """Guards the hand-off B7 depends on: the Location header becomes external_ref."""
     _stub_everything(wiremock)
 
     with _pointing_at(wiremock_url):
-        _approve(application, owner, django_capture_on_commit_callbacks)
+        _approve(application, reviewer, django_capture_on_commit_callbacks)
 
     keycloak = ProvisionedResource.objects.get(
         application=application,
