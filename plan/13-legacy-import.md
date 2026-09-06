@@ -1,0 +1,170 @@
+# Importing legacy into the rebuilt portal
+
+Everything about moving legacy's data into the design `12-abdm-portal-rebuild.md`
+describes. That document defines the shape; this one defines how existing
+records reach it. Where the two disagree, 12 wins and this file is wrong.
+
+Figures from the legacy database are deliberately not reproduced here. Where a
+conclusion rests on one it names the table it came from; re-run the query
+against a local restore if it needs confirming.
+
+---
+
+## 1. Reshape, do not copy
+
+Legacy is not imported in its own shape and then adapted. The importer builds
+our objects — an `Organisation`, an `ApplicationInstance`, an
+`ApplicationFormSubmission` per form, the milestone grants, and a
+`ProvisionedResource` cross-referencing the client that already exists. The
+legacy row is *input*, and nothing in the result is described by its identifier.
+
+## 2. Where each thing lives
+
+| table | holds |
+| ----- | ----- |
+| `sd_login` | the integrator and the application, fused into one row |
+| `sd_status` | the decision, and the Keycloak client id it issued |
+| `sd_exit` | the exit application |
+| `sd_exit_docs` | the exit evidence, typed by `sd_doc_type` |
+| `active_integrator` | the public listing that `Organisation.listing_hidden` answers |
+
+The client ids in `sd_status` name clients that live in **NHA's Keycloak realm**,
+not in any database of ours. The importer cross-references them; it does not
+create them, and starting without them would leave every one of those clients
+unowned — which is exactly what P4's reconciliation sweep flags as `ORPHANED`.
+
+**`sd_exit`'s inline document columns are stale.** `wasa_file`, `host_file`,
+`function_testing_file` and `policy_file` are BYTEA columns superseded by
+`sd_exit_docs`. Read the inline columns and the evidence looks almost entirely
+absent; read the table and most decided exits have it. `policy_file` was never
+used at all. Do not write the importer against the columns.
+
+**Other application types have their own tables** and are out of scope for the
+first import: `sd_hiu`, `sd_exit_live`, `nhcx_exit`, `sd_uhi`.
+
+## 3. Splitting the fused row
+
+`sd_login` is the integrator *and* the application, so splitting it gives one
+`Organisation` **and** one `ApplicationInstance`. That makes
+`sd_id → ApplicationInstance` 1:1 and `sd_id → Organisation` many:1.
+
+So the legacy key lives in **a mapping table the importer owns** — `sd_id` ·
+organisation · application · imported_at — not on a core model. It records both
+halves of the split, gives a re-runnable import somewhere to be idempotent
+from, and is droppable after cutover. `Organisation` gains no column for it
+(12 §8.3).
+
+### 3.1 Repeat applicants
+
+A minority of applicant emails hold several `sd_login` rows. Every one of those
+rows becomes its own `ApplicationInstance` regardless — each has its own client
+id — so the only question is how many organisations they produce. Three cases,
+by how many distinct organisation names the email carries:
+
+| the email's rows carry | becomes |
+| ---------------------- | ------- |
+| no organisation name at all | one `Organisation` for the person (12 §4.5), N applications |
+| exactly one organisation name | one `Organisation`, N applications |
+| **more than one** | **one `Organisation` per distinct name** |
+
+The first two are the large majority. The third is a small tail — under a
+percent of distinct emails, at worst three names on one address.
+
+**One organisation per distinct name, not per email.** An address carrying
+several company names is far more likely a consultant or systems integrator
+applying for several clients than one company that renamed. If it *is* a
+rename, two organisations is a recoverable error — merge them — where one
+organisation is not: that silently fuses two vendors and their credentials. The
+email becomes a `Membership` on each, which the model already supports.
+
+Two rules that follow:
+
+- **Match on a normalised name**, casing and punctuation stripped. On raw
+  values the count is higher and wrong, for the same reason `entity_type` needs
+  mapping rather than copying (§4).
+- **Emit the third case as a review list.** It is small enough for a person to
+  read, and NHA will recognise the agencies on sight.
+
+## 4. Field mappings
+
+**`entity_type` → `NatureOfEntity`.** Legacy stored it as free text, so its rows
+carry casing and whitespace variants of the same answer alongside free-form
+prose. The importer maps onto the enum; it cannot copy, and a `CHECK`
+constraint means a straight copy fails loudly rather than quietly.
+
+**`application_type = '2'` → `nature_of_entity = INDIVIDUAL`.** Legacy carried
+individuality in that separate code and left `entity_type` blank for those
+rows, so the fact cannot be read off `entity_type` at all. 12 §4.5 has the
+design; this is the mapping.
+
+**Names sent onward are sanitised** by `integrations.tasks._external_name`,
+reproducing legacy's `[^a-zA-Z0-9]` → space. One deviation: legacy replaced
+each character singly and trimmed only the ends, leaving double spaces inside;
+runs collapse here. Safe, because migrated integrators are not re-provisioned —
+this only names clients created after cutover.
+
+**`entity` went out as the literal `"NA"`** for individuals, a placeholder for a
+null. Ours is `nature_of_entity = INDIVIDUAL`, which is better information, but
+it changes what any downstream consumer of the bridge table's `entity` column
+receives.
+
+## 5. Legacy roles
+
+Each of legacy's eight `mst_role` rows, and what it becomes under 12 §5.
+
+| legacy role | maps to |
+| ----------- | ------- |
+| Super Admin | every permission, plus Django superuser |
+| HTC | `decision_maker` — the same HTC as 12 §3.2 step 3 |
+| Role_Admin_view | `reviewer` — see below |
+| User | integrators; no review role at all |
+| User_view | a `user_view` role holding **no permissions** |
+| UHI Application | **blocked** — 12 §5.5 |
+| nhcx | **blocked** — 12 §5.5 |
+| UHI | drop, unassigned |
+
+**`User_view` maps to an empty role, which is now safe.** Its users have no
+privilege row, so today they get a 500. `permissions = []` reproduces what they
+effectively have, without the crash.
+
+**`Role_Admin_view` has never decided anything.** `sd_status` carries five actor
+columns — `admin_id` and `htc1_id`…`htc4_id`, foreign keys to `sd_login.sd_id`.
+Resolving every recorded decision to its actor's role yields exactly two, HTC
+and Super Admin; `Role_Admin_view` appears in none of them. Every screening
+decision was made from the Super Admin account and every committee decision
+from an HTC account. So although the role *can* decide — it holds `All
+Application List`, and the action verb is decorative (12 §5.2) — nobody has
+ever used it to. Mapping it to `reviewer` withdraws a capability that has never
+once been exercised, which is as close to safe as a migration gets.
+
+Worth telling NHA in its own right: a handful of people hold a role with rights
+the evidence says they have never used.
+
+**A correction to an earlier draft.** An earlier version of this analysis said
+`sd_status` had "no actor columns at all" and that the question could not be
+settled empirically. Both were wrong, and from the same mistake: the columns
+were searched for by name pattern — `%by%`, `%user%` — which `admin_id` does
+not match, and absence from a filtered query was reported as absence from the
+table. `sd_exit` and `nhcx_exit` genuinely have none, so the accountability gap
+`ApplicationEvent` and `decided_by` close is real for the exit and NHCX
+records — just not for `sd_status`.
+
+## 6. Open
+
+1. **Evidence that never reached the system.** A minority of decided exits have
+   no document at all, matching 12 §3.2's hard-copy received date — the
+   assessment arrived outside it. A synthesized `security_certification`
+   submission is therefore complete for most and empty for a tail of
+   integrators who are approved regardless. Marking them complete asserts
+   evidence we do not hold; marking them incomplete shows approved integrators
+   as unfinished. A third state — migrated without evidence — is probably the
+   honest answer, and it is a form-state decision rather than a mapping one.
+
+2. **Same realm or new?** If the rebuilt portal points at legacy's Keycloak
+   realm, the import is the cross-reference described in §2. If it points at a
+   new one, every approved integrator needs re-provisioning and new
+   credentials — different work entirely, and it changes what the mapping table
+   is for. Nothing here is safe to build until this is answered.
+
+3. **`Super Admin` and `user_view` are not seeded.** The seed migration creates
+   three roles. Either add them there or leave them to this importer.

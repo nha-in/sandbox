@@ -87,7 +87,7 @@ Read directly, not inherited.
 | *Commonly Asked Questions — Integrator Guide* v1.4, 20 Nov 2025 | PDF | the exit gate. It also carries a **mandatory-HI-types-per-participant-category** matrix (HMIS → all 8, Pharmacy → Invoice mandatory, PHR/Locker/Health Worker → all 8, …) not reproduced here — §8.3's predicates need it, so read it there |
 | the milestone → Keycloak role map | supplied by NHA, 2026-09-05 | §3's role column |
 | legacy Java source (`abdm-sandbox/`) | read | the M1/PHR gate, the NHCX enrolment/exit split, the permission model |
-| the legacy database | read locally; figures not reproduced here | role assignments (§5.4), the shape migration reads (§4.6) |
+| the legacy database | read locally; figures not reproduced here | `13-legacy-import.md` |
 | **v3 specification** — [artifact](https://claude.ai/code/artifact/ddedf004-38ab-48ec-afd6-b0b13be7f31c) | our own, written before this plan | the behaviour: statuses, roles, gates, the nine field blocks, the five applications |
 | **v3 data model** — [artifact](https://claude.ai/code/artifact/3cee75e5-af9c-4c5e-99a0-33dbc4e1bfc7) | our own, derived from the specification | the 24 tables §4.4 answers |
 
@@ -283,86 +283,26 @@ the organisation slot. Holding it as an `Organisation` row produces the same
 outbound payload with no `if individual` anywhere in `integrations/` —
 `provision_keycloak` already sends `organisation.display_name`.
 
-Two consequences to carry into the migration rather than rediscover:
-
-- **Legacy sanitised that name** (`[^a-zA-Z0-9]` → space), so we do too —
-  `tasks._external_name`, applied to all three adapters. Nothing NHA runs has
-  ever been handed a name containing punctuation, so we have no evidence any of
-  them accepts one, and reproducing the rule is cheaper than finding out on a
-  real call. One deviation: legacy replaced each character singly and trimmed
-  only the ends, so `Sunrise Health (P) Ltd.` reached Keycloak with a double
-  space inside it; runs collapse here. Safe, because no migrated integrator is
-  re-provisioned — this only ever names a new client. A name that is entirely
-  punctuation falls back to the reference, an empty one identifying nobody.
-- **`entity` went out as the string `"NA"`** for individuals — a placeholder
-  for a null. Ours is `nature_of_entity = INDIVIDUAL`, which is better
-  information, but it changes what any downstream consumer of the bridge
-  table's `entity` column receives.
-
-The cosmetic cost is people appearing in a vendor listing, which
-`listing_hidden` already exists to answer.
-
 Legacy carried this on a separate `application_type` code and left
 `entity_type` blank. We fold it into `nature_of_entity` instead: one fact, one
 column, and the shorter form becomes a predicate on it rather than on a second
-field that can contradict it. Migration maps `application_type = '2'` onto
-`INDIVIDUAL`.
+field that can contradict it.
 
-### 4.6 Migration reshapes; it does not copy
+The cosmetic cost is people appearing in a vendor listing, which
+`listing_hidden` already exists to answer. What legacy's name handling means
+for the importer is in `13-legacy-import.md` §4.
 
-Legacy is not imported in its own shape and then adapted. The importer builds
-our objects — an `Organisation`, an `ApplicationInstance`, an
-`ApplicationFormSubmission` per form, the milestone grants, and a
-`ProvisionedResource` cross-referencing the client that already exists. The
-legacy row is *input*.
+### 4.6 Migration
 
-That is what settles where the legacy key lives. `sd_login` fuses the
-integrator and the application into one row — the same fusion that makes
-`sandbox_client_id` unplaceable in §8.3 — so splitting it gives one
-`Organisation` **and** one `ApplicationInstance`. `sd_id → ApplicationInstance`
-is 1:1; `sd_id → Organisation` is many:1, because a meaningful minority of
-applicant emails hold several `sd_login` rows. A single `legacy_sd_id` column
-on `Organisation` drops all but one of those, and repeat applicants —
-reapplied after rejection, or a second product — are the interesting ones.
+Legacy is reshaped into this design, not copied into it: the importer builds an
+`Organisation`, an `ApplicationInstance`, an `ApplicationFormSubmission` per
+form, the grants, and a `ProvisionedResource` cross-referencing the Keycloak
+client that already exists. Nothing in the result is described by a legacy
+identifier, which is why no `legacy_sd_id` column exists (§8.3) — the key lives
+in a mapping table the importer owns.
 
-So the key belongs in a mapping table written by the importer (`sd_id` ·
-organisation · application · imported_at), not on a core model. It records both
-halves of the split, gives a re-runnable 15k-row import somewhere to be
-idempotent from, and is droppable after cutover. It arrives with the importer;
-nothing is added to `Organisation` for it now.
-
-**Where each thing lives**, so the importer is written against the right
-tables:
-
-| | |
-| --- | --- |
-| `sd_login` | the integrator and the application, fused into one row |
-| `sd_status` | the decision, and the Keycloak client id it issued |
-| `sd_exit` | the exit application |
-| `sd_exit_docs` | the exit evidence, typed by `sd_doc_type` |
-
-The client ids in `sd_status` name clients that live in NHA's Keycloak realm,
-not in any database of ours — the importer cross-references them rather than
-creating them.
-
-**`sd_exit`'s inline document columns are stale.** `wasa_file`, `host_file`,
-`function_testing_file` and `policy_file` are BYTEA columns superseded by
-`sd_exit_docs`. Read the inline columns and the evidence looks almost entirely
-absent; read the table and most decided exits have it. `policy_file` was never
-used at all. Do not write the importer against the columns.
-
-**The open question the reshaping raises.** A minority of decided exits have no
-document in the system at all, which matches §3.2's hard-copy received date —
-the evidence arrived outside it. A synthesized `security_certification`
-submission is therefore complete for most and empty for a tail of integrators
-who are nonetheless approved. Marking them complete asserts evidence we do not
-hold; marking them incomplete shows approved integrators as unfinished. A third
-state — migrated without evidence — is probably the honest answer. Not decided
-here.
-
-**Other application types have their own tables** and are not in scope for the
-first import: `sd_hiu`, `sd_exit_live`, `nhcx_exit`, `sd_uhi`.
-`active_integrator` is the public listing `listing_hidden` answers.
+`13-legacy-import.md` has the whole of it: the table map, the field mappings,
+the repeat-applicant rule, and what is still open.
 
 ---
 
@@ -461,48 +401,12 @@ resolve queries) · `decision_maker` (+ approve, reject). These are the sets the
 three `RoleDefinition`s carried before they left the registry, less
 `MANAGE_REVIEW_ACCESS`, which §5.1 retires.
 
-### 5.4 Migrating legacy's roles
+### 5.4 Legacy's roles
 
-Each of legacy's eight `mst_role` rows, and what it becomes. The user counts
-behind these conclusions were checked against the legacy database and are not
-reproduced here.
-
-| legacy role | maps to |
-| ----------- | ------- |
-| Super Admin | every permission, plus Django superuser |
-| HTC | `decision_maker` — the same HTC as §3.2 step 3 |
-| Role_Admin_view | `reviewer` — see below |
-| User | integrators; no review role at all |
-| User_view | a `user_view` role holding **no permissions** |
-| UHI Application | **blocked** — §5.5 |
-| nhcx | **blocked** — §5.5 |
-| UHI | drop, unassigned |
-
-**`User_view` maps to an empty role, which is now safe.** Its users have no
-privilege row, so today they get a 500. `permissions = []` reproduces what they
-effectively have, without the crash.
-
-**`Role_Admin_view` has never decided anything.** `sd_status` carries five actor
-columns — `admin_id` and `htc1_id`…`htc4_id`, foreign keys to
-`sd_login.sd_id`. Resolving every recorded decision to its actor's role yields
-exactly two, HTC and Super Admin; `Role_Admin_view` appears in none of them.
-Every screening decision was made from the Super Admin account and every
-committee decision from an HTC account. So although the role *can* decide — it
-holds `All Application List`, and the action verb is decorative (§5.2) — nobody
-has ever used it to. Mapping it to `reviewer` withdraws a capability that has
-never once been exercised, which is as close to safe as a migration gets.
-
-That is also worth telling NHA: a handful of people hold a role with rights the
-evidence says they have never used.
-
-**A correction to an earlier draft.** This plan previously said `sd_status` had
-"no actor columns at all" and that the question could not be settled
-empirically. Both were wrong, and from the same mistake: the columns were
-searched for by name pattern — `%by%`, `%user%` — which `admin_id` does not
-match, and absence from a filtered query was reported as absence from the
-table. `sd_exit` and `nhcx_exit` genuinely have none, so the accountability gap
-`ApplicationEvent` and `decided_by` close is real for the exit and NHCX
-records — just not for `sd_status`.
+Legacy's eight `mst_role` rows map onto §5.3's three, plus an empty `user_view`
+and a `super_admin`. Two are blocked by §5.5. The mapping, and the evidence
+that `Role_Admin_view` has never decided anything, are in
+`13-legacy-import.md` §5.
 
 ### 5.5 The one deferred constraint
 
