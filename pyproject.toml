@@ -211,12 +211,8 @@ containers = [
   "sandbox.users",
   "sandbox.catalog",
   "sandbox.organisations",
-  "sandbox.applications",
-  "sandbox.workflow",
-  "sandbox.audit",
   "sandbox.integrations",
   "sandbox.notifications",
-  "sandbox.console",
 ]
 
 # The anti-corruption layer (06-integrations.md §3). Domain apps may name ports and
@@ -228,9 +224,6 @@ source_modules = [
   "sandbox.users",
   "sandbox.catalog",
   "sandbox.organisations",
-  "sandbox.applications",
-  "sandbox.workflow",
-  "sandbox.audit",
   "sandbox.otp",
   "sandbox.notifications",
   "sandbox.theme",

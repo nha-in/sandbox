@@ -21,11 +21,6 @@ urlpatterns = [
         "organisations/",
         include("sandbox.organisations.urls", namespace="organisations"),
     ),
-    path(
-        "applications/",
-        include("sandbox.applications.urls", namespace="applications"),
-    ),
-    path("console/", include("sandbox.console.urls", namespace="console")),
     path("accounts/", include("allauth.urls")),
     # The component gallery. Routed unconditionally so `{% url %}` and the route
     # tests always resolve; the view itself 404s unless DEBUG and staff.
