@@ -1,12 +1,20 @@
-{% extends "base.html" %}
+{% extends "layouts/marketing.html" %}
 
 {% comment %}
-  The shell every signed-out allauth screen sits in. allauth's own templates all
-  extend "account/base_entrance.html", so shadowing it here pulls the whole
-  authentication flow into our chrome. Ported from ohcnetwork/experience.
+  The shell every signed-out allauth screen sits in.
 
-  It extends base.html rather than layouts/marketing.html because the leaf
-  allauth screens fill `content`, which the card below has to wrap.
+  allauth's own templates all extend "account/base_entrance.html", so shadowing
+  it here is what pulls the whole authentication flow into the hub's marketing
+  chrome instead of allauth's bare scaffolding.
+
+  Blocks:
+    head_title      — allauth's own title block, mapped onto base.html's title
+    entrance_width  — max width of the column (default 480px, login uses 420px)
+    entrance_title  — the h1 inside the card
+    entrance_lede   — the one-paragraph explanation under it
+    entrance_body   — the form or actions
+    entrance_after  — anything below the card (footer links)
+    entrance        — replaces the card wholesale
 {% endcomment %}
 {% load i18n %}
 
@@ -15,24 +23,33 @@
     {% translate "Your account" %}
   {% endblock head_title %}
 {% endblock title %}
-{% block body %}
-  <div class="flex min-h-screen flex-col bg-background">
-    {% include "components/marketing_header.html" %}
-    <main id="main-content" class="flex-1 px-4 py-10 sm:px-6 sm:py-14">
-      <div class="mx-auto w-full {% block entrance_width %}max-w-[480px]{% endblock entrance_width %}">
-        {% include "components/messages.html" %}
-        {% block entrance %}
-          <div class="ui-card">
-            <div class="ui-card-content flex flex-col gap-4">
-              {% block content %}
-              {% endblock content %}
-            </div>
-          </div>
-          {% block entrance_after %}
-          {% endblock entrance_after %}
-        {% endblock entrance %}
+{% block content %}
+  {% comment %}
+    layouts/marketing.html does not render Django messages, and allauth talks to
+    people almost entirely through them ("Confirmation email sent", "You have
+    signed out"), so the entrance shell renders them itself.
+  {% endcomment %}
+  <div class="mx-auto w-full px-4 py-10 sm:px-6 sm:py-14 {% block entrance_width %}max-w-[480px]{% endblock entrance_width %}">
+    {% include "components/messages.html" %}
+    {% block entrance %}
+      <div class="ui-card">
+        <div class="ui-card-header">
+          <h1 class="text-[19px] leading-snug font-[650] tracking-[-0.01em] text-foreground">
+            {% block entrance_title %}
+            {% endblock entrance_title %}
+          </h1>
+          <p class="ui-card-description text-[13px] leading-[1.55]">
+            {% block entrance_lede %}
+            {% endblock entrance_lede %}
+          </p>
+        </div>
+        <div class="ui-card-content flex flex-col gap-4">
+          {% block entrance_body %}
+          {% endblock entrance_body %}
+        </div>
       </div>
-    </main>
-    {% include "components/marketing_footer.html" %}
+      {% block entrance_after %}
+      {% endblock entrance_after %}
+    {% endblock entrance %}
   </div>
-{% endblock body %}
+{% endblock content %}

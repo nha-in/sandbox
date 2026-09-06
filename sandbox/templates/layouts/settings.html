@@ -1,22 +1,28 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  Settings shell: the integrator rail, plus a 200px sub-rail for the screens
-  that configure the account rather than move an application forward.
-
-  Screens fill `settings_content` and set `settings_section`
-  ("organisation" | "profile"). Below md the sub-rail becomes a scrolling row of
-  tabs above the panel rather than collapsing into another drawer — two nested
-  drawers on one screen is a maze.
+  Settings shell: page title, then a 200px sub-nav beside the panel column.
+  Blocks: settings_title, settings_subtitle, settings_content.
 {% endcomment %}
 {% load i18n %}
 
+{% block page_header %}
+  <div class="mb-5">
+    <h1 class="ui-page-title">{% translate "Settings" %}</h1>
+    <p class="ui-page-subtitle">
+      {% block settings_subtitle %}
+        {{ organisation.display_name }}
+        {% if organisation.verified_at %}
+          · {% blocktranslate with date=organisation.verified_at|date:"j M Y" %}Verified {{ date }}{% endblocktranslate %}
+        {% endif %}
+      {% endblock settings_subtitle %}
+    </p>
+  </div>
+{% endblock page_header %}
 {% block content %}
-  <div class="grid gap-6 md:grid-cols-[200px_minmax(0,1fr)] md:gap-8">
+  <div class="grid items-start gap-6 md:grid-cols-[200px_minmax(0,1fr)]">
     {% include "components/settings_nav.html" %}
-    {# Held to a readable measure. These are all forms, and a text input three #}
-    {# columns wide is harder to fill in, not easier. #}
-    <div class="min-w-0 max-w-2xl">
+    <div class="flex min-w-0 flex-col gap-3.5">
       {% block settings_content %}
       {% endblock settings_content %}
     </div>

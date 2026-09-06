@@ -2,176 +2,148 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from allauth.mfa.models import Authenticator
-from django.contrib import messages
+from allauth.account.views import SignupView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.urls import reverse
+from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
-from django.views import View
-from django.views.generic import DetailView
 from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
-from sandbox.integrations.ports import NotificationChannel
+from sandbox.organisations.models import Invitation
+from sandbox.organisations.views import INVITATION_SESSION_KEY
+from sandbox.pages.views import resolve_post_login_destination
 from sandbox.users.forms import UserProfileForm
 from sandbox.users.models import User
-from sandbox.users.services import request_otp
-from sandbox.users.services import seconds_until_resend
-from sandbox.users.services import verify_otp
-from sandbox.utils.errors import DomainError
 
 if TYPE_CHECKING:
     from django.db.models import QuerySet
+    from django.http import HttpRequest
+    from django.http import HttpResponse
 
 
-class UserDetailView(LoginRequiredMixin, DetailView):
-    """Your own account page, and only ever your own.
+class UserSignupView(SignupView):
+    """Signup, aware of a pending invite.
 
-    The queryset is the access control; `external_id` only keeps integer pks
-    out of URLs (A2). Someone else's id therefore 404s rather than 403s.
+    Arriving through an invite link parks the token in the session; this view
+    hands it to the form so the new account joins the inviting organisation
+    instead of creating one, and so the Organisation field disappears.
     """
 
-    model = User
-    slug_field = "external_id"
-    slug_url_kwarg = "external_id"
+    template_name = "account/signup.html"
 
-    def get_queryset(self) -> QuerySet[User]:
-        assert self.request.user.is_authenticated  # type guard
-        return User.objects.filter(external_id=self.request.user.external_id)
+    def get_invitation(self) -> Invitation | None:
+        token = self.request.session.get(INVITATION_SESSION_KEY)
+        if not token:
+            return None
+        invitation = (
+            Invitation.objects.filter(token=token)
+            .select_related("organisation")
+            .first()
+        )
+        if invitation is None or not invitation.is_pending:
+            self.request.session.pop(INVITATION_SESSION_KEY, None)
+            return None
+        return invitation
 
-    def get_context_data(self, **kwargs):
+    def get_form_kwargs(self) -> dict:
+        kwargs = super().get_form_kwargs()
+        kwargs["invitation"] = self.get_invitation()
+        return kwargs
+
+    def get_initial(self) -> dict:
+        initial = super().get_initial()
+        invitation = self.get_invitation()
+        if invitation is not None:
+            initial.setdefault("email", invitation.email)
+        return initial
+
+    def get_context_data(self, **kwargs) -> dict:
         context = super().get_context_data(**kwargs)
-        context["form"] = UserProfileForm(instance=self.object)
-        # Read from allauth's own table rather than a flag of our own: it is
-        # the thing the login actually checks.
-        context["has_totp"] = Authenticator.objects.filter(
-            user=self.object,
-            type=Authenticator.Type.TOTP,
-        ).exists()
+        context["invitation"] = self.get_invitation()
         return context
 
-    def post(self, request, *args, **kwargs):
-        """Editing your name is the screen's own act, not a second page."""
-        self.object = self.get_object()
-        form = UserProfileForm(request.POST, instance=self.object)
-        if form.is_valid():
-            form.save()
-            messages.success(request, _("Your profile has been updated."))
-            return redirect(self.object.get_absolute_url())
-        context = self.get_context_data(object=self.object)
-        context["form"] = form
-        return self.render_to_response(context)
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        self.request.session.pop(INVITATION_SESSION_KEY, None)
+        return response
 
 
-user_detail_view = UserDetailView.as_view()
+class UserProfileView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    """The signed-in user's own account settings."""
 
-
-class UserUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = User
-    fields = ["name"]
-    success_message = _("Information successfully updated")
-
-    def get_success_url(self) -> str:
-        assert self.request.user.is_authenticated  # type guard
-        return self.request.user.get_absolute_url()
+    form_class = UserProfileForm
+    template_name = "users/profile.html"
+    # The page includes this fragment; htmx swaps the same file back in.
+    partial_template_name = "users/partials/profile_form.html"
+    success_message = _("Your details were updated.")
+    success_url = reverse_lazy("users:profile")
 
     def get_object(self, queryset: QuerySet | None = None) -> User:
-        assert self.request.user.is_authenticated  # type guard
         return self.request.user
 
+    def get_context_data(self, **kwargs) -> dict:
+        context = super().get_context_data(**kwargs)
+        context["nav_section"] = "settings"
+        context["settings_section"] = "profile"
+        return context
 
-user_update_view = UserUpdateView.as_view()
+    def form_valid(self, form):
+        # SuccessMessageMixin saves and queues the flash; only the response
+        # shape changes for htmx.
+        response = super().form_valid(form)
+        if self.request.htmx:
+            # Swap the saved form back in — rebound to the stored instance —
+            # and let the flash ride along out of band into #flash-messages.
+            return render(
+                self.request,
+                self.partial_template_name,
+                self.get_context_data(
+                    form=self.get_form_class()(instance=self.object),
+                    oob_flash=True,
+                ),
+            )
+        return response
+
+    def form_invalid(self, form):
+        # 200 with the re-rendered fragment, so htmx swaps the errors in; the
+        # no-JS path still gets the whole page back, also with a 200.
+        if self.request.htmx:
+            return render(
+                self.request,
+                self.partial_template_name,
+                self.get_context_data(form=form),
+            )
+        return super().form_invalid(form)
 
 
 class UserRedirectView(LoginRequiredMixin, RedirectView):
+    """Post-login landing: onboarding while it is unfinished, else the dashboard."""
+
     permanent = False
 
-    def get_redirect_url(self) -> str:
-        assert self.request.user.is_authenticated  # type guard
-        # Where signing in lands. Staff hold no membership, so the integrator
-        # dashboard 404s for them and the profile page is a dead end — the
-        # console is the only screen they came here for.
-        if self.request.user.is_staff:
-            return reverse("console:queue")
-        return reverse(
-            "users:detail",
-            kwargs={"external_id": self.request.user.external_id},
-        )
+    def get_redirect_url(self, *args, **kwargs) -> str:
+        return reverse(resolve_post_login_destination(self.request.user))
 
 
+class UserDetailView(LoginRequiredMixin, RedirectView):
+    """Kept so `User.get_absolute_url()` resolves; profiles are not public."""
+
+    permanent = False
+
+    def get_redirect_url(self, *args, **kwargs) -> str:
+        return reverse("users:profile")
+
+
+def legacy_update_redirect(request: HttpRequest) -> HttpResponse:
+    return redirect("users:profile")
+
+
+user_signup_view = UserSignupView.as_view()
+user_profile_view = UserProfileView.as_view()
 user_redirect_view = UserRedirectView.as_view()
-
-
-class ContactVerificationView(LoginRequiredMixin, View):
-    """The gate every signed-in user passes before the rest of the portal opens."""
-
-    template_name = "users/verify_contacts.html"
-
-    def get(self, request):
-        return render(request, self.template_name, self._context(request.user))
-
-    def post(self, request):
-        channel = (
-            NotificationChannel.EMAIL
-            if request.POST.get("channel") == NotificationChannel.EMAIL
-            else NotificationChannel.SMS
-        )
-        identity = (
-            request.user.email
-            if channel is NotificationChannel.EMAIL
-            else request.user.phone
-        )
-
-        try:
-            if "send" in request.POST:
-                request.session[_challenge_key(channel)] = request_otp(
-                    identity=identity,
-                    channel=channel,
-                )
-                messages.success(request, _("We sent you a code."))
-            else:
-                verify_otp(
-                    user=request.user,
-                    identity=identity,
-                    channel=channel,
-                    challenge=request.session.get(_challenge_key(channel), ""),
-                    code=request.POST.get("code", ""),
-                )
-                request.session.pop(_challenge_key(channel), None)
-                messages.success(request, _("Verified."))
-        except DomainError as exc:
-            messages.error(request, exc.message)
-
-        return redirect(reverse("users:verify_contacts"))
-
-    @staticmethod
-    def _context(user):
-        return {
-            "all_verified": bool(user.email_verified_at and user.phone_verified_at),
-            "items": [
-                {
-                    "label": _("Email"),
-                    "channel": NotificationChannel.EMAIL,
-                    "identity": user.email,
-                    "verified": user.email_verified_at is not None,
-                    "cooldown": seconds_until_resend(user.email),
-                },
-                {
-                    "label": _("Phone"),
-                    "channel": NotificationChannel.SMS,
-                    "identity": user.phone,
-                    "verified": user.phone_verified_at is not None,
-                    "cooldown": seconds_until_resend(user.phone) if user.phone else 0,
-                },
-            ],
-        }
-
-
-def _challenge_key(channel: str) -> str:
-    return f"otp_challenge_{channel}"
-
-
-contact_verification_view = ContactVerificationView.as_view()
+user_detail_view = UserDetailView.as_view()

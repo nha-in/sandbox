@@ -1,38 +1,52 @@
 from __future__ import annotations
 
-import factory
+from datetime import timedelta
+
+from django.utils import timezone
+from factory import LazyFunction
+from factory import Sequence
+from factory import SubFactory
+from factory import Trait
 from factory.django import DjangoModelFactory
 
+from sandbox.organisations.models import Invitation
 from sandbox.organisations.models import Membership
-from sandbox.organisations.models import MembershipRole
 from sandbox.organisations.models import Organisation
-from sandbox.organisations.models import OrganisationKind
-from sandbox.organisations.models import Product
+from sandbox.organisations.models import Role
 from sandbox.users.tests.factories import UserFactory
 
 
 class OrganisationFactory(DjangoModelFactory[Organisation]):
-    name = factory.Sequence(lambda n: f"Organisation {n}")
-    slug = factory.Sequence(lambda n: f"organisation-{n}")
-    kind = OrganisationKind.ORGANIZATION
+    name = Sequence(lambda n: f"Vendor {n} Health Systems")
 
     class Meta:
         model = Organisation
 
-
-class ProductFactory(DjangoModelFactory[Product]):
-    organisation = factory.SubFactory(OrganisationFactory)
-    name = factory.Sequence(lambda n: f"Product {n}")
-    slug = factory.Sequence(lambda n: f"product-{n}")
-
-    class Meta:
-        model = Product
+    class Params:
+        # OrganisationFactory(onboarded=True) — past the company profile form.
+        onboarded = Trait(onboarded_at=LazyFunction(timezone.now))
 
 
 class MembershipFactory(DjangoModelFactory[Membership]):
-    organisation = factory.SubFactory(OrganisationFactory)
-    user = factory.SubFactory(UserFactory)
-    role = MembershipRole.OWNER
+    organisation = SubFactory(OrganisationFactory)
+    user = SubFactory(UserFactory)
+    role = Role.DEVELOPER
 
     class Meta:
         model = Membership
+
+
+class InvitationFactory(DjangoModelFactory[Invitation]):
+    organisation = SubFactory(OrganisationFactory)
+    email = Sequence(lambda n: f"invitee{n}@example.in")
+    role = Role.DEVELOPER
+
+    class Meta:
+        model = Invitation
+
+    class Params:
+        expired = Trait(
+            expires_at=LazyFunction(lambda: timezone.now() - timedelta(days=1)),
+        )
+        revoked = Trait(revoked_at=LazyFunction(timezone.now))
+        accepted = Trait(accepted_at=LazyFunction(timezone.now))

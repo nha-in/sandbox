@@ -1,12 +1,14 @@
 {% comment %}
-  Settings sub-navigation — the 200px rail beside the settings panel.
+  Settings sub-navigation — the 200px rail from mockup 1j.
+  Context: settings_section — "organisation" | "team" | "profile".
 
-  Context: settings_section — "organisation" | "profile".
-
-  Boosted like the sidebar: the response is the ordinary whole page, htmx keeps
-  #main-content (which contains this rail, so the active tab updates itself) and
-  out-of-band swaps #app-nav so the sidebar cannot drift out of step. Every link
-  is a real href, so with JavaScript off these are ordinary page loads.
+  Boosted the same way as the sidebar (components/app_nav.html): the response is
+  the ordinary whole page, htmx keeps #main-content — which contains this rail,
+  so the active tab updates itself — and out-of-band swaps #app-nav so the
+  sidebar cannot drift out of step. Every link is still a real href, so with
+  JavaScript off these are three ordinary page loads. The ids are what let htmx
+  put keyboard focus back on the tab that was activated once the swap has
+  replaced it (components/app_nav.html says more).
 {% endcomment %}
 {% load i18n %}
 
@@ -19,16 +21,16 @@
      hx-swap="outerHTML"
      hx-push-url="true"
      hx-indicator="#nav-progress">
+  <a id="settings-nav-organisation"
+     class="ui-subnav-link shrink-0 {% if settings_section == 'organisation' %}ui-subnav-link--active{% endif %}"
+     href="{% url 'organisations:detail' %}"
+     {% if settings_section == 'organisation' %}aria-current="page"{% endif %}>{% translate "Organisation" %}</a>
+  <a id="settings-nav-team"
+     class="ui-subnav-link shrink-0 {% if settings_section == 'team' %}ui-subnav-link--active{% endif %}"
+     href="{% url 'organisations:team' %}"
+     {% if settings_section == 'team' %}aria-current="page"{% endif %}>{% translate "Team" %}</a>
   <a id="settings-nav-profile"
      class="ui-subnav-link shrink-0 {% if settings_section == 'profile' %}ui-subnav-link--active{% endif %}"
-     href="{% url 'users:detail' request.user.external_id %}"
+     href="{% url 'users:profile' %}"
      {% if settings_section == 'profile' %}aria-current="page"{% endif %}>{% translate "Your profile" %}</a>
-  {# Organisation second and conditional: someone who has not created one yet #}
-  {# still has a profile, and OrganisationMixin answers them with a 404. #}
-  {% if is_organisation_member %}
-    <a id="settings-nav-organisation"
-       class="ui-subnav-link shrink-0 {% if settings_section == 'organisation' %}ui-subnav-link--active{% endif %}"
-       href="{% url 'organisations:profile' %}{{ org_query }}"
-       {% if settings_section == 'organisation' %}aria-current="page"{% endif %}>{% translate "Organisation" %}</a>
-  {% endif %}
 </nav>

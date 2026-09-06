@@ -1,25 +1,43 @@
-{% load static i18n django_htmx %}
+{% load django_htmx %}
+{% load tailwind_tags %}
+{% load static i18n compress %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
 <html lang="{{ LANGUAGE_CODE }}">
   <head>
     <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>
       {% block title %}
-        ABDM Sandbox
+        Care Experience Hub
       {% endblock title %}
     </title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description"
-          content="{% block meta_description %}Build and certify your ABDM integration.{% endblock meta_description %}" />
+          content="{% block meta_description %}Build, certify and support your Care integrations in one place.{% endblock meta_description %}" />
+    <meta name="author" content="Open Healthcare Network" />
+    <meta name="theme-color" content="#065f46" />
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
     {% block css %}
-      <link href="{% static 'css/tailwind.css' %}" rel="stylesheet" />
+      {% tailwind_css %}
+      <!-- Your stuff: Third-party CSS libraries go here -->
+      <!-- This file stores project-specific CSS -->
+      {% compress css %}
+        <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+      {% endcompress %}
       {% comment %}
-        The one component the design system does not own: the thin progress bar
-        for boosted navigation. Visibility is left to .htmx-indicator, so no
-        script decides when it shows and it never appears without JavaScript.
+        The one component the design system does not already own: the thin
+        progress bar for boosted navigation. It lives here rather than in
+        utility classes because theme/static/css/dist is a build artefact —
+        hand-written rules cannot arrive half-compiled, which for a strip
+        pinned across the top of the viewport is worth the exception.
+
+        Visibility is not defined here on purpose: .htmx-indicator (theme
+        styles.css) fades it 0 → 1 for the life of the request and back. That
+        makes the whole thing CSS — no script decides when it shows, and with
+        JavaScript off no request is ever in flight, so it simply never
+        appears. Colour is the semantic token, so it follows dark mode.
       {% endcomment %}
       <style>
         #nav-progress {
@@ -41,15 +59,6 @@
           left: 0;
           width: 35%;
           background: var(--primary);
-        }
-
-        /*
-          Scoped to .htmx-request, which htmx adds only while a request is in
-          flight. .htmx-indicator hides the bar with opacity alone, so without
-          this the sweep ran forever on every page — invisible, but keeping a
-          compositor animation alive for the life of the session.
-        */
-        #nav-progress.htmx-request::after {
           animation: nav-progress-sweep 1s linear infinite;
         }
 
@@ -64,22 +73,34 @@
         }
 
         @media (prefers-reduced-motion: reduce) {
-          #nav-progress.htmx-request::after {
+          #nav-progress::after {
             width: 100%;
             animation: none;
           }
         }
       </style>
     {% endblock css %}
+    <!-- Le javascript
+    ================================================== -->
+    {# Placed at the top of the document so pages load faster with defer #}
     {% block javascript %}
-      <script defer src="{% static 'js/vendor/htmx.min.js' %}"></script>
-      <script defer src="{% static 'js/project.js' %}"></script>
+      {% htmx_script %}
+      <!-- Your stuff: Third-party javascript libraries go here -->
+      <!-- place project specific Javascript in this file -->
+      {% compress js %}
+        <script defer src="{% static 'js/project.js' %}"></script>
+      {% endcompress %}
     {% endblock javascript %}
   </head>
   {% comment %}
     hx-headers puts the CSRF token on every htmx request, so partial endpoints
-    need no per-form token. #nav-progress is the shared page-level indicator any
-    element can point hx-indicator at.
+    need no per-form token.
+
+    #nav-progress is the shared page-level indicator: any element can point
+    hx-indicator at it and get the thin bar across the top of the viewport for
+    the life of its request. The signed-in shell's navigation (see
+    components/app_nav.html) uses it for boosted navigation. It is inert until
+    something references it, and invisible when scripts do not run.
   {% endcomment %}
   <body class="min-h-screen bg-soft-background text-foreground antialiased {% block bodyclass %}{% endblock bodyclass %}"
         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -89,13 +110,15 @@
     {% endblock body %}
     {% block modal %}
     {% endblock modal %}
-    {% django_htmx_script %}
     {% block inline_javascript %}
     {% endblock inline_javascript %}
     {% comment %}
-      One delegated listener for the whole site: alerts also arrive from boosted
-      navigation and out-of-band partial swaps, which a handler bound at load
-      would never see. Outside the block above so a page cannot drop it.
+      One delegated listener for the whole site rather than a copy per shell.
+      An alert is not only ever present at load: it can be swapped in with a
+      boosted navigation, or arrive out of band from a partial (see
+      components/messages.html), and a handler bound to the buttons that
+      happened to exist at load would never see those. It sits outside the
+      block above so a page that overrides inline_javascript cannot drop it.
     {% endcomment %}
     <script>
       document.addEventListener("click", (event) => {

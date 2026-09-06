@@ -1,29 +1,25 @@
-"""Reads over organisations and membership."""
-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from sandbox.organisations.models import Membership
-from sandbox.organisations.models import MembershipRole
-
-if TYPE_CHECKING:
-    from sandbox.organisations.models import Organisation
-    from sandbox.users.models import User
+from .models import Membership
 
 
-def is_owner(organisation: Organisation, user: User) -> bool:
-    """Whether `user` holds the OWNER role in `organisation`.
+def get_membership_for(user) -> Membership | None:
+    """The user's single membership, or None.
 
-    Today every organisation has exactly one member and they are its OWNER —
-    invites are P2 — so this separates nothing yet. It is here so that the
-    destructive actions are already written against the role rather than
-    against "is a member", which is the thing that will stop being true.
+    One organisation per user today (the signup form creates it), so this
+    returns the first membership rather than asking callers to pick one. The
+    Membership model already supports many members per organisation, so adding
+    an organisation switcher later only changes this function's contract.
     """
-    if not user.is_authenticated:
-        return False
-    return Membership.objects.filter(
-        organisation=organisation,
-        user=user,
-        role=MembershipRole.OWNER,
-    ).exists()
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+    return (
+        Membership.objects.filter(user=user)
+        .select_related("organisation", "user")
+        .first()
+    )
+
+
+def get_organisation_for(user):
+    membership = get_membership_for(user)
+    return membership.organisation if membership else None

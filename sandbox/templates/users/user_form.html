@@ -1,28 +1,18 @@
-{% extends "layouts/settings.html" %}
-
-{% load careui i18n %}
+{% extends "base.html" %}
 
 {% block title %}
-  {% translate "Edit profile" %}
+  {{ user.name }}
 {% endblock title %}
-{% block settings_content %}
-  <div class="ui-card">
-    <div class="ui-card-header">
-      <h1 class="ui-card-title">{% translate "Edit profile" %}</h1>
-    </div>
-    <form method="post" action="{% url 'users:update' %}">
+{% block content %}
+  <section class="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">{{ user.name }}</h1>
+    <form class="mt-6" method="post" action="{% url 'users:update' %}">
       {% csrf_token %}
-      <div class="ui-card-content flex flex-col gap-4">
-        {% include "components/form_errors.html" %}
-        {% for field in form %}
-          {% ui_field field %}
-        {% endfor %}
-      </div>
-      <div class="ui-card-footer">
-        <a class="ui-btn ui-btn--secondary"
-           href="{% url 'users:detail' request.user.external_id %}">{% translate "Cancel" %}</a>
-        <button type="submit" class="ui-btn ui-btn--default">{% translate "Save" %}</button>
-      </div>
+      {{ form.as_p }}
+      <button type="submit"
+              class="mt-2 inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        Update
+      </button>
     </form>
-  </div>
-{% endblock settings_content %}
+  </section>
+{% endblock content %}

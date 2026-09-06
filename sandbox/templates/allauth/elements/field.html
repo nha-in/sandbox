@@ -1,12 +1,24 @@
 {% load allauth %}
 
-{% comment %}
-  Single field, for the allauth screens that place controls by hand (login code,
-  MFA). Mirrors components/form_field.html, but allauth passes plain attrs
-  rather than a bound field.
-{% endcomment %}
-<div class="flex flex-col gap-1.5">
-  {% if attrs.type == "checkbox" or attrs.type == "radio" %}
+<div class="mb-4">
+  {% if attrs.errors %}
+    <div class="mb-2 text-sm text-red-600">{{ attrs.errors }}</div>
+  {% endif %}
+  {% if attrs.type == "textarea" %}
+    <label class="mb-1 block text-sm font-medium text-slate-700"
+           for="{{ attrs.id }}">
+      {% slot label %}
+      {% endslot %}
+    </label>
+    <textarea {% if attrs.required %}required{% endif %}
+              {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
+              {% if attrs.disabled %}disabled{% endif %}
+              {% if attrs.readonly %}readonly{% endif %}
+              {% if attrs.checked %}checked{% endif %}
+              {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+              {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+              {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}>{% slot value %}{% endslot %}</textarea>
+  {% elif attrs.type == "checkbox" or attrs.type == "radio" %}
     <div class="flex items-center gap-2">
       <input {% if attrs.required %}required{% endif %}
              {% if attrs.disabled %}disabled{% endif %}
@@ -14,44 +26,34 @@
              {% if attrs.checked %}checked{% endif %}
              {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
              {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+             {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
+             {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
              {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
-             type="{{ attrs.type }}"
-             class="ui-checkbox" />
-      <label class="ui-label mb-0" for="{{ attrs.id }}">
+             type="{{ attrs.type }}" />
+      <label class="text-sm font-medium text-slate-700" for="{{ attrs.id }}">
         {% slot label %}
         {% endslot %}
       </label>
     </div>
   {% else %}
-    <label class="ui-label" for="{{ attrs.id }}">
+    <label class="mb-1 block text-sm font-medium text-slate-700"
+           for="{{ attrs.id }}">
       {% slot label %}
       {% endslot %}
     </label>
-    {% if attrs.type == "textarea" %}
-      <textarea {% if attrs.required %}required{% endif %}
-                {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
-                {% if attrs.disabled %}disabled{% endif %}
-                {% if attrs.readonly %}readonly{% endif %}
-                {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-                {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-                {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-                class="ui-textarea">{% slot value %}{% endslot %}</textarea>
-    {% else %}
-      <input {% if attrs.required %}required{% endif %}
-             {% if attrs.disabled %}disabled{% endif %}
-             {% if attrs.readonly %}readonly{% endif %}
-             {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-             {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-             {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-             {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
-             {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
-             type="{{ attrs.type }}"
-             class="ui-input" />
-    {% endif %}
+    <input {% if attrs.required %}required{% endif %}
+           {% if attrs.disabled %}disabled{% endif %}
+           {% if attrs.readonly %}readonly{% endif %}
+           {% if attrs.checked %}checked{% endif %}
+           {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+           {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+           {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
+           {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
+           {% if attrs.value is not None %}value="{{ attrs.value }}"{% endif %}
+           type="{{ attrs.type }}" />
   {% endif %}
-  {% if attrs.errors %}<p class="ui-error">{{ attrs.errors }}</p>{% endif %}
   {% if slots.help_text %}
-    <p class="ui-hint">
+    <p class="mt-1 text-sm text-slate-500">
       {% slot help_text %}
       {% endslot %}
     </p>
