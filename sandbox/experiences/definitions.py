@@ -80,10 +80,18 @@ class ActionResult:
     effects: tuple[Effect, ...] = ()
 
 
+#: A form action's counterpart to `Effect`, called with the submission its
+#: action ran on rather than the application.
+FormEffect = Callable[["ApplicationFormSubmission", "AbstractBaseUser"], None]
+
+
 @dataclass(frozen=True)
 class FormActionResult:
     message: str
     metadata_updates: dict[str, Any] = field(default_factory=dict)
+    #: Same contract as `ActionResult.effects` (E1), on the form path: a
+    #: reviewer verifying evidence is what earns a `MilestoneGrant`.
+    effects: tuple[FormEffect, ...] = ()
 
 
 @dataclass(frozen=True)

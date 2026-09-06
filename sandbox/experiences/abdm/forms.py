@@ -8,6 +8,8 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from sandbox.experiences.fields import MultipleFileField
+from sandbox.organisations.models import Milestone
+from sandbox.organisations.selectors import unmet_prerequisites
 
 ORGANISATION_TYPES = [
     ("company", _("Company")),
@@ -35,11 +37,7 @@ ABDM_ROLES = [
     ("health_locker", _("Health locker")),
 ]
 
-MILESTONES = [
-    ("m1", _("M1 - ABHA creation, capture and verification")),
-    ("m2", _("M2 - HIP and consented health-record sharing")),
-    ("m3", _("M3 - HIU and consented health-record access")),
-]
+MILESTONES = Milestone.choices
 
 SECURITY_CERTIFICATION_TYPES = [
     ("cert_in_audit", _("CERT-In empanelled security audit")),
@@ -682,6 +680,26 @@ class ApprovalForm(ActionForm):
         widget=forms.Textarea(attrs={"rows": 4}),
         required=False,
     )
+
+    def clean_approved_milestones(self):
+        """M4 owes M1, M2 and M3 — the one ordering NHA states (plan 12 §3.1)."""
+        approved = self.cleaned_data["approved_milestones"]
+        if self.experience_context is None:
+            return approved
+        organisation = self.experience_context.application.organisation
+        for milestone in approved:
+            missing = unmet_prerequisites(
+                organisation,
+                milestone,
+                also_granting=approved,
+            )
+            if missing:
+                labels = ", ".join(str(Milestone(key).label) for key in missing)
+                message = _(
+                    "%(milestone)s cannot be approved before %(missing)s.",
+                ) % {"milestone": Milestone(milestone).label, "missing": labels}
+                raise ValidationError(message)
+        return approved
 
 
 class RejectionForm(ActionForm):

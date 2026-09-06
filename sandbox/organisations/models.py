@@ -544,3 +544,82 @@ def initials_for(value: str) -> str:
     if len(parts) == 1:
         return parts[0][:2].upper()
     return (parts[0][0] + parts[-1][0]).upper()
+
+
+class Milestone(models.TextChoices):
+    """ABDM's four milestones (plan 12 §3.1)."""
+
+    M1 = "m1", _("M1 - ABHA creation, capture and verification")
+    M2 = "m2", _("M2 - HIP and consented health-record sharing")
+    M3 = "m3", _("M3 - HIU and consented health-record access")
+    M4 = "m4", _("M4 - NHPR professional and facility registration")
+
+
+#: What NHA states, and only that: M2 and M3 owe nothing to M1.
+MILESTONE_PREREQUISITES: dict[str, tuple[str, ...]] = {
+    Milestone.M1: (),
+    Milestone.M2: (),
+    Milestone.M3: (),
+    Milestone.M4: (Milestone.M1, Milestone.M2, Milestone.M3),
+}
+
+#: Realm role names each milestone earns, supplied by NHA.
+MILESTONE_KEYCLOAK_ROLES: dict[str, tuple[str, ...]] = {
+    Milestone.M1: ("healthId", "HidAbhaSearch"),
+    Milestone.M2: ("hip", "HIP_PAYER"),
+    Milestone.M3: ("hiu", "HIU_PAYER"),
+    Milestone.M4: ("hp_id", "DIGI_DOCTOR", "hfr", "bridge"),
+}
+
+
+class MilestoneGrant(models.Model):
+    """A milestone an organisation has been approved for, once and durably.
+
+    Outlives the application that granted it, so a later application reads
+    these rather than re-deriving from forms (plan 12 §1.1).
+    """
+
+    organisation = models.ForeignKey(
+        Organisation,
+        on_delete=models.CASCADE,
+        related_name="milestone_grants",
+        verbose_name=_("Organisation"),
+    )
+    milestone = models.CharField(_("Milestone"), max_length=10, choices=Milestone)
+    granted_by = models.ForeignKey(
+        "experiences.ApplicationInstance",
+        on_delete=models.PROTECT,
+        related_name="milestone_grants",
+        verbose_name=_("Granted by"),
+    )
+    granted_at = models.DateTimeField(_("Granted at"), auto_now_add=True)
+    #: Realm roles actually attached. Empty until provisioning attaches them;
+    #: failures go to `ApplicationEvent`, not to a column here.
+    roles_attached = models.JSONField(_("Roles attached"), default=list, blank=True)
+    roles_attached_at = models.DateTimeField(
+        _("Roles attached at"),
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Milestone grant")
+        verbose_name_plural = _("Milestone grants")
+        ordering = ["organisation", "milestone"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "milestone"],
+                name="organisations_milestone_grant_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(milestone__in=Milestone.values),
+                name="organisations_milestone_grant_milestone_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.organisation}: {self.milestone}"
+
+    @property
+    def roles_owed(self) -> tuple[str, ...]:
+        return MILESTONE_KEYCLOAK_ROLES[self.milestone]

@@ -52,8 +52,13 @@ orphans its rows, so a registry test pins the known keys.
 ### 1.1 Two shape decisions everything else rests on
 
 **Review is application-level.** The decision lands in
-`ApplicationInstance.outcome`, and `MilestoneGrant` rows are written from the
-approval. Milestones are self-declarations; the exit review is the single gate.
+`ApplicationInstance.outcome`. `MilestoneGrant` rows are **not** written from
+it: production access is one application-level decision and does not enumerate
+milestones. They follow the **reviewer's verification** of the
+`milestone_declaration` and its bundled WASA certificate (§6 D8): the
+declaration is the applicant's own attestation and the WASA is a security
+audit, so neither earns anything until NHA has verified it. Once both are
+verified the application is approvable for production access. Milestones are self-declarations; the exit review is the single gate.
 An earlier design (`11-workflow-rewrite.md`, retired) put review on each
 `FormSubmission` — this departs from it consciously. It is what keeps
 `ApplicationFormSubmission` untouched, and is the largest single saving here.
@@ -202,7 +207,7 @@ raises `revision`; a *resubmission* raises `submission_number`.
 
 | model | why |
 | ----- | --- |
-| `MilestoneGrant` | organisation-scoped, durable. `organisation` · `milestone` · `granted_by → ApplicationInstance` · `granted_at` · `roles_attached` · `roles_attached_at`. A later application reads it rather than re-deriving from forms |
+| `MilestoneGrant` | organisation-scoped, durable. `organisation` · `milestone` · `granted_by → ApplicationInstance` · `granted_at` · `roles_attached` · `roles_attached_at`. A later application reads it rather than re-deriving from forms. Written from D8's `milestone_declaration` submission, not from the approval — §1.1. **The model has landed; its writer arrives with D8** — a `VerifyMilestoneDeclaration` form action following `VerifySecurityEvidence`'s pattern |
 | `NotificationLog` | `event → ApplicationEvent` · `recipient` · `channel` · `template_key` · `status` · `sent_at`. The v3 model also wanted `body_as_sent` and `resent_from`, to make "a resend reuses the original wording" enforceable — that is a service-layer guarantee a test can hold, so the columns are dropped |
 | `ReviewRole`, `ReviewRoleAssignment` | §5 |
 | `ApplicationEvent.is_internal` | **new** — not to be confused with `ApplicationQueryMessage.is_internal`, which already exists and answers §4.4's `Opinion`. v3's "hidden from the applicant" had nowhere to live. A flag, not a projection filtered by `kind` — otherwise one internal note of an otherwise public kind cannot be hidden |
@@ -428,7 +433,7 @@ one column on a grant — which is why this is a grant and not a field on `User`
 
 | # | change | why |
 | - | ------ | --- |
-| E1 | `ActionResult.effects: tuple = ()`, run via `transaction.on_commit` in `perform_application_action` | the only write-path change. Nothing could otherwise write `MilestoneGrant` or enqueue provisioning on approve. Additive — a definition declaring none behaves exactly as before, and effects run **after** commit so one never sees a rolled-back write |
+| E1 | `ActionResult.effects: tuple = ()` and `FormActionResult.effects`, both run via `transaction.on_commit` — in `perform_application_action` and `perform_form_action`. The form path is what a verification writes a `MilestoneGrant` from (§1.1) | the only write-path change. Nothing could otherwise write `MilestoneGrant` or enqueue provisioning on approve. Additive — a definition declaring none behaves exactly as before, and effects run **after** commit so one never sees a rolled-back write |
 | E2 | `WithdrawApplication`; `WITHDRAW_APPLICATION` into `COMMON_PERMISSIONS` and the owner role | the permission key and the `withdrawn` status both existed with no action reaching either |
 
 **ABDM domain**, each settled by §3. *(These are renumbered against the

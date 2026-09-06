@@ -9,7 +9,9 @@ from django.core.exceptions import ValidationError
 
 from sandbox.experiences import permission_keys
 from sandbox.experiences.definitions import ActionResult
+from sandbox.experiences.definitions import FormActionResult
 from sandbox.experiences.models import ApplicationAccess
+from sandbox.experiences.models import ApplicationFormSubmission
 from sandbox.experiences.models import ApplicationInstance
 from sandbox.experiences.models import ReviewRole
 from sandbox.experiences.models import ReviewRoleAssignment
@@ -18,6 +20,7 @@ from sandbox.experiences.permissions import get_effective_access
 from sandbox.experiences.registry import registry
 from sandbox.experiences.services import create_application
 from sandbox.experiences.services import perform_application_action
+from sandbox.experiences.services import perform_form_action
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Role
 from sandbox.organisations.tests.factories import OrganisationFactory
@@ -371,3 +374,97 @@ def _declare_effects(monkeypatch, application, action_key, effects):
         )
 
     monkeypatch.setattr(action, "perform", perform)
+
+
+# ── E1 on the form path ──────────────────────────────────────────────────────
+
+
+def _declare_form_effects(monkeypatch, application, form_key, action_key, effects):
+    definition = registry.get(application.application_type).get_form(form_key)
+    action = next(a for a in definition.actions if a.key == action_key)
+    original = action.perform
+
+    def perform(context, submission, cleaned_data):
+        result = original(context, submission, cleaned_data)
+        return FormActionResult(
+            message=result.message,
+            metadata_updates=result.metadata_updates,
+            effects=effects,
+        )
+
+    monkeypatch.setattr(action, "perform", perform)
+
+
+def _verifiable(application, owner):
+    ApplicationFormSubmission.objects.create(
+        application=application,
+        form_key="security_compliance",
+        data={},
+        submitted_by=owner,
+    )
+    application.status = "under_review"
+    application.save(update_fields=["status"])
+
+
+def test_a_form_action_declaring_no_effects_behaves_exactly_as_before():
+    assert FormActionResult(message="Verified").effects == ()
+
+
+def test_form_effects_run_only_after_the_transaction_commits(
+    abdm_application,
+    owner_user,
+    ohc_user,
+    monkeypatch,
+    django_capture_on_commit_callbacks,
+):
+    """A reviewer verifying evidence is what earns a `MilestoneGrant`, so this
+    must never fire against a verification that then rolls back."""
+    ran: list[int] = []
+    _verifiable(abdm_application, owner_user)
+    _declare_form_effects(
+        monkeypatch,
+        abdm_application,
+        "security_compliance",
+        "verify_evidence",
+        (lambda submission, user: ran.append(submission.pk),),
+    )
+
+    with django_capture_on_commit_callbacks(execute=True) as callbacks:
+        perform_form_action(
+            application=abdm_application,
+            form_key="security_compliance",
+            action_key="verify_evidence",
+            user=ohc_user,
+        )
+        assert ran == []
+
+    assert len(callbacks) == 1
+    assert ran == [abdm_application.submissions.get().pk]
+
+
+def test_a_form_effect_is_given_the_submission_and_the_actor(
+    abdm_application,
+    owner_user,
+    ohc_user,
+    monkeypatch,
+    django_capture_on_commit_callbacks,
+):
+    seen: list[tuple] = []
+    _verifiable(abdm_application, owner_user)
+    _declare_form_effects(
+        monkeypatch,
+        abdm_application,
+        "security_compliance",
+        "verify_evidence",
+        (lambda submission, user: seen.append((submission.form_key, user.pk)),),
+    )
+
+    with django_capture_on_commit_callbacks(execute=True):
+        perform_form_action(
+            application=abdm_application,
+            form_key="security_compliance",
+            action_key="verify_evidence",
+            user=ohc_user,
+        )
+
+    assert seen == [("security_compliance", ohc_user.pk)]
