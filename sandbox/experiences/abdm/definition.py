@@ -16,6 +16,12 @@ from sandbox.experiences.definitions import RoleDefinition
 from sandbox.experiences.definitions import StatusDefinition
 from sandbox.experiences.models import QueryStatus
 from sandbox.experiences.registry import registry
+from sandbox.integrations.selectors import provisioning_can_be_retried
+from sandbox.integrations.selectors import teardown_is_incomplete
+from sandbox.integrations.services import start_deprovisioning
+from sandbox.integrations.services import start_provisioning
+from sandbox.notifications.hooks import notify
+from sandbox.notifications.models import TemplateKey
 
 from .forms import ApplicantQueryForm
 from .forms import ApprovalForm
@@ -289,6 +295,7 @@ class WithdrawApplication(ApplicationAction):
                 "withdrawn_by": context.user.pk,
                 "withdrawn_reason": str(cleaned_data.get("note", "")),
             },
+            effects=(lambda application, user: start_deprovisioning(application),),
         )
 
 
@@ -398,6 +405,7 @@ class RaiseQuery(ApplicationAction):
                 form_key=cleaned_data.get("related_form", ""),
                 due_at=cleaned_data.get("due_at"),
             ),
+            effects=(notify(TemplateKey.EXIT_SENT_BACK),),
         )
 
 
@@ -431,6 +439,10 @@ class ApproveApplication(ApplicationAction):
                 "decision_note": cleaned_data.get("note", ""),
                 "decided_by": context.user.display_name,
             },
+            effects=(
+                notify(TemplateKey.PRODUCTION_APPROVED),
+                lambda application, user: start_provisioning(application),
+            ),
         )
 
 
@@ -457,6 +469,74 @@ class RejectApplication(ApplicationAction):
                 "decision_note": cleaned_data.get("note", ""),
                 "decided_by": context.user.display_name,
             },
+            effects=(
+                notify(TemplateKey.EXIT_REJECTED),
+                lambda application, user: start_deprovisioning(application),
+            ),
+        )
+
+
+class RetryProvisioning(ApplicationAction):
+    """Ask the three systems again for whatever the failed attempt did not create.
+
+    It is the same chain, not a repair: every system whose ledger row is already
+    ACTIVE is skipped, so a run that died at the bridge creates only the bridge.
+
+    An action rather than a console button calling `enqueue_chain` directly,
+    because that is what gives the retry a permission to check and an
+    `ApplicationEvent` naming who asked — the two things it lost when
+    `sandbox/workflow/` went.
+    """
+
+    key = "retry_provisioning"
+    name = _("Retry provisioning")
+    description = _("Re-run credential provisioning after a failed attempt.")
+    permission = permission_keys.RETRY_PROVISIONING
+    allowed_statuses = frozenset({"approved"})
+
+    @classmethod
+    def extra_availability(cls, context):
+        if not provisioning_can_be_retried(context.application):
+            return False, _("The last provisioning attempt did not fail.")
+        return True, ""
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        return ActionResult(
+            message=_("Provisioning retried"),
+            effects=(start_provisioning,),
+        )
+
+
+class RetryDeprovisioning(ApplicationAction):
+    """Re-run teardown while anything is still switched on.
+
+    Offered for as long as the ledger says a credential survives the decision:
+    a rejected integrator holding a live client is the failure this exists to
+    close, and unlike provisioning it is worth re-asking even after a run that
+    reported no error, because teardown does not stop at its first failure.
+    """
+
+    key = "retry_deprovisioning"
+    name = _("Retry teardown")
+    description = _(
+        "Re-run credential teardown for a rejected or withdrawn application.",
+    )
+    permission = permission_keys.RETRY_PROVISIONING
+    allowed_statuses = frozenset({"rejected", "withdrawn"})
+    style = "destructive"
+
+    @classmethod
+    def extra_availability(cls, context):
+        if not teardown_is_incomplete(context.application):
+            return False, _("Nothing is still provisioned for this application.")
+        return True, ""
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        return ActionResult(
+            message=_("Teardown retried"),
+            effects=(lambda application, user: start_deprovisioning(application),),
         )
 
 
@@ -600,4 +680,6 @@ class ABDMProductionAccess(ApplicationDefinition):
         RaiseQuery,
         ApproveApplication,
         RejectApplication,
+        RetryProvisioning,
+        RetryDeprovisioning,
     )

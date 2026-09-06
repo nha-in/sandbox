@@ -382,110 +382,61 @@ class Invitation(models.Model):
         return membership
 
 
-class Sandbox(models.Model):
-    """A vendor team's single Care sandbox, provisioned by the OHC team."""
+class ProvisioningRun(models.Model):
+    """One attempt at provisioning, and how it went.
+
+    Deliberately not the same thing as the resources it creates. The chain
+    writes a `ProvisionedResource` row only for a system that produced
+    something — absence is how "not provisioned" is expressed — so a run that
+    failed before creating anything has nowhere else to be recorded. This is
+    that row.
+    """
 
     class Status(models.TextChoices):
-        REQUESTED = "requested", _("Requested")
-        PROVISIONING = "provisioning", _("Provisioning")
+        RUNNING = "running", _("Running")
         READY = "ready", _("Ready")
         FAILED = "failed", _("Failed")
 
-    organisation = models.OneToOneField(
-        Organisation,
+    application = models.ForeignKey(
+        "experiences.ApplicationInstance",
         on_delete=models.CASCADE,
-        related_name="sandbox",
-        verbose_name=_("Organisation"),
+        related_name="provisioning_runs",
+        verbose_name=_("Application"),
     )
     status = models.CharField(
         _("Status"),
         max_length=20,
         choices=Status.choices,
-        default=Status.REQUESTED,
+        default=Status.RUNNING,
     )
-    facility_name = models.CharField(_("Facility name"), max_length=255, blank=True)
-    is_facility_empty = models.BooleanField(_("Empty facility"), default=False)
-
-    job_id = models.CharField(_("Plugin job id"), max_length=64, blank=True)
-    result = models.JSONField(_("Result"), default=dict, blank=True)
+    #: The chain's correlation id, so an attempt can be found in the logs.
+    correlation_id = models.CharField(_("Correlation id"), max_length=64, blank=True)
     error = models.TextField(_("Error"), blank=True)
 
-    requested_by = models.ForeignKey(
+    started_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="requested_sandboxes",
-    )
-    provisioned_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="provisioned_sandboxes",
+        related_name="provisioning_runs_started",
+        help_text=_("Null when the approval started it rather than a person."),
     )
 
-    requested_at = models.DateTimeField(auto_now_add=True)
-    provisioned_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
     modified_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = _("Sandbox")
-        verbose_name_plural = _("Sandboxes")
-        ordering = ["-requested_at"]
+        verbose_name = _("Provisioning run")
+        verbose_name_plural = _("Provisioning runs")
+        ordering = ["-started_at"]
 
     def __str__(self) -> str:
-        return f"Sandbox for {self.organisation} ({self.status})"
+        return f"{self.application.reference} ({self.status})"
 
     @property
-    def is_ready(self) -> bool:
-        return self.status == self.Status.READY
-
-    @property
-    def is_pending(self) -> bool:
-        return self.status in {self.Status.REQUESTED, self.Status.PROVISIONING}
-
-    @property
-    def status_variant(self) -> str:
-        """The badge variant, so every screen agrees on what a status looks like."""
-        return {
-            self.Status.REQUESTED: "neutral",
-            self.Status.PROVISIONING: "info",
-            self.Status.READY: "success",
-            self.Status.FAILED: "destructive",
-        }.get(self.status, "neutral")
-
-    @property
-    def server(self) -> str:
-        return (self.result or {}).get("server", "")
-
-    @property
-    def facility(self) -> dict:
-        return (self.result or {}).get("facility", {})
-
-    @property
-    def credentials(self) -> list:
-        return (self.result or {}).get("users", [])
-
-    @property
-    def primary_credential(self) -> dict | None:
-        for credential in self.credentials:
-            if credential.get("is_primary"):
-                return credential
-        return self.credentials[0] if self.credentials else None
-
-    @property
-    def loaded_data(self) -> dict:
-        return (self.result or {}).get("loaded_data", {})
-
-    @property
-    def loaded_data_counts(self) -> dict:
-        """Readable counts: the plugin also reports flags nobody can act on."""
-        return {
-            key.replace("_", " ").title(): value
-            for key, value in self.loaded_data.items()
-            if not isinstance(value, bool)
-        }
+    def is_running(self) -> bool:
+        return self.status == self.Status.RUNNING
 
 
 def initials_for(value: str) -> str:

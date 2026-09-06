@@ -679,4 +679,10 @@ COMMON_PERMISSIONS = (
         _("Record a rejection and its reasons."),
         _("Decision"),
     ),
+    PermissionDefinition(
+        permission_keys.RETRY_PROVISIONING,
+        _("Retry provisioning"),
+        _("Re-run credential provisioning or teardown after it failed."),
+        _("Operations"),
+    ),
 )

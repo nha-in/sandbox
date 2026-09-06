@@ -77,7 +77,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # on every dev machine, which made both B7's happy path and C7's panel
 # unreachable without knowing to set an env var nobody had written down.
 WSO2_API_NAMES = {
-    "ABDM": tuple(
+    "abdm_production_access": tuple(
         env.list("WSO2_SANDBOX_API_NAMES", default=["HealthIdAPI", "GatewayAPI"]),
     ),
 }

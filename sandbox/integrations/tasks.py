@@ -22,10 +22,12 @@ from celery import shared_task
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
+from django.utils import timezone
 
 from sandbox.experiences.models import ApplicationInstance
 from sandbox.integrations.events import record
 from sandbox.integrations.keycloak.roles import role_names_for
+from sandbox.integrations.models import TEARDOWN_PENDING_STATES
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
@@ -39,6 +41,9 @@ from sandbox.integrations.registry import get_idp_admin
 from sandbox.integrations.secret_ref import has_secret
 from sandbox.integrations.secret_ref import store_secret
 from sandbox.integrations.wso2.apis import api_names_for
+from sandbox.notifications.hooks import send
+from sandbox.notifications.models import TemplateKey
+from sandbox.organisations.models import ProvisioningRun
 from sandbox.utils.correlation import get_correlation_id
 from sandbox.utils.correlation import set_correlation_id
 
@@ -46,6 +51,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from celery import Task
+    from django.contrib.auth.models import AbstractBaseUser
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +107,40 @@ def _record(
     return row
 
 
+def _open_run(application: ApplicationInstance) -> ProvisioningRun | None:
+    """The attempt this application is currently in the middle of, if any."""
+    return (
+        ProvisioningRun.objects.filter(
+            application=application,
+            status=ProvisioningRun.Status.RUNNING,
+        )
+        .order_by("-started_at")
+        .first()
+    )
+
+
+def _close_run(application: ApplicationInstance, status: str, error: str = "") -> None:
+    """Finish the newest open attempt for this application, if there is one."""
+    run = _open_run(application)
+    if run is None:
+        return
+    run.status = status
+    run.error = error
+    run.finished_at = timezone.now()
+    run.save(update_fields=["status", "error", "finished_at", "modified_at"])
+
+
 def _fail(
     task: Task,
     application: ApplicationInstance,
     system: ProvisionedSystem,
     failure: _Failure,
 ) -> None:
-    """Retry while it can plausibly help, then park the application visibly."""
+    """Retry while it can plausibly help, then close the attempt with the reason.
+
+    The reason is the whole point of closing it here rather than leaving it to
+    `complete_provisioning`, which can only see *that* the ledger is short.
+    """
     attempts = task.request.retries + 1
     if failure.retryable and attempts < settings.PROVISIONING_MAX_ATTEMPTS:
         raise task.retry(countdown=_backoff(task.request.retries))
@@ -121,6 +154,9 @@ def _fail(
         row.save(update_fields=["state", "modified_date"])
 
     detail = f"{system}/{failure.code}: {failure.detail}"
+    # ERROR, so it reaches Sentry through the logging integration (production.py).
+    logger.error("provisioning failed for %s: %s", application.reference, detail)
+    _close_run(application, ProvisioningRun.Status.FAILED, detail)
     record(
         "provisioning.failed",
         application=application,
@@ -139,24 +175,36 @@ def _step(
     application_id: int,
     correlation_id: str,
     system: ProvisionedSystem,
-    run: Callable[[ApplicationInstance], None],
+    call: Callable[[ApplicationInstance], None],
 ) -> int:
-    """Shared shape of every step: rebind, skip if done, call, record, or park.
+    """Shared shape of every step: rebind, skip what is settled, call, or fail.
 
     `ImproperlyConfigured` is caught alongside the adapter errors on purpose — a
     missing API-name list is not a transient fault, and retrying it five times
     over half an hour only delays the operator finding out.
     """
+    # Rebound per task, not per chain: each link is its own message, and a
+    # worker is a long-lived process, so the ContextVar arrives holding whatever
+    # the *previous* task left in it. Without this the outbound calls `http.py`
+    # stamps would carry another application's id.
     set_correlation_id(correlation_id)
     application = ApplicationInstance.objects.get(pk=application_id)
 
-    # An earlier link already parked this run; later links must not carry on.
+    # An earlier link already closed this attempt; later links must not carry
+    # on. Without this a WSO2 failure still builds a bridge for a client with no
+    # gateway subscription behind it — the guard the deleted PROVISIONING state
+    # used to provide. An application with no attempt record at all is not
+    # stopped: that is a task invoked directly, which has nothing to abandon.
+    if application.provisioning_runs.exists() and _open_run(application) is None:
+        return application_id
+
+    # This system is already done — the whole of what makes a retry safe.
     row = _ledger_row(application, system)
     if row is not None and row.state == ProvisionedResourceState.ACTIVE:
         return application_id
 
     try:
-        run(application)
+        call(application)
     except AdapterError as error:
         _fail(
             task,
@@ -177,20 +225,14 @@ def _step(
 
 @shared_task(bind=True, max_retries=None)
 def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
-    """First link in the chain.
-
-    It used to move the application into PROVISIONING; step 3 deleted that gate
-    because the ABDM registry has no provisioning status, and step 5 re-anchors
-    it onto `Sandbox.status` (plan 12 §7).
-    """
-    set_correlation_id(correlation_id)
+    """First link in the chain: the client every later step is named after."""
 
     def run(application: ApplicationInstance) -> None:
         created = get_idp_admin().create_client(
             ClientSpec(
                 reference=application.reference,
-                display_name=application.product.name,
-                role_names=role_names_for(application.workflow_key),
+                display_name=application.organisation.display_name,
+                role_names=role_names_for(application.application_type),
             ),
         )
         _record(
@@ -237,12 +279,12 @@ def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
             message = "WSO2 needs the Keycloak client that should already exist"
             raise ImproperlyConfigured(message)
 
-        api_names = api_names_for(application.workflow_key)
+        api_names = api_names_for(application.application_type)
         gateway = get_api_gateway()
         created = gateway.create_application(
             GatewayAppSpec(
                 reference=application.reference,
-                name=application.product.name,
+                name=application.organisation.display_name,
                 api_names=api_names,
             ),
         )
@@ -276,7 +318,7 @@ def provision_hiecm(task: Task, application_id: int, correlation_id: str) -> int
         get_bridge_registry().create_bridge(
             BridgeSpec(
                 bridge_id=bridge_id,
-                name=application.product.name,
+                name=application.organisation.display_name,
                 url=_callback_url(application),
             ),
         )
@@ -304,27 +346,39 @@ def complete_provisioning(application_id: int, correlation_id: str) -> int:
     )
     missing = set(ProvisionedSystem.values) - done
     if missing:
-        logger.error(
-            "provisioning for %s reached completion missing %s",
-            application.reference,
-            sorted(missing),
-        )
-        record(
-            "provisioning.failed",
-            application=application,
-            title="Provisioning incomplete",
-            payload={"missing": sorted(missing)},
-        )
+        # Usually a step already failed, closed the attempt with the reason the
+        # adapter gave, and logged it — that reason is better than anything
+        # derivable here, so say nothing rather than record the same failure
+        # twice under a vaguer name. An attempt still open means the ledger is
+        # short with nothing to blame, which is the case worth shouting about.
+        if _open_run(application) is not None:
+            logger.error(
+                "provisioning for %s reached completion missing %s",
+                application.reference,
+                sorted(missing),
+            )
+            _close_run(
+                application,
+                ProvisioningRun.Status.FAILED,
+                f"incomplete ledger: missing {', '.join(sorted(missing))}",
+            )
+            record(
+                "provisioning.failed",
+                application=application,
+                title="Provisioning incomplete",
+                payload={"missing": sorted(missing)},
+            )
         return application_id
 
-    # Step 5 calls `notify_provisioned` from here — it fires on a transition the
-    # chain raises itself, so it is not an `effects` entry (plan 12 §7).
     record(
         "provisioning.completed",
         application=application,
         title="Provisioning completed",
         payload={"systems": sorted(done)},
     )
+    _close_run(application, ProvisioningRun.Status.READY)
+    # Sent from here, not from an action: nobody performed this.
+    send(TemplateKey.SANDBOX_APPROVED, application)
     return application_id
 
 
@@ -337,13 +391,25 @@ def _callback_url(application: ApplicationInstance) -> str:
     callbacks; whatever this base is, it must at least be ours.
     """
     base = settings.HIECM_BRIDGE_CALLBACK_BASE_URL.rstrip("/")
-    return f"{base}/{application.external_id}"
+    return f"{base}/{application.reference}"
 
 
-def enqueue_chain(application: ApplicationInstance) -> None:
-    """Schedule the whole chain for after the caller's transaction commits."""
+def enqueue_chain(
+    application: ApplicationInstance,
+    started_by: AbstractBaseUser | None = None,
+) -> None:
+    """Schedule the whole chain for after the caller's transaction commits.
+
+    Opens the attempt record first, so a run that dies before any adapter
+    returns still leaves a row saying it was tried.
+    """
     application_id = application.pk
     correlation_id = get_correlation_id()
+    ProvisioningRun.objects.create(
+        application=application,
+        correlation_id=correlation_id or "",
+        started_by=started_by,
+    )
 
     def _send() -> None:
         (
@@ -357,13 +423,6 @@ def enqueue_chain(application: ApplicationInstance) -> None:
 
 
 # Teardown — B8
-
-#: Ledger states a teardown step still has work to do in. ORPHANED is excluded:
-#: it means P4's sweep found the resource with no live owner here, so it is that
-#: sweep's to clean up, not this chain's.
-_TEARDOWN_PENDING = frozenset(
-    {ProvisionedResourceState.ACTIVE, ProvisionedResourceState.FAILED},
-)
 
 
 def _teardown_failed(
@@ -400,7 +459,7 @@ def _teardown_step(
     application_id: int,
     correlation_id: str,
     system: ProvisionedSystem,
-    run: Callable[[ApplicationInstance, ProvisionedResource], None],
+    call: Callable[[ApplicationInstance, ProvisionedResource], None],
 ) -> int:
     set_correlation_id(correlation_id)
     application = ApplicationInstance.objects.get(pk=application_id)
@@ -409,11 +468,11 @@ def _teardown_step(
     # finished the job; both are success. FAILED is not — that is a resource we
     # tried and failed to switch off, and it is precisely what a retry is for.
     row = _ledger_row(application, system)
-    if row is None or row.state not in _TEARDOWN_PENDING:
+    if row is None or row.state not in TEARDOWN_PENDING_STATES:
         return application_id
 
     try:
-        run(application, row)
+        call(application, row)
     except AdapterError as error:
         _teardown_failed(
             task,
@@ -454,7 +513,7 @@ def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> in
         # guessed at from here.
         get_api_gateway().unsubscribe(
             row.external_ref,
-            api_names_for(application.workflow_key),
+            api_names_for(application.application_type),
         )
 
     return _teardown_step(

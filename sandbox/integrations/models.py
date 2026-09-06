@@ -87,3 +87,11 @@ class ProvisionedResource(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.system}:{self.external_ref} ({self.state})"
+
+
+#: Ledger states a teardown step still has work to do in. ORPHANED is excluded:
+#: it means P4's sweep found the resource with no live owner here, so it is that
+#: sweep's to clean up, not this chain's.
+TEARDOWN_PENDING_STATES = frozenset(
+    {ProvisionedResourceState.ACTIVE, ProvisionedResourceState.FAILED},
+)

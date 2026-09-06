@@ -23,7 +23,15 @@ REVIEWER = (
     "queries.raise",
     "queries.resolve",
 )
-DECISION_MAKER = (*REVIEWER, "application.approve", "application.reject")
+#: The retry sits with the decision maker rather than in a role of its own:
+#: it re-asks the systems for what an approval or a rejection already
+#: authorised, so whoever could make that decision can re-run its consequence.
+DECISION_MAKER = (
+    *REVIEWER,
+    "application.approve",
+    "application.reject",
+    "provisioning.retry",
+)
 
 ROLES = [
     (

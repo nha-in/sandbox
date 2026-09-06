@@ -428,7 +428,7 @@ KEYCLOAK_CLIENT_SECRET = env.str("KEYCLOAK_CLIENT_SECRET", default="")
 # This subset is provisional: legacy granted all 14 roles to everyone, and NHA
 # has not yet confirmed the per-kind set (open question 4).
 KEYCLOAK_ROLE_NAMES = {
-    "ABDM": tuple(
+    "abdm_production_access": tuple(
         env.list(
             "KEYCLOAK_SANDBOX_ROLE_NAMES",
             default=["healthId", "hip", "hiu", "hfr"],
@@ -463,7 +463,9 @@ WSO2_KEY_TYPE = env.str("WSO2_KEY_TYPE", default="PRODUCTION")
 WSO2_READ_TIMEOUT_SECONDS = env.float("WSO2_READ_TIMEOUT_SECONDS", default=15.0)
 # API NAMES, never ids. No default: NHA has not published the sandbox API names,
 # and a wrong or empty guess would fail silently at provisioning time.
-WSO2_API_NAMES = {"ABDM": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[]))}
+WSO2_API_NAMES = {
+    "abdm_production_access": tuple(env.list("WSO2_SANDBOX_API_NAMES", default=[])),
+}
 
 # How long a secret parked for `map_keys` stays readable (B7 → B4 hand-off).
 SECRET_REF_TTL_SECONDS = env.int("SECRET_REF_TTL_SECONDS", default=900)

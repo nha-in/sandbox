@@ -22,19 +22,13 @@ from sandbox.notifications.models import TemplateKey
 from sandbox.notifications.services import enqueue
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from sandbox.experiences.models import ApplicationEvent
     from sandbox.experiences.models import ApplicationInstance
 
 #: hook name (a workflow's TransitionSpec) -> the template it sends
-HOOK_TEMPLATES: dict[str, TemplateKey] = {
-    "notify_rejected": TemplateKey.SANDBOX_REJECTED,
-    "notify_provisioned": TemplateKey.SANDBOX_APPROVED,
-    "notify_exit_approved": TemplateKey.PRODUCTION_APPROVED,
-    "notify_exit_rejected": TemplateKey.EXIT_REJECTED,
-    "notify_exit_sent_back": TemplateKey.EXIT_SENT_BACK,
-}
+#: Which template each decision sends. The three "exit" templates belong to
+#: this application type: it *is* the production-access application, so its
+#: approval is a production approval and its send-back is an exit send-back.
+#: SANDBOX_REJECTED waits for a sandbox-access type to exist.
 
 #: templates that quote the reviewer back to the applicant
 COMMENT_TEMPLATES = frozenset(
@@ -53,64 +47,56 @@ def _panel_url(application: ApplicationInstance) -> str:
     Named `panel_url` rather than `credentials_url` because `enqueue` refuses
     any params key containing "credential" — a blunt rule worth a rename.
     """
+    # `reference`, not a UUID: every experiences route keys on <str:reference>,
+    # and ApplicationInstance has no external_id.
     path = reverse(
         settings.NOTIFICATION_CREDENTIALS_ROUTE,
-        kwargs={"external_id": application.external_id},
+        kwargs={"reference": application.reference},
     )
     return urljoin(settings.NOTIFICATION_PORTAL_BASE_URL, path)
 
 
-def _decision_comment(
-    application: ApplicationInstance,
-    transition: ApplicationEvent,
-) -> str:
-    """A review-driven action leaves its text on the review row, not the
-    transition (A6), so read whichever of the two actually has it."""
-    if transition.comment:
-        return transition.comment
-    review = application.reviews.order_by("-decided_at").first()
-    return review.comment if review else ""
+def _decision_comment(application: ApplicationInstance) -> str:
+    """The reviewer's note, which the action leaves on the event it wrote."""
+    event = application.events.order_by("-created_at", "-pk").first()
+    return event.description if event else ""
 
 
-def _params(
-    template: TemplateKey,
-    application: ApplicationInstance,
-    transition: ApplicationEvent,
-) -> dict[str, str]:
+def _params(template: TemplateKey, application: ApplicationInstance) -> dict[str, str]:
+    applicant = application.created_by
     params = {
         "reference": application.reference,
-        "product": application.product.name,
-        "applicant": application.applicant.name or application.applicant.email,
+        "product": application.organisation.display_name,
+        "applicant": applicant.name or applicant.email,
     }
     if template is TemplateKey.SANDBOX_APPROVED:
         params["panel_url"] = _panel_url(application)
     if template in COMMENT_TEMPLATES:
-        params["comment"] = _decision_comment(application, transition)
+        params["comment"] = _decision_comment(application)
     return params
 
 
-def _handler(
-    template: TemplateKey,
-) -> Callable[[ApplicationInstance, ApplicationEvent], None]:
-    def handle(
-        application: ApplicationInstance,
-        transition: ApplicationEvent,
-    ) -> None:
-        enqueue(
-            template_key=template,
-            recipient=application.applicant.email,
-            params=_params(template, application, transition),
-            application=application,
-            user=application.applicant,
-        )
+def notify(template: TemplateKey):
+    """An `ActionResult.effects` entry that sends one template.
 
-    return handle
-
-
-def register_workflow_hooks() -> None:
-    """No-op until step 5, when HOOK_TEMPLATES moves onto `ActionResult.effects`.
-
-    `notify_provisioned` is the exception: it fires on a system transition the
-    chain raises itself, so it becomes a direct call from `complete_provisioning`
-    rather than an effects entry (plan 12 §7).
+    The engine calls an effect with the saved application and the acting user;
+    the recipient is always the applicant, never the actor, because the actor
+    is usually NHA.
     """
+
+    def effect(application: ApplicationInstance, _user) -> None:
+        send(template, application)
+
+    return effect
+
+
+def send(template: TemplateKey, application: ApplicationInstance) -> None:
+    """Send one template about one application. Also the direct call the
+    provisioning chain makes, which has no acting user to speak of."""
+    enqueue(
+        template_key=template,
+        recipient=application.created_by.email,
+        params=_params(template, application),
+        application=application,
+        user=application.created_by,
+    )

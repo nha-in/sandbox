@@ -125,6 +125,8 @@ def test_definition_exposes_static_forms_roles_permissions_and_actions():
         "raise_query",
         "approve",
         "reject",
+        "retry_provisioning",
+        "retry_deprovisioning",
     }
     # Plan 12 §6 E2 closed the gap this used to pin: the permission key and
     # `withdrawn` status both existed with no action reaching either.

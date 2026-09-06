@@ -12,30 +12,17 @@ from typing import TYPE_CHECKING
 
 from django.utils.translation import gettext_lazy as _
 
+from sandbox.integrations.models import TEARDOWN_PENDING_STATES
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
 from sandbox.integrations.secret_ref import has_secret
+from sandbox.organisations.models import ProvisioningRun
 
 if TYPE_CHECKING:
     from django_stubs_ext import StrOrPromise
 
     from sandbox.experiences.models import ApplicationInstance
-
-#: Application states where credentials are a topic at all. Excludes the three
-#: that fire B8's teardown: after those the client is gone, and offering a
-#: rotate button for a client that no longer exists is worse than silence.
-#:
-#: Strings rather than the enum, because importing `applications.models` here
-#: would close a cycle — that module's own views import this one.
-CREDENTIAL_STATES = frozenset(
-    {
-        "SANDBOX_APPROVED",
-        "PROVISIONING",
-        "PROVISIONING_FAILED",
-        "PROVISIONED",
-    },
-)
 
 #: What the integrator is told each system is for. The ledger's own names are
 #: vendor names; these are the ones on screen.
@@ -100,7 +87,8 @@ def provisioning_progress(application: ApplicationInstance) -> list[SystemProgre
     if not rows:
         return []
 
-    pending = _("Waiting") if application.state == "PROVISIONING" else _("Not set up")
+    run = latest_run(application)
+    pending = _("Waiting") if run is not None and run.is_running else _("Not set up")
     progress = []
     for system in ProvisionedSystem.values:
         row = rows.get(system)
@@ -139,3 +127,31 @@ def credentials_for(application: ApplicationInstance) -> Credentials | None:
         bridge_ref=bridge.public_ref if bridge else "",
         initial_secret_available=has_secret(client.secret_ref),
     )
+
+
+def latest_run(application: ApplicationInstance) -> ProvisioningRun | None:
+    """The newest attempt, or None if the chain has never been started."""
+    return application.provisioning_runs.order_by("-started_at").first()
+
+
+def provisioning_can_be_retried(application: ApplicationInstance) -> bool:
+    """Only a failed attempt is worth re-running.
+
+    A RUNNING one would race the chain already in flight, and a READY one has
+    nothing left to ask any system for.
+    """
+    run = latest_run(application)
+    return run is not None and run.status == ProvisioningRun.Status.FAILED
+
+
+def teardown_is_incomplete(application: ApplicationInstance) -> bool:
+    """Whether anything is still switched on for this application.
+
+    The question a retry answers, and the reason it is offered on a rejected
+    application at all: every row left here is a live credential for an
+    integrator who no longer has access.
+    """
+    return ProvisionedResource.objects.filter(
+        application=application,
+        state__in=TEARDOWN_PENDING_STATES,
+    ).exists()

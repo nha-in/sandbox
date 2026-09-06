@@ -11,3 +11,10 @@ RAISE_QUERY = "queries.raise"
 RESOLVE_QUERY = "queries.resolve"
 APPROVE_APPLICATION = "application.approve"
 REJECT_APPLICATION = "application.reject"
+#: Re-running the external provisioning or teardown chain for one application.
+#: Operational rather than a decision: it changes nothing the reviewer decided,
+#: it only asks the adapters again for what the decision already authorised.
+#: Re-running the external provisioning or teardown chain for one application.
+#: Operational rather than a decision: it changes nothing the reviewer decided,
+#: it only asks the adapters again for what the decision already authorised.
+RETRY_PROVISIONING = "provisioning.retry"
