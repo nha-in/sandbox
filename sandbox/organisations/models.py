@@ -73,6 +73,55 @@ class OrganisationQuerySet(models.QuerySet["Organisation"]):
         ).order_by("triage_rank", "name")
 
 
+class NatureOfEntity(models.TextChoices):
+    """What kind of entity the applicant is. INDIVIDUAL included — see §4.5."""
+
+    COMPANY = "COMPANY", _("Company")
+    GOVERNMENT_BODY = "GOVERNMENT_BODY", _("Government Body")
+    INDIVIDUAL = "INDIVIDUAL", _("Individual")
+    LLP = "LLP", _("LLP")
+    PARTNERSHIP_FIRM = "PARTNERSHIP_FIRM", _("Partnership Firm")
+    PROPRIETORSHIP_FIRM = "PROPRIETORSHIP_FIRM", _("Proprietorship Firm")
+    SOCIETY = "SOCIETY", _("Society")
+    TRUST = "TRUST", _("Trust")
+
+
+class OrganisationCategory(models.TextChoices):
+    """Legacy `selectCategory` — what the integrator builds, not what it is."""
+
+    CENTRAL_GOVERNMENT_PROGRAM = (
+        "CENTRAL_GOVERNMENT_PROGRAM",
+        _("Central Government Program"),
+    )
+    CENTRAL_GOVERNMENT_ENTITY_TMS = (
+        "CENTRAL_GOVERNMENT_ENTITY_TMS",
+        _("Central Government Entity - TMS"),
+    )
+    DIAGNOSTIC_LABS = "DIAGNOSTIC_LABS", _("Diagnostic Labs")
+    NCD_PROGRAMME_GOI = "NCD_PROGRAMME_GOI", _("For NCD Programme of GoI")
+    GOVERNMENT_HEALTH_LOCKER = (
+        "GOVERNMENT_HEALTH_LOCKER",
+        _("Government Health Locker"),
+    )
+    GOVERNMENT_HMIS_SOLUTION_PROVIDER = (
+        "GOVERNMENT_HMIS_SOLUTION_PROVIDER",
+        _("Government HMIS Solution Provider"),
+    )
+    HEALTH_LOCKER = "HEALTH_LOCKER", _("Health Locker")
+    HEALTHCARE_SOLUTION_PROVIDER = (
+        "HEALTHCARE_SOLUTION_PROVIDER",
+        _("Healthcare Solution Provider"),
+    )
+    HMIS = "HMIS", _("HMIS")
+    INSURANCE = "INSURANCE", _("Insurance")
+    PHARMACY = "PHARMACY", _("Pharmacy")
+    PSU = "PSU", _("PSU")
+    STATE_GOVERNMENT_PROGRAM = (
+        "STATE_GOVERNMENT_PROGRAM",
+        _("State Government Program"),
+    )
+
+
 class Organisation(models.Model):
     """A vendor company: the unit that owns a sandbox, certifications and a team."""
 
@@ -111,6 +160,35 @@ class Organisation(models.Model):
         blank=True,
     )
 
+    nature_of_entity = models.CharField(
+        _("Nature of entity"),
+        max_length=30,
+        choices=NatureOfEntity.choices,
+        blank=True,
+    )
+    category = models.CharField(
+        _("Category"),
+        max_length=40,
+        choices=OrganisationCategory.choices,
+        blank=True,
+    )
+    # LGD reference data has no table of ours; `catalog/` serves it by code.
+    lgd_state_code = models.CharField(_("LGD state code"), max_length=10, blank=True)
+    lgd_district_code = models.CharField(
+        _("LGD district code"),
+        max_length=10,
+        blank=True,
+    )
+
+    #: Off the public listing without unverifying the vendor.
+    listing_hidden = models.BooleanField(_("Hidden from listing"), default=False)
+    #: Mobile only — allauth owns email verification.
+    mobile_verified_at = models.DateTimeField(
+        _("Mobile verified at"),
+        null=True,
+        blank=True,
+    )
+
     verification_status = models.CharField(
         _("Verification status"),
         max_length=20,
@@ -129,6 +207,21 @@ class Organisation(models.Model):
         verbose_name = _("Organisation")
         verbose_name_plural = _("Organisations")
         ordering = ["name"]
+        constraints = [
+            # "" is legal: onboarding collects these later.
+            models.CheckConstraint(
+                condition=models.Q(
+                    nature_of_entity__in=[*NatureOfEntity.values, ""],
+                ),
+                name="organisations_organisation_nature_of_entity_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    category__in=[*OrganisationCategory.values, ""],
+                ),
+                name="organisations_organisation_category_valid",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name

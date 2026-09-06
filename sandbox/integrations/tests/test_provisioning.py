@@ -14,6 +14,7 @@ from celery.exceptions import Retry
 from django.test import override_settings
 
 from sandbox.experiences.services import perform_application_action
+from sandbox.integrations import fakes
 from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.fakes import always_fail
 from sandbox.integrations.fakes import fail_next
@@ -23,6 +24,7 @@ from sandbox.integrations.models import ProvisionedSystem
 from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.secret_ref import discard_secret
 from sandbox.integrations.secret_ref import resolve_secret
+from sandbox.integrations.tasks import _external_name
 from sandbox.integrations.tasks import complete_provisioning
 from sandbox.integrations.tasks import enqueue_chain
 from sandbox.integrations.tasks import provision_keycloak
@@ -456,3 +458,57 @@ def test_the_chain_carries_the_id_the_approval_was_made_under(
         )
 
     assert _run(under_review).correlation_id == "cccccccccccccccccccccccccccccccc"
+
+
+# ── The name that goes out ───────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("stored", "sent"),
+    [
+        ("Sunrise Health (P) Ltd.", "Sunrise Health P Ltd"),
+        ("M/s Ādi & Co.", "M s di Co"),
+        ("  Sunrise  ", "Sunrise"),
+        ("Sunrise-Health_Systems", "Sunrise Health Systems"),
+    ],
+)
+def test_punctuation_is_stripped_before_the_name_reaches_keycloak(
+    under_review,
+    reviewer,
+    django_capture_on_commit_callbacks,
+    stored,
+    sent,
+):
+    """Legacy stripped every non-alphanumeric before sending, so nothing NHA
+    runs has ever been handed a name with punctuation in it."""
+    under_review.organisation.name = stored
+    under_review.organisation.legal_name = ""
+    under_review.organisation.save(update_fields=["name", "legal_name"])
+
+    with django_capture_on_commit_callbacks(execute=True):
+        perform_application_action(
+            application=under_review,
+            action_key="approve",
+            user=reviewer,
+            cleaned_data={
+                "production_client_id": "PROD-CLIENT-1001",
+                "approved_milestones": ["m1"],
+                "certificate_reference": "CERT-1",
+                "effective_date": None,
+            },
+        )
+
+    row = ProvisionedResource.objects.get(
+        application=under_review,
+        system=ProvisionedSystem.KEYCLOAK,
+    )
+    assert fakes.FakeIdpAdmin().get_client(row.external_ref)["display_name"] == sent
+
+
+def test_a_name_of_pure_punctuation_falls_back_to_the_reference(under_review):
+    """An empty display name identifies nobody, so something has to give."""
+    under_review.organisation.name = "!!!"
+    under_review.organisation.legal_name = ""
+    under_review.organisation.save(update_fields=["name", "legal_name"])
+
+    assert _external_name(under_review) == under_review.reference.replace("-", " ")

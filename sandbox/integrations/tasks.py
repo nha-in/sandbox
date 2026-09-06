@@ -16,6 +16,7 @@ which is what stops a task from being written that quietly forgets to carry it.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -136,10 +137,10 @@ def _fail(
     system: ProvisionedSystem,
     failure: _Failure,
 ) -> None:
-    """Retry while it can plausibly help, then close the attempt with the reason.
+    """Retry while it can plausibly help, then close the attempt.
 
-    The reason is the whole point of closing it here rather than leaving it to
-    `complete_provisioning`, which can only see *that* the ledger is short.
+    Closed here, not by `complete_provisioning`, which only sees *that* the
+    ledger is short — not why.
     """
     attempts = task.request.retries + 1
     if failure.retryable and attempts < settings.PROVISIONING_MAX_ATTEMPTS:
@@ -184,11 +185,9 @@ def _step(
     """
     application = ApplicationInstance.objects.get(pk=application_id)
 
-    # An earlier link already closed this attempt; later links must not carry
-    # on. Without this a WSO2 failure still builds a bridge for a client with no
-    # gateway subscription behind it — the guard the deleted PROVISIONING state
-    # used to provide. An application with no attempt record at all is not
-    # stopped: that is a task invoked directly, which has nothing to abandon.
+    # An earlier link closed this attempt; later links must not carry on, or a
+    # WSO2 failure still builds a bridge. No attempt record at all means a task
+    # invoked directly, which has nothing to abandon.
     if application.provisioning_runs.exists() and _open_run(application) is None:
         return application_id
 
@@ -225,7 +224,7 @@ def provision_keycloak(task: Task, application_id: int) -> int:
         created = get_idp_admin().create_client(
             ClientSpec(
                 reference=application.reference,
-                display_name=application.organisation.display_name,
+                display_name=_external_name(application),
                 role_names=role_names_for(application.application_type),
             ),
         )
@@ -272,7 +271,7 @@ def provision_wso2(task: Task, application_id: int) -> int:
         created = gateway.create_application(
             GatewayAppSpec(
                 reference=application.reference,
-                name=application.organisation.display_name,
+                name=_external_name(application),
                 api_names=api_names,
             ),
         )
@@ -306,7 +305,7 @@ def provision_hiecm(task: Task, application_id: int) -> int:
         get_bridge_registry().create_bridge(
             BridgeSpec(
                 bridge_id=bridge_id,
-                name=application.organisation.display_name,
+                name=_external_name(application),
                 url=_callback_url(application),
             ),
         )
@@ -333,11 +332,9 @@ def complete_provisioning(application_id: int) -> int:
     )
     missing = set(ProvisionedSystem.values) - done
     if missing:
-        # Usually a step already failed, closed the attempt with the reason the
-        # adapter gave, and logged it — that reason is better than anything
-        # derivable here, so say nothing rather than record the same failure
-        # twice under a vaguer name. An attempt still open means the ledger is
-        # short with nothing to blame, which is the case worth shouting about.
+        # A step that already failed recorded a better reason than anything
+        # derivable here. An open attempt means the ledger is short with
+        # nothing to blame, which is the case worth reporting.
         if _open_run(application) is not None:
             logger.error(
                 "provisioning for %s reached completion missing %s",
@@ -367,6 +364,17 @@ def complete_provisioning(application_id: int) -> int:
     # Sent from here, not from an action: nobody performed this.
     send(TemplateKey.SANDBOX_APPROVED, application)
     return application_id
+
+
+#: Legacy's rule, kept (`WorkflowServiceImpl.java:283`). Nothing NHA runs has
+#: ever been sent a name with punctuation in it.
+_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z0-9]+")
+
+
+def _external_name(application: ApplicationInstance) -> str:
+    """The integrator's name as the three systems will accept it."""
+    name = _NON_ALPHANUMERIC.sub(" ", application.organisation.display_name).strip()
+    return name or _NON_ALPHANUMERIC.sub(" ", application.reference).strip()
 
 
 def _callback_url(application: ApplicationInstance) -> str:

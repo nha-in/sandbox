@@ -5,9 +5,13 @@ review. Replaces `12-experience-adaptation.md`, `13-reconciliation.md` and
 `14-repo-port.md`, which are superseded in full: three documents correcting
 each other, where two of them were partly wrong.
 
-Everything below is either **sourced** — quoted from NHA, or read from code and
-production data, with the source named — or **decided**, with the reasoning
-kept. Nothing is inherited on trust.
+Everything below is either **sourced** — quoted from NHA, or read from legacy
+code and legacy data, with the source named — or **decided**, with the
+reasoning kept. Nothing is inherited on trust.
+
+Figures from the legacy database are deliberately not reproduced here. Where a
+conclusion rests on one, it says so and names the table; re-run the query
+against a local restore if it needs confirming.
 
 ---
 
@@ -66,9 +70,9 @@ That is the engine rebuilt one level higher. One instance instead;
 *submissions* per instance today, **eleven once D8 and D9 add their forms** →
 several *revisions* per submission.
 
-Legacy's numbers give the scale: **15,200 sandbox applications and 1,725
-exits**. `ApplicationAccess` is keyed on the instance — the level that grows
-without bound — which is why §5 puts NHA's authority somewhere else.
+Legacy's scale is tens of thousands of applications and thousands of exits.
+`ApplicationAccess` is keyed on the instance — the level that grows without
+bound — which is why §5 puts NHA's authority somewhere else.
 
 ---
 
@@ -83,7 +87,7 @@ Read directly, not inherited.
 | *Commonly Asked Questions — Integrator Guide* v1.4, 20 Nov 2025 | PDF | the exit gate. It also carries a **mandatory-HI-types-per-participant-category** matrix (HMIS → all 8, Pharmacy → Invoice mandatory, PHR/Locker/Health Worker → all 8, …) not reproduced here — §8.3's predicates need it, so read it there |
 | the milestone → Keycloak role map | supplied by NHA, 2026-09-05 | §3's role column |
 | legacy Java source (`abdm-sandbox/`) | read | the M1/PHR gate, the NHCX enrolment/exit split, the permission model |
-| legacy production dump, 31-Aug-2026 | restored locally as `sandbox_legacy` | role assignments and user counts (§5.4) |
+| the legacy database | read locally; figures not reproduced here | role assignments (§5.4), the shape migration reads (§4.6) |
 | **v3 specification** — [artifact](https://claude.ai/code/artifact/ddedf004-38ab-48ec-afd6-b0b13be7f31c) | our own, written before this plan | the behaviour: statuses, roles, gates, the nine field blocks, the five applications |
 | **v3 data model** — [artifact](https://claude.ai/code/artifact/3cee75e5-af9c-4c5e-99a0-33dbc4e1bfc7) | our own, derived from the specification | the 24 tables §4.4 answers |
 
@@ -244,6 +248,122 @@ met by a form, an audit event, or a column before it is met by a table.**
 | `VerificationCode` | `sandbox/otp/`, 129 lines, already sending through the `NotificationGateway` port. **Mobile only** — allauth owns email (`ACCOUNT_EMAIL_VERIFICATION = "mandatory"`) |
 | `StaffRole` | §5 |
 
+### 4.5 The individual applicant
+
+A large share of legacy applicants are one person rather than a company —
+`sd_login.application_type = '2'` — and they are a reviewed population, not
+abandoned signups: they reach `sd_status` and are decided like anyone else.
+They saw a much shorter form (user details, solution type, intent), and legacy
+collected no entity for them at all: `entity_type` and GST are blank across
+that population.
+
+**They get a one-person `Organisation`, named after the person, with
+`nature_of_entity = INDIVIDUAL`.** Not a nullable `ApplicationInstance
+.organisation` — that FK is assumed non-null by `visible_to`, `ApplicationAccess`
+and every console query, and making it optional would spread the special case
+across all of them.
+
+The evidence is that legacy already did this, just later and less visibly. It
+substituted at the wire rather than in the data
+(`WorkflowServiceImpl.java:277-288`):
+
+```java
+if (INDIVIDUAL_APPLICATION_TYPE_ID.equals(sdLogin.getApplicationType())) {
+    name = sdLogin.getName();          // the person
+} else {
+    name = sdLogin.getOrganization();
+}
+name = name.replaceAll("[^a-zA-Z0-9]", " ").trim();
+String entity = INDIVIDUAL_APPLICATION_TYPE_ID.equals(...) ? "NA"
+                                                           : sdLogin.getTypeOfApplication();
+```
+
+So Keycloak and the bridge registry have always received the person's name in
+the organisation slot. Holding it as an `Organisation` row produces the same
+outbound payload with no `if individual` anywhere in `integrations/` —
+`provision_keycloak` already sends `organisation.display_name`.
+
+Two consequences to carry into the migration rather than rediscover:
+
+- **Legacy sanitised that name** (`[^a-zA-Z0-9]` → space), so we do too —
+  `tasks._external_name`, applied to all three adapters. Nothing NHA runs has
+  ever been handed a name containing punctuation, so we have no evidence any of
+  them accepts one, and reproducing the rule is cheaper than finding out on a
+  real call. One deviation: legacy replaced each character singly and trimmed
+  only the ends, so `Sunrise Health (P) Ltd.` reached Keycloak with a double
+  space inside it; runs collapse here. Safe, because no migrated integrator is
+  re-provisioned — this only ever names a new client. A name that is entirely
+  punctuation falls back to the reference, an empty one identifying nobody.
+- **`entity` went out as the string `"NA"`** for individuals — a placeholder
+  for a null. Ours is `nature_of_entity = INDIVIDUAL`, which is better
+  information, but it changes what any downstream consumer of the bridge
+  table's `entity` column receives.
+
+The cosmetic cost is people appearing in a vendor listing, which
+`listing_hidden` already exists to answer.
+
+Legacy carried this on a separate `application_type` code and left
+`entity_type` blank. We fold it into `nature_of_entity` instead: one fact, one
+column, and the shorter form becomes a predicate on it rather than on a second
+field that can contradict it. Migration maps `application_type = '2'` onto
+`INDIVIDUAL`.
+
+### 4.6 Migration reshapes; it does not copy
+
+Legacy is not imported in its own shape and then adapted. The importer builds
+our objects — an `Organisation`, an `ApplicationInstance`, an
+`ApplicationFormSubmission` per form, the milestone grants, and a
+`ProvisionedResource` cross-referencing the client that already exists. The
+legacy row is *input*.
+
+That is what settles where the legacy key lives. `sd_login` fuses the
+integrator and the application into one row — the same fusion that makes
+`sandbox_client_id` unplaceable in §8.3 — so splitting it gives one
+`Organisation` **and** one `ApplicationInstance`. `sd_id → ApplicationInstance`
+is 1:1; `sd_id → Organisation` is many:1, because a meaningful minority of
+applicant emails hold several `sd_login` rows. A single `legacy_sd_id` column
+on `Organisation` drops all but one of those, and repeat applicants —
+reapplied after rejection, or a second product — are the interesting ones.
+
+So the key belongs in a mapping table written by the importer (`sd_id` ·
+organisation · application · imported_at), not on a core model. It records both
+halves of the split, gives a re-runnable 15k-row import somewhere to be
+idempotent from, and is droppable after cutover. It arrives with the importer;
+nothing is added to `Organisation` for it now.
+
+**Where each thing lives**, so the importer is written against the right
+tables:
+
+| | |
+| --- | --- |
+| `sd_login` | the integrator and the application, fused into one row |
+| `sd_status` | the decision, and the Keycloak client id it issued |
+| `sd_exit` | the exit application |
+| `sd_exit_docs` | the exit evidence, typed by `sd_doc_type` |
+
+The client ids in `sd_status` name clients that live in NHA's Keycloak realm,
+not in any database of ours — the importer cross-references them rather than
+creating them.
+
+**`sd_exit`'s inline document columns are stale.** `wasa_file`, `host_file`,
+`function_testing_file` and `policy_file` are BYTEA columns superseded by
+`sd_exit_docs`. Read the inline columns and the evidence looks almost entirely
+absent; read the table and most decided exits have it. `policy_file` was never
+used at all. Do not write the importer against the columns.
+
+**The open question the reshaping raises.** A minority of decided exits have no
+document in the system at all, which matches §3.2's hard-copy received date —
+the evidence arrived outside it. A synthesized `security_certification`
+submission is therefore complete for most and empty for a tail of integrators
+who are nonetheless approved. Marking them complete asserts evidence we do not
+hold; marking them incomplete shows approved integrators as unfinished. A third
+state — migrated without evidence — is probably the honest answer. Not decided
+here.
+
+**Other application types have their own tables** and are not in scope for the
+first import: `sd_hiu`, `sd_exit_live`, `nhcx_exit`, `sd_uhi`.
+`active_integrator` is the public listing `listing_hidden` answers.
+
 ---
 
 ## 5. Access control
@@ -259,9 +379,9 @@ subject, a scope and a role.
 | **NHA** | reviewers and decision makers | `ReviewRoleAssignment` — standing, portal-wide, no per-application row |
 
 The vendor side needs a per-instance grant because *which applicant role* a
-colleague holds is genuinely per application. The NHA side must not: legacy has
-**15,204 integrator accounts**, and a row per reviewer per application was
-never going to work.
+colleague holds is genuinely per application. The NHA side must not: legacy's
+integrator accounts number in the tens of thousands, and a row per reviewer per
+application was never going to work.
 
 `ApplicationAccess` therefore means exactly one thing: **who on the vendor's
 team may do what to this application.** Its platform half — the `"platform"`
@@ -343,42 +463,36 @@ three `RoleDefinition`s carried before they left the registry, less
 
 ### 5.4 Migrating legacy's roles
 
-Counts from the 31-Aug-2026 production dump.
+Each of legacy's eight `mst_role` rows, and what it becomes. The user counts
+behind these conclusions were checked against the legacy database and are not
+reproduced here.
 
-| legacy role | users | maps to |
-| ----------- | ----: | ------- |
-| Super Admin | 5 | every permission, plus Django superuser |
-| HTC | 5 | `decision_maker` — the same HTC as §3.2 step 3 |
-| Role_Admin_view | 5 | `reviewer` — see below |
-| User | 15,204 | integrators; no review role at all |
-| User_view | 14 | a `user_view` role holding **no permissions** |
-| UHI Application | 2 | **blocked** — §5.5 |
-| nhcx | 1 | **blocked** — §5.5 |
-| UHI | 0 | drop, unassigned |
+| legacy role | maps to |
+| ----------- | ------- |
+| Super Admin | every permission, plus Django superuser |
+| HTC | `decision_maker` — the same HTC as §3.2 step 3 |
+| Role_Admin_view | `reviewer` — see below |
+| User | integrators; no review role at all |
+| User_view | a `user_view` role holding **no permissions** |
+| UHI Application | **blocked** — §5.5 |
+| nhcx | **blocked** — §5.5 |
+| UHI | drop, unassigned |
 
-**`User_view` maps to an empty role, which is now safe.** Its 14 users have no
+**`User_view` maps to an empty role, which is now safe.** Its users have no
 privilege row, so today they get a 500. `permissions = []` reproduces what they
 effectively have, without the crash.
 
-**`Role_Admin_view` has never decided anything, and the dump proves it.**
-`sd_status` carries five actor columns — `admin_id` and `htc1_id`…`htc4_id`,
-foreign keys to `sd_login.sd_id` — populated on between 1,510 and 5,059 of its
-15,200 rows. Resolving all **18,691 recorded decisions** to their actor's role
-gives exactly two:
+**`Role_Admin_view` has never decided anything.** `sd_status` carries five actor
+columns — `admin_id` and `htc1_id`…`htc4_id`, foreign keys to
+`sd_login.sd_id`. Resolving every recorded decision to its actor's role yields
+exactly two, HTC and Super Admin; `Role_Admin_view` appears in none of them.
+Every screening decision was made from the Super Admin account and every
+committee decision from an HTC account. So although the role *can* decide — it
+holds `All Application List`, and the action verb is decorative (§5.2) — nobody
+has ever used it to. Mapping it to `reviewer` withdraws a capability that has
+never once been exercised, which is as close to safe as a migration gets.
 
-| role | decisions recorded |
-| ---- | -----------------: |
-| HTC | 10,977 |
-| Super Admin | 7,714 |
-
-`Role_Admin_view` appears **zero** times. Every screening decision was made
-from the Super Admin account and every committee decision from an HTC account.
-So although the role *can* decide — it holds `All Application List`, and the
-action verb is decorative (§5.2) — nobody has ever used it to. Mapping it to
-`reviewer` takes away a capability that has never been exercised in 15,200
-applications, which is as close to safe as a migration gets.
-
-That is also worth telling NHA: five people hold a role with rights the
+That is also worth telling NHA: a handful of people hold a role with rights the
 evidence says they have never used.
 
 **A correction to an earlier draft.** This plan previously said `sd_status` had
@@ -511,14 +625,26 @@ becomes a direct call from `complete_provisioning`.
 | 1 · delete the machinery | **done** — `63b5e2d`. Five apps, seven test modules, the seed command, 33 templates, both lint contracts |
 | 2 · copy `experience` in, rename, strip the Care plugin | **done** — `552692c` |
 | 3 · settle settings, unplug the chain, reset migrations | **done** — `1ce4282`. 639 tests green. Restored the six `.txt` notification bodies step 1 deleted — they were counted as zero because the count globbed `*.html`, and twenty tests failed on it |
-| 4 · engine delta + access control | **written, uncommitted.** E1, E2, §5 in full. 659 tests green |
-
-The suite needs Postgres. The counts above were run against a local server
-rather than the project's Docker one: `POSTGRES_HOST=localhost USE_DOCKER=no`
-with a `debug` role, which is why `just pytest` will disagree if Docker is
-down.
-| 5 · plug in | not started — §7's wiring onto `effects`, `Sandbox` re-pointed, §7.1's couplings, the deleted test modules rewritten |
+| 4 · engine delta + access control | **done** — `6094eb0`. E1, E2, §5 in full |
+| 5 · plug in | **done** — `b9c102b`, `ac4a410`, `108b88a`. §7 wired onto `effects`; `Sandbox` → `ProvisioningRun`; §7.1's couplings; retries back as registry actions; the deleted test modules restored; `test_chains.py` out of the gate and verified against real WireMock. 751 tests green, 1 skip |
 | 6 · re-apply the design | not started — `MilestoneGrant`, `NotificationLog`, `ApplicationEvent.is_internal`, the `VerifySecurityEvidence` replication for the other three exit artifacts (§4.4), a `Correction` action reachable in `approved` (§4.4), D1–D11, and the fields §8.3 names |
+
+The suite needs Postgres, and the counts above were run against a local server
+rather than the project's Docker one: `POSTGRES_HOST=localhost USE_DOCKER=no`
+with a `debug` role, so `just pytest` will disagree if Docker is down.
+
+`tests/integrations/` additionally needs WireMock, which is compose-profiled and
+therefore absent by default:
+
+```
+docker compose -f docker-compose.local.yml --profile wiremock up -d wiremock
+```
+
+Without it those eighteen tests skip; with `WIREMOCK_REQUIRED=1`, as CI sets,
+they fail instead — the distinction exists because a silent skip and a pass are
+otherwise the same thing. A container left from an earlier compose run can hold
+a stale network id and refuse to start; `--force-recreate` on that one service
+clears it.
 
 ### 8.1 Decisions taken during the port
 
@@ -562,11 +688,34 @@ Replacing `users/` and `organisations/` wholesale (§8, step 2) was the right
 call — `experience`'s are larger and carry the UI — but it dropped columns this
 repo had. Port them forward from `552692c^` rather than re-deriving:
 
-**`Organisation`** gains the ABDM identity fields: `sandbox_client_id`,
-`production_client_id`, `legacy_sd_id`, `category`, `nature_of_entity`,
-`is_individual`, `email_verified_at`, `mobile_verified_at`, `listing_hidden` —
-plus the LGD `lgd_state_code` / `lgd_district_code` that `catalog/` exists to
-serve, and the B1–B4 answers §4.4 puts here.
+**`Organisation`** — **done**, migration
+`0004_organisation_abdm_identity_fields`: `category`, `nature_of_entity`,
+`mobile_verified_at`, `listing_hidden`, and the LGD
+`lgd_state_code` / `lgd_district_code` that `catalog/` exists to serve, which
+un-skipped `catalog/test_selectors.py`. `NatureOfEntity` and
+`OrganisationCategory` come back with their CHECK constraints, both admitting
+`""` because onboarding collects them later.
+
+Three of the fields this section originally named were dropped, each for a
+reason worth keeping:
+
+- **`is_individual`** folded into `nature_of_entity = INDIVIDUAL` — §4.5.
+- **`email_verified_at`** — allauth owns email verification
+  (`ACCOUNT_EMAIL_VERIFICATION = "mandatory"`) and §4.4 makes `sandbox/otp/`
+  mobile-only. An organisation-level email flag would compete with it.
+- **`legacy_sd_id`** — §4.6. Wrong cardinality on this model, and the
+  migration reshapes rather than copies, so nothing in the result is described
+  by it.
+- **`sandbox_client_id` / `production_client_id`** — each would be a third home
+  for a value two places already hold with clear owners:
+  `ApplicationInstance.outcome["production_client_id"]` is what the reviewer
+  recorded at approval, `ProvisionedResource.public_ref` is what Keycloak
+  issued. A column on `Organisation` would have no owner, no rule for
+  disagreement, and — since an org holds several applications, ABDM now and
+  NHCX/UHI later — no way to represent more than one. They exist on legacy's
+  `sd_login` because that one row *was* the org, the application and the
+  credentials at once; we have already split that three ways. Add them only
+  once someone names which of the three is authoritative.
 
 **`users/`** gains back `middleware.py` (§8.2) and whatever of the dropped
 `services.py` survives review.
@@ -585,8 +734,8 @@ Everything the earlier documents held open is closed. What remains:
 1. **`Super Admin`'s mapping** is described but not seeded — the seed creates
    three roles, not five. Add `user_view` and `super_admin` there, or leave
    them to the user-migration script.
-2. **Legacy's empty `security_audit_trail`** may mean the feature was never
-   switched on, or that the dump excluded it. If the former, "legacy has no
+2. **Legacy's `security_audit_trail` holds nothing.** Either the feature was
+   never switched on or our copy excluded it. If the former, "legacy has no
    record of who decided" is worth telling NHA in its own right.
 3. **Which action each exit notification hangs off.** `HOOK_TEMPLATES` carries
    three exit templates — `notify_exit_approved`, `notify_exit_rejected`,
