@@ -38,7 +38,7 @@ class ProvisionedResourceState(models.TextChoices):
 
 class ProvisionedResource(BaseModel):
     application = models.ForeignKey(
-        "applications.Application",
+        "experiences.ApplicationInstance",
         on_delete=models.PROTECT,
         related_name="provisioned_resources",
     )

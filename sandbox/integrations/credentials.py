@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sandbox.audit.services import emit
+from sandbox.integrations.events import record
+from sandbox.organisations.models import Role
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
@@ -20,15 +21,14 @@ from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.registry import get_idp_admin
 from sandbox.integrations.secret_ref import discard_secret
 from sandbox.integrations.secret_ref import resolve_secret
-from sandbox.organisations.selectors import is_owner
 from sandbox.utils.errors import DomainError
 
 if TYPE_CHECKING:
-    from sandbox.applications.models import Application
+    from sandbox.experiences.models import ApplicationInstance
     from sandbox.users.models import User
 
 
-def _keycloak_client(application: Application) -> ProvisionedResource | None:
+def _keycloak_client(application: ApplicationInstance) -> ProvisionedResource | None:
     return ProvisionedResource.objects.filter(
         application=application,
         system=ProvisionedSystem.KEYCLOAK,
@@ -42,7 +42,7 @@ def _forget_secret_ref(row: ProvisionedResource) -> None:
     row.save(update_fields=["secret_ref", "modified_date"])
 
 
-def take_initial_secret(application: Application) -> str | None:
+def take_initial_secret(application: ApplicationInstance) -> str | None:
     """Read the Keycloak secret once, then destroy the reference (C7).
 
     Returns None when it has already been read or the short TTL has passed; the
@@ -62,7 +62,7 @@ def take_initial_secret(application: Application) -> str | None:
     return secret
 
 
-def rotate_credentials(*, application: Application, actor: User) -> str:
+def rotate_credentials(*, application: ApplicationInstance, actor: User) -> str:
     """Mint a new Keycloak secret and return it for its one showing (C7).
 
     Returned rather than parked in the hand-off: the caller is the request that
@@ -74,7 +74,10 @@ def rotate_credentials(*, application: Application, actor: User) -> str:
     JWT rather than the secret, so this is expected to be harmless — but it is
     unverified against a real gateway, and is C7's second staging line.
     """
-    if not is_owner(application.product.organisation, actor):
+    if not application.organisation.memberships.filter(
+        user=actor,
+        role=Role.OWNER,
+    ).exists():
         message = "only an owner of this organisation may rotate credentials"
         raise DomainError(message, code="forbidden")
 
@@ -90,10 +93,11 @@ def rotate_credentials(*, application: Application, actor: User) -> str:
     if row.secret_ref:
         _forget_secret_ref(row)
 
-    emit(
+    record(
         "credentials.rotated",
-        obj=application,
+        application=application,
+        title="Client secret rotated",
         actor=actor,
-        data={"reference": application.reference, "client_id": row.public_ref},
+        payload={"reference": application.reference, "client_id": row.public_ref},
     )
     return rotated.secret

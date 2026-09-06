@@ -1,0 +1,9 @@
+Hello {{ applicant }},
+
+Your sandbox application {{ reference }} for {{ product }} was not approved.
+
+Reviewer's note:
+
+    {{ comment|default:"No note was recorded." }}
+
+You may address the points above and submit a new application.

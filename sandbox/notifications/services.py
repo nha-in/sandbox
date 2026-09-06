@@ -25,7 +25,7 @@ from sandbox.utils.errors import DomainError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from sandbox.applications.models import Application
+    from sandbox.experiences.models import ApplicationInstance
     from sandbox.users.models import User
 
 #: Substrings that make a params key refuse to be logged. Deliberately excludes
@@ -73,7 +73,7 @@ def enqueue(  # noqa: PLR0913 - all keyword-only; collapsing them would hide the
     template_key: str,
     recipient: str,
     params: Mapping[str, Any] | None = None,
-    application: Application | None = None,
+    application: ApplicationInstance | None = None,
     user: User | None = None,
     channel: str = Channel.EMAIL,
 ) -> Message:

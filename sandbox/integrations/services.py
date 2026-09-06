@@ -1,8 +1,10 @@
 """Starting and restarting provisioning.
 
-Both entry points go through `transition()`: the console's retry button is a
-workflow move like any other, so it is permission-checked and audited rather
-than being a bare "run the job again".
+Plan 14 step 3 unplugged this: `sandbox/workflow/` is gone, so neither entry
+point rides a transition any more, and the permission check that guarded a
+retry has nowhere to live until step 5 turns it into a registry action. Both
+retries enqueue their chain directly in the meantime — safe, because nothing
+calls either until step 5 reconnects the hooks.
 
 Reading and rotating the secret live in `credentials.py`, not here: this module
 imports `tasks`, which pulls in the adapter packages that domain code is
@@ -13,71 +15,48 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sandbox.audit.services import emit
+from sandbox.integrations.events import record
 from sandbox.integrations.tasks import enqueue_chain
 from sandbox.integrations.tasks import enqueue_teardown
-from sandbox.utils.errors import DomainError
-from sandbox.workflow.engine import transition
-from sandbox.workflow.registry import get_workflow
 
 if TYPE_CHECKING:
-    from sandbox.applications.models import Application
+    from sandbox.experiences.models import ApplicationInstance
     from sandbox.users.models import User
-    from sandbox.workflow.models import WorkflowTransition
 
 
-def start_provisioning(
-    application: Application,
-    _transition: WorkflowTransition,
-) -> None:
-    """Hook body for `provisioning_chain`, fired by approval and by retry."""
+def start_provisioning(application: ApplicationInstance) -> None:
+    """Reconnected to the approve action's `effects` in step 5."""
     enqueue_chain(application)
 
 
-def retry_provisioning(
-    *,
-    application: Application,
-    actor: User,
-) -> WorkflowTransition:
-    """Re-run the chain for the console's retry button.
-
-    Nothing is cleaned up first: completed systems have ACTIVE ledger rows and
-    are skipped, so a retry finishes the missing ones. The transition's own hook
-    is what re-enqueues the chain.
-    """
-    return transition(
-        application=application,
-        action="RETRY_PROVISIONING",
-        actor=actor,
-    )
-
-
-def start_deprovisioning(
-    application: Application,
-    _transition: WorkflowTransition,
-) -> None:
-    """Hook body for `deprovisioning_chain`, fired by rejection and withdrawal."""
+def start_deprovisioning(application: ApplicationInstance) -> None:
+    """Reconnected to reject and withdraw in step 5."""
     enqueue_teardown(application)
 
 
-def retry_deprovisioning(*, application: Application, actor: User) -> None:
-    """Re-run the teardown for the console's retry button.
+def retry_provisioning(*, application: ApplicationInstance, actor: User) -> None:
+    """Re-run the chain.
 
-    Unlike `retry_provisioning` there is no transition to ride: the application
-    already sits in a terminal state, so the permission check and the audit row
-    have to be made here rather than inherited from `transition()`.
+    Nothing is cleaned up first: completed systems have ACTIVE ledger rows and
+    are skipped, so a retry finishes the missing ones.
     """
-    permission = get_workflow(application.workflow_key).permission_for(
-        "RETRY_PROVISIONING",
-    )
-    if not actor.has_perm(permission):
-        message = f"retrying deprovisioning requires {permission}"
-        raise DomainError(message, code="forbidden")
-
-    emit(
-        "application.deprovisioning_retried",
-        obj=application,
+    record(
+        "retry_provisioning",
+        application=application,
+        title="Provisioning retried",
         actor=actor,
-        data={"reference": application.reference},
+        payload={"reference": application.reference},
+    )
+    enqueue_chain(application)
+
+
+def retry_deprovisioning(*, application: ApplicationInstance, actor: User) -> None:
+    """Re-run the teardown."""
+    record(
+        "retry_deprovisioning",
+        application=application,
+        title="Deprovisioning retried",
+        actor=actor,
+        payload={"reference": application.reference},
     )
     enqueue_teardown(application)

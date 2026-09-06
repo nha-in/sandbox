@@ -434,8 +434,10 @@ class TestTheTimeIsUnambiguous:
 
     Every other timestamp in this app is something that already happened, where
     the zone does not much matter. These are times a vendor has to show up for,
-    and the app renders in UTC, so a bare "3:00 p.m." reads as local and sends
-    an Indian partner to a call five and a half hours after it ended.
+    so a bare "3:00 p.m." reads as local and sends someone to a call at the
+    wrong hour. The fixture is set in UTC and asserted in IST deliberately:
+    TIME_ZONE is Asia/Kolkata here, and this is what catches it silently
+    reverting to UTC.
     """
 
     @pytest.fixture
@@ -456,7 +458,7 @@ class TestTheTimeIsUnambiguous:
             sign_in(owner_membership.user).get(reverse("events:list")).content.decode(),
         )
 
-        assert "3:00 p.m. UTC" in body
+        assert "8:30 p.m. IST" in body
 
     def test_an_event_page_names_the_zone(
         self,
@@ -470,7 +472,7 @@ class TestTheTimeIsUnambiguous:
             .content.decode(),
         )
 
-        assert "3:00 p.m. UTC" in body
+        assert "8:30 p.m. IST" in body
 
     def test_the_dashboard_card_names_the_zone(
         self,
@@ -482,7 +484,7 @@ class TestTheTimeIsUnambiguous:
             sign_in(owner_membership.user).get(reverse("dashboard")).content.decode(),
         )
 
-        assert "3:00 p.m. UTC" in body
+        assert "8:30 p.m. IST" in body
 
     def test_the_zone_follows_the_setting_rather_than_being_hardcoded(
         self,

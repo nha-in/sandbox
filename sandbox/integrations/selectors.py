@@ -20,7 +20,7 @@ from sandbox.integrations.secret_ref import has_secret
 if TYPE_CHECKING:
     from django_stubs_ext import StrOrPromise
 
-    from sandbox.applications.models import Application
+    from sandbox.experiences.models import ApplicationInstance
 
 #: Application states where credentials are a topic at all. Excludes the three
 #: that fire B8's teardown: after those the client is gone, and offering a
@@ -77,7 +77,7 @@ class Credentials:
     initial_secret_available: bool
 
 
-def provisioning_progress(application: Application) -> list[SystemProgress]:
+def provisioning_progress(application: ApplicationInstance) -> list[SystemProgress]:
     """One row per system, in chain order, including the ones not reached yet.
 
     A system with no ledger row is shown rather than omitted: "we have not
@@ -118,7 +118,7 @@ def provisioning_progress(application: Application) -> list[SystemProgress]:
     return progress
 
 
-def credentials_for(application: Application) -> Credentials | None:
+def credentials_for(application: ApplicationInstance) -> Credentials | None:
     """The panel's contents, or None while there is no Keycloak client yet."""
     rows = {
         row.system: row

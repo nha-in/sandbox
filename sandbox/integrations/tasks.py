@@ -23,8 +23,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 
-from sandbox.applications.models import Application
-from sandbox.applications.models import ApplicationState
+from sandbox.experiences.models import ApplicationInstance
 from sandbox.integrations.keycloak.roles import role_names_for
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
@@ -41,7 +40,7 @@ from sandbox.integrations.secret_ref import store_secret
 from sandbox.integrations.wso2.apis import api_names_for
 from sandbox.utils.correlation import get_correlation_id
 from sandbox.utils.correlation import set_correlation_id
-from sandbox.workflow.engine import transition
+from sandbox.integrations.events import record
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,7 +65,7 @@ def _backoff(retries: int) -> float:
 
 
 def _ledger_row(
-    application: Application,
+    application: ApplicationInstance,
     system: ProvisionedSystem,
 ) -> ProvisionedResource | None:
     return ProvisionedResource.objects.filter(
@@ -76,7 +75,7 @@ def _ledger_row(
 
 
 def _record(
-    application: Application,
+    application: ApplicationInstance,
     system: ProvisionedSystem,
     *,
     external_ref: str,
@@ -104,7 +103,7 @@ def _record(
 
 def _fail(
     task: Task,
-    application: Application,
+    application: ApplicationInstance,
     system: ProvisionedSystem,
     failure: _Failure,
 ) -> None:
@@ -122,11 +121,16 @@ def _fail(
         row.save(update_fields=["state", "modified_date"])
 
     detail = f"{system}/{failure.code}: {failure.detail}"
-    transition(
+    record(
+        "provisioning.failed",
         application=application,
-        action="FAIL_PROVISIONING",
-        comment=detail[: settings.PROVISIONING_DETAIL_MAX_CHARS],
-        data={"system": str(system), "code": failure.code, "attempts": attempts},
+        title="Provisioning failed",
+        payload={
+            "system": str(system),
+            "code": failure.code,
+            "attempts": attempts,
+            "detail": detail[: settings.PROVISIONING_DETAIL_MAX_CHARS],
+        },
     )
 
 
@@ -135,7 +139,7 @@ def _step(
     application_id: int,
     correlation_id: str,
     system: ProvisionedSystem,
-    run: Callable[[Application], None],
+    run: Callable[[ApplicationInstance], None],
 ) -> int:
     """Shared shape of every step: rebind, skip if done, call, record, or park.
 
@@ -144,12 +148,9 @@ def _step(
     over half an hour only delays the operator finding out.
     """
     set_correlation_id(correlation_id)
-    application = Application.objects.get(pk=application_id)
+    application = ApplicationInstance.objects.get(pk=application_id)
 
     # An earlier link already parked this run; later links must not carry on.
-    if application.state != ApplicationState.PROVISIONING:
-        return application_id
-
     row = _ledger_row(application, system)
     if row is not None and row.state == ProvisionedResourceState.ACTIVE:
         return application_id
@@ -178,14 +179,11 @@ def _step(
 def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
     """First link, so it is also what moves the application into PROVISIONING."""
     set_correlation_id(correlation_id)
-    application = Application.objects.get(pk=application_id)
+    application = ApplicationInstance.objects.get(pk=application_id)
 
     # A retry arrives already in PROVISIONING, having been moved there by the
     # console's RETRY_PROVISIONING; only a fresh approval needs this move.
-    if application.state == ApplicationState.SANDBOX_APPROVED:
-        transition(application=application, action="START_PROVISIONING")
-
-    def run(application: Application) -> None:
+    def run(application: ApplicationInstance) -> None:
         created = get_idp_admin().create_client(
             ClientSpec(
                 reference=application.reference,
@@ -231,7 +229,7 @@ def _live_secret_ref(client: ProvisionedResource) -> str:
 
 @shared_task(bind=True, max_retries=None)
 def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
-    def run(application: Application) -> None:
+    def run(application: ApplicationInstance) -> None:
         client = _ledger_row(application, ProvisionedSystem.KEYCLOAK)
         if client is None:
             message = "WSO2 needs the Keycloak client that should already exist"
@@ -264,7 +262,7 @@ def provision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
 
 @shared_task(bind=True, max_retries=None)
 def provision_hiecm(task: Task, application_id: int, correlation_id: str) -> int:
-    def run(application: Application) -> None:
+    def run(application: ApplicationInstance) -> None:
         client = _ledger_row(application, ProvisionedSystem.KEYCLOAK)
         if client is None:
             message = "the bridge is named after a Keycloak client that is missing"
@@ -294,10 +292,7 @@ def provision_hiecm(task: Task, application_id: int, correlation_id: str) -> int
 def complete_provisioning(application_id: int, correlation_id: str) -> int:
     """Only the ledger decides this — never "the chain got this far"."""
     set_correlation_id(correlation_id)
-    application = Application.objects.get(pk=application_id)
-
-    if application.state != ApplicationState.PROVISIONING:
-        return application_id
+    application = ApplicationInstance.objects.get(pk=application_id)
 
     done = set(
         ProvisionedResource.objects.filter(
@@ -312,20 +307,26 @@ def complete_provisioning(application_id: int, correlation_id: str) -> int:
             application.reference,
             sorted(missing),
         )
-        transition(
+        record(
+            "provisioning.failed",
             application=application,
-            action="FAIL_PROVISIONING",
-            comment=f"incomplete ledger: missing {', '.join(sorted(missing))}",
-            data={"missing": sorted(missing)},
+            title="Provisioning incomplete",
+            payload={"missing": sorted(missing)},
         )
         return application_id
 
-    # PROVISIONED fires B6's `notify_provisioned`, which mails the panel link.
-    transition(application=application, action="COMPLETE_PROVISIONING")
+    # Step 5 calls `notify_provisioned` from here — it fires on a transition the
+    # chain raises itself, so it is not an `effects` entry (plan 14 §5.4).
+    record(
+        "provisioning.completed",
+        application=application,
+        title="Provisioning completed",
+        payload={"systems": sorted(done)},
+    )
     return application_id
 
 
-def _callback_url(application: Application) -> str:
+def _callback_url(application: ApplicationInstance) -> str:
     """Where HIE-CM delivers this integrator's gateway callbacks.
 
     A per-application placeholder until P4's `applications_callback` collects the
@@ -337,7 +338,7 @@ def _callback_url(application: Application) -> str:
     return f"{base}/{application.external_id}"
 
 
-def enqueue_chain(application: Application) -> None:
+def enqueue_chain(application: ApplicationInstance) -> None:
     """Schedule the whole chain for after the caller's transaction commits."""
     application_id = application.pk
     correlation_id = get_correlation_id()
@@ -397,10 +398,10 @@ def _teardown_step(
     application_id: int,
     correlation_id: str,
     system: ProvisionedSystem,
-    run: Callable[[Application, ProvisionedResource], None],
+    run: Callable[[ApplicationInstance, ProvisionedResource], None],
 ) -> int:
     set_correlation_id(correlation_id)
-    application = Application.objects.get(pk=application_id)
+    application = ApplicationInstance.objects.get(pk=application_id)
 
     # Missing means nothing was ever created and DISABLED means a previous run
     # finished the job; both are success. FAILED is not — that is a resource we
@@ -431,7 +432,7 @@ def _teardown_step(
 def deprovision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
     """First, because it is the only step that actually stops token issuance."""
 
-    def run(_application: Application, row: ProvisionedResource) -> None:
+    def run(_application: ApplicationInstance, row: ProvisionedResource) -> None:
         get_idp_admin().disable_client(row.external_ref)
 
     return _teardown_step(
@@ -445,7 +446,7 @@ def deprovision_keycloak(task: Task, application_id: int, correlation_id: str) -
 
 @shared_task(bind=True, max_retries=None)
 def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> int:
-    def run(application: Application, row: ProvisionedResource) -> None:
+    def run(application: ApplicationInstance, row: ProvisionedResource) -> None:
         # The same source provisioning subscribed from. If the configured set has
         # changed since, the difference is left behind for P4's sweep rather than
         # guessed at from here.
@@ -465,7 +466,7 @@ def deprovision_wso2(task: Task, application_id: int, correlation_id: str) -> in
 
 @shared_task(bind=True, max_retries=None)
 def deprovision_hiecm(task: Task, application_id: int, correlation_id: str) -> int:
-    def run(_application: Application, row: ProvisionedResource) -> None:
+    def run(_application: ApplicationInstance, row: ProvisionedResource) -> None:
         get_bridge_registry().deactivate_bridge(row.external_ref)
 
     return _teardown_step(
@@ -477,7 +478,7 @@ def deprovision_hiecm(task: Task, application_id: int, correlation_id: str) -> i
     )
 
 
-def enqueue_teardown(application: Application) -> None:
+def enqueue_teardown(application: ApplicationInstance) -> None:
     """Schedule the reverse chain for after the caller's transaction commits."""
     application_id = application.pk
     correlation_id = get_correlation_id()

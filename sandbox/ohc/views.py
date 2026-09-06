@@ -30,10 +30,7 @@ from django.views.generic import ListView
 from django.views.generic import UpdateView
 
 from sandbox.events.models import Event
-from sandbox.organisations.care_plugin import CarePluginClient
-from sandbox.organisations.care_plugin import CarePluginError
 from sandbox.organisations.models import Organisation
-from sandbox.organisations.tasks import provision_sandbox
 from sandbox.support.models import Status
 from sandbox.support.models import Ticket
 from sandbox.support.models import post_reply

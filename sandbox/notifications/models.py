@@ -21,7 +21,6 @@ from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from sandbox.applications.models import Application
 from sandbox.utils.models import BaseModel
 
 
@@ -58,7 +57,7 @@ class Message(BaseModel):
     """
 
     application = models.ForeignKey(
-        Application,
+        "experiences.ApplicationInstance",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

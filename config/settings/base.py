@@ -96,16 +96,24 @@ THIRD_PARTY_APPS = [
     "allauth.socialaccount",
     "django_celery_beat",
     "django_htmx",
-    "django_tailwind_cli",
+    "tailwind",
+    "theme",
+    "crispy_forms",
+    "crispy_bootstrap5",
+    "compressor",
 ]
 
 LOCAL_APPS = [
-    "sandbox.theme",
     "sandbox.users",
     "sandbox.organisations",
     "sandbox.catalog",
     "sandbox.integrations",
     "sandbox.notifications",
+    "sandbox.pages",
+    "sandbox.support",
+    "sandbox.events",
+    "sandbox.experiences",
+    "sandbox.ohc",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -163,9 +171,21 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
-    "sandbox.users.middleware.VerificationRequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
 ]
+
+# TAILWIND
+# ------------------------------------------------------------------------------
+# django-tailwind with the repo-root `theme` app (plan 14 §4.1). The standalone
+# binary is still the default, so no image needs a node toolchain.
+TAILWIND_APP_NAME = "theme"
+NPM_BIN_PATH = env("NPM_BIN_PATH", default="/usr/bin/node")
+TAILWIND_USE_STANDALONE_BINARY = env.bool("TAILWIND_USE_STANDALONE_BINARY", default=True)
+
+# CRISPY FORMS
+# ------------------------------------------------------------------------------
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 # STATIC
 # ------------------------------------------------------------------------------
@@ -179,6 +199,7 @@ STATICFILES_DIRS = [str(APPS_DIR / "static")]
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+    "compressor.finders.CompressorFinder",
 ]
 
 # MEDIA
@@ -211,8 +232,8 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "sandbox.users.context_processors.allauth_settings",
-                "sandbox.organisations.context_processors.active_organisation",
-                "sandbox.organisations.context_processors.navigation",
+                "sandbox.users.context_processors.ohc_team",
+                "sandbox.organisations.context_processors.current_organisation",
             ],
         },
     },
@@ -220,14 +241,6 @@ TEMPLATES = [
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
-
-# TAILWIND
-# ------------------------------------------------------------------------------
-# Standalone CLI binary: no node toolchain in any image.
-TAILWIND_CLI_VERSION = env("TAILWIND_CLI_VERSION", default="4.3.3")
-TAILWIND_CLI_PATH = str(BASE_DIR / ".django_tailwind_cli")
-TAILWIND_CLI_SRC_CSS = str(APPS_DIR / "static" / "css" / "source.css")
-TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
 
 # FIXTURES
 # ------------------------------------------------------------------------------
@@ -358,6 +371,8 @@ ACCOUNT_LOGIN_METHODS = {"email"}
 # https://docs.allauth.org/en/latest/account/configuration.html
 ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 # https://docs.allauth.org/en/latest/account/configuration.html
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_SIGNUP_REDIRECT_URL = "users:redirect"
 ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 # A4's OTP is the contact-verification flow, so allauth must not also send a
 # confirmation link — two mechanisms for one fact.
@@ -550,7 +565,7 @@ NOTIFICATION_PORTAL_BASE_URL = env.str(
 )
 NOTIFICATION_CREDENTIALS_ROUTE = env.str(
     "NOTIFICATION_CREDENTIALS_ROUTE",
-    default="applications:step_review",
+    default="experiences:detail",
 )
 
 # FAKES (B2)

@@ -4,27 +4,29 @@ from django.contrib import admin
 from django.urls import include
 from django.urls import path
 from django.views import defaults as default_views
+
+from sandbox.users.views import user_signup_view
 from django.views.generic import TemplateView
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
-    path(
-        "about/",
-        TemplateView.as_view(template_name="pages/about.html"),
-        name="about",
-    ),
+    path("", include("sandbox.pages.urls")),
+    path("htmx-demo/", include("sandbox.pages.demo_urls")),
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management
-    path("users/", include("sandbox.users.urls", namespace="users")),
-    path(
-        "organisations/",
-        include("sandbox.organisations.urls", namespace="organisations"),
-    ),
+    path("", include("sandbox.users.urls", namespace="users")),
+    path("", include("sandbox.organisations.urls", namespace="organisations")),
+    path("ohc/", include("sandbox.ohc.urls", namespace="ohc")),
+    # Overrides allauth's own signup so an invitation token in the session
+    # shapes the form; must precede the allauth include.
+    path("accounts/signup/", user_signup_view, name="account_signup"),
     path("accounts/", include("allauth.urls")),
-    # The component gallery. Routed unconditionally so `{% url %}` and the route
-    # tests always resolve; the view itself 404s unless DEBUG and staff.
-    path("styleguide/", include("sandbox.theme.urls", namespace="theme")),
+    path("events/", include("sandbox.events.urls", namespace="events")),
+    path("support/", include("sandbox.support.urls", namespace="support")),
+    path(
+        "applications/",
+        include("sandbox.experiences.urls", namespace="experiences"),
+    ),
     # Your stuff: custom urls includes go here
     # ...
     # Media files

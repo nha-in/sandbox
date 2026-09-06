@@ -1,0 +1,6 @@
+Hello {{ applicant }},
+
+{{ reference }} ({{ product }}) has been approved for production.
+
+Sign in to the portal for the production onboarding steps. Production
+credentials are issued there and are never sent by email.

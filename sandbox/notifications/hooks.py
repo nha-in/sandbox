@@ -20,13 +20,12 @@ from django.urls import reverse
 
 from sandbox.notifications.models import TemplateKey
 from sandbox.notifications.services import enqueue
-from sandbox.workflow.engine import register_hook
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from sandbox.applications.models import Application
-    from sandbox.workflow.models import WorkflowTransition
+    from sandbox.experiences.models import ApplicationEvent
+    from sandbox.experiences.models import ApplicationInstance
 
 #: hook name (a workflow's TransitionSpec) -> the template it sends
 HOOK_TEMPLATES: dict[str, TemplateKey] = {
@@ -47,7 +46,7 @@ COMMENT_TEMPLATES = frozenset(
 )
 
 
-def _panel_url(application: Application) -> str:
+def _panel_url(application: ApplicationInstance) -> str:
     """Where the applicant collects credentials. C7's panel takes this route
     over once it lands; the setting is the seam.
 
@@ -62,8 +61,8 @@ def _panel_url(application: Application) -> str:
 
 
 def _decision_comment(
-    application: Application,
-    transition: WorkflowTransition,
+    application: ApplicationInstance,
+    transition: ApplicationEvent,
 ) -> str:
     """A review-driven action leaves its text on the review row, not the
     transition (A6), so read whichever of the two actually has it."""
@@ -75,8 +74,8 @@ def _decision_comment(
 
 def _params(
     template: TemplateKey,
-    application: Application,
-    transition: WorkflowTransition,
+    application: ApplicationInstance,
+    transition: ApplicationEvent,
 ) -> dict[str, str]:
     params = {
         "reference": application.reference,
@@ -92,8 +91,8 @@ def _params(
 
 def _handler(
     template: TemplateKey,
-) -> Callable[[Application, WorkflowTransition], None]:
-    def handle(application: Application, transition: WorkflowTransition) -> None:
+) -> Callable[[ApplicationInstance, ApplicationEvent], None]:
+    def handle(application: ApplicationInstance, transition: WorkflowTransition) -> None:
         enqueue(
             template_key=template,
             recipient=application.applicant.email,
@@ -106,6 +105,9 @@ def _handler(
 
 
 def register_workflow_hooks() -> None:
-    """Called from `NotificationsConfig.ready()`."""
-    for name, template in HOOK_TEMPLATES.items():
-        register_hook(name, _handler(template))
+    """No-op until step 5, when HOOK_TEMPLATES moves onto `ActionResult.effects`.
+
+    `notify_provisioned` is the exception: it fires on a system transition the
+    chain raises itself, so it becomes a direct call from `complete_provisioning`
+    rather than an effects entry (plan 14 §5.4).
+    """

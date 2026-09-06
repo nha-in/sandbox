@@ -216,6 +216,11 @@ containers = [
   "sandbox.organisations",
   "sandbox.integrations",
   "sandbox.notifications",
+  "sandbox.experiences",
+  "sandbox.support",
+  "sandbox.events",
+  "sandbox.pages",
+  "sandbox.ohc",
 ]
 
 # The anti-corruption layer (06-integrations.md §3). Domain apps may name ports and
@@ -229,7 +234,6 @@ source_modules = [
   "sandbox.organisations",
   "sandbox.otp",
   "sandbox.notifications",
-  "sandbox.theme",
 ]
 forbidden_modules = [
   "sandbox.integrations.http",
