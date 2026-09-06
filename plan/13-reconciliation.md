@@ -1,5 +1,9 @@
 # 13 — Reconciling the v3 data model with `experience`
 
+> **SUPERSEDED (2026-09-06) by `12-abdm-portal-rebuild.md`.** Do not build
+> from this document. It is kept only for the record of what changed and
+> why; every live decision has moved.
+
 Status: agreed 2026-09-05. **Corrects `12-experience-adaptation.md` §7 and D6**,
 which are wrong about Milestone 4 and about whether NHA states a milestone
 ordering. Everything else in `12` stands as written.
@@ -363,7 +367,153 @@ Three more notes, and then this section is done:
   withdrawal. `12`'s E4 adds a withdraw action with nothing behind it, so E4
   should reach this chain rather than invent one.
 
-## 10. Build order
+## 10. Access control — NHA roles are data, permissions are code
+
+Decided 2026-09-06. **Overturns a v3 specification decision, and supersedes
+`12` E2 and E3**, which put a `review_role` field on `User`.
+
+### 10.1 What the specification ruled out, and why
+
+The v3 specification lists this under things deliberately not built:
+
+> **Roles and permissions configurable at runtime.** Roles are defined in the
+> system and changed by release. The old screens for editing them are the
+> source of several of its access problems.
+
+That concern is well earned. Reading legacy's live permission data turned up
+four failures in one sitting:
+
+- `CustomPermissionEvaluator` splits the annotation's module list on `,` and
+  compares with `List.contains` — **no trim**. Four of the seven modules
+  gating the only decision verb begin with a space and therefore match
+  nothing.
+- The database stores `Exit Applications`; the code asks for `Exit
+  applications`. Never equal.
+- `Role_Admin_view` holds `All Application List`, so despite the name it can
+  change application status — the evaluator discards the `'read'`/`'write'`
+  argument entirely.
+- `User_view` has **14 users and no `mst_privilege` row**, so
+  `getPrivilegeBasedOnRoleId` returns null and the evaluator dereferences it.
+  Those users get a 500, not a 403.
+
+### 10.2 Why the reason does not carry over
+
+Every one of those has the same cause, and it is **not** that roles were
+editable. It is that the permission strings were free text on *both* sides:
+the code named modules in an annotation, the data named them in a row, and
+nothing ever checked the two agreed.
+
+`experience` does not work that way. Permission keys are declared in code and
+referenced directly — `ApproveApplication.permission =
+permission_keys.APPROVE_APPLICATION`. So the line to hold is not "roles are
+code" but:
+
+**Permission keys stay in code. Roles become data. A role may only bundle keys
+the registry declares.**
+
+An administrator can then create roles, choose their permissions and assign
+users — everything legacy's screens did — and still cannot invent a permission,
+because the picker is populated from the registry and `clean()` rejects an
+unknown key. Legacy's entire failure class becomes unrepresentable: there is no
+way to type a permission that nothing checks.
+
+### 10.3 The shape
+
+| model | fields | notes |
+| ----- | ------ | ----- |
+| `ReviewRole` | `key` · `name` · `description` · `permissions` · `is_active` | `permissions` validated ⊆ the registry's declared keys |
+| `ReviewRoleAssignment` | `user` · `role` · `granted_by` · `created_at` | `unique(user, role)` |
+
+`get_effective_access` resolves an instance grant first, then the union of the
+user's active role permissions. `visible_to` branches on holding any active
+assignment. Both are the same two seams `12` E3 named; only the source of the
+standing role changes.
+
+**Two things deliberately not copied from legacy.** Its modules are *screens*
+(`Pending Applications`, `Integrator Dashboard`); ours are *capabilities* — map
+them, do not port the names. And one-role-per-user is an artifact of
+`sd_login.role_id` being scalar; the assignment table is many-to-many, which is
+how "HTC plus UHI observer" gets expressed without inventing a combined role.
+
+`ApplicationAccess` is untouched and keeps one meaning: **who on the vendor's
+team may do what to this application.** Its platform half — the `"platform"`
+branch of `assignable_roles`, `MANAGE_REVIEW_ACCESS`, and the reviewer side of
+the access workspace — is orphaned by this and should go with it, rather than
+remain a screen that appears to do something.
+
+### 10.4 Migrating the existing roles
+
+Counts are from the 31-Aug-2026 production dump.
+
+| legacy role | users | maps to |
+| ----------- | ----: | ------- |
+| Super Admin | 5 | a role holding every permission, plus Django superuser |
+| HTC | 5 | the decision-making role — and the same HTC as §3's Health Tech Committee |
+| Role_Admin_view | 5 | `reviewer` — it decides a stage, but not the HTC stage. See below |
+| User | 15,204 | integrators. **No review role at all** |
+| User_view | 14 | a `user_view` role holding **no permissions** — see below |
+| UHI Application | 2 | **blocked** — see §10.5 |
+| nhcx | 1 | **blocked** — see §10.5 |
+| UHI | 0 | drop, unassigned |
+
+The 15,204 is why a standing role exists at all: a per-instance grant per
+reviewer was never going to work at that scale.
+
+**`User_view` maps to an empty role, and that is now a safe thing to be.** Its
+14 users have no `mst_privilege` row, so today they get a 500 rather than a
+403. Creating `user_view` with `permissions = []` reproduces what they
+effectively have — nothing — without the crash.
+
+It also caught a real defect while being designed. `visible_to` first branched
+on *holding an active assignment* rather than on holding `VIEW_APPLICATION`,
+which would have made an empty role the most powerful thing in the system: no
+permissions, every application visible. Visibility follows the permission now,
+and `test_a_role_with_no_permissions_sees_nothing` holds it there. That an
+empty role is expressible and harmless is a property of permissions being the
+unit; in legacy the same thing was an unhandled null.
+
+**`Role_Admin_view` is misleadingly named, not miscategorised.** Its module
+list is all read screens and it holds `All Application List`, which the
+evaluator treats as decide — so from the code alone it is impossible to say
+whether deciding was intended or accidental.
+
+It cannot be settled empirically: `security_audit_trail` holds **zero rows**,
+and `sd_status`, `sd_exit` and `nhcx_exit` have **no actor columns at all**.
+Legacy records what a status is, never who set it. (That gap is what
+`ApplicationEvent` and `decided_by` close, and it is worth stating as a reason
+they exist.)
+
+The schema answers a better question instead. `sd_status` carries
+`admin_status` **and** `htc1_status`…`htc4_status`; `sd_exit` the same with a
+`_date` for each; `WorkflowServiceImpl` sets `adminStatus` in one place and the
+HTC statuses in another. So legacy runs **two decision stages** — an admin
+screening, then a four-stage committee — and the roles sit one per stage.
+`Role_Admin_view` is the screening role, not a read-only role that got lucky.
+
+So it maps to `reviewer`: may review, raise and resolve queries, and verify
+evidence; may not approve. That is the faithful reading **given that `12` D1
+already collapsed the stages** — our eight statuses have one `approved`, and
+the exit review is the single gate. If NHA wants the screening stage back,
+that is a status-model question, not an access one, and it would want its own
+role at that point.
+
+### 10.5 The scoping constraint, deferred with a date attached
+
+`UHI Application` and `nhcx` are **scoped observers** — one queue each, no
+decision rights — and three real people hold them. A platform-wide role cannot
+express that; migrating them as global observers would hand them visibility
+they do not have today.
+
+They are not blocked on us: the queues they exist for are UHI and NHCX, which
+have no `ApplicationDefinition` in the tree. There is nothing to scope *to*.
+
+So: migrate the fifteen, park the three, and **when the second application type
+registers, `ReviewRoleAssignment` gains a nullable `application_type`.** That is
+one column on a grant, which is the reason this is a grant and not a column on
+`User` — adding scope to an assignment is natural, adding it to a user field is
+not.
+
+## 11. Build order
 
 `12` §10 stands. Three amendments:
 

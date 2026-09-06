@@ -1,5 +1,9 @@
 # 12 — Adapting `experience`: the portal we already have
 
+> **SUPERSEDED (2026-09-06) by `12-abdm-portal-rebuild.md`.** Do not build
+> from this document. It is kept only for the record of what changed and
+> why; every live decision has moved.
+
 Status: agreed design, ready to build (2026-09-05). Supersedes
 `11-workflow-rewrite.md` **as a build plan** — its reasoning largely survives
 and is credited below, but the five-verb engine it specifies is not built.
@@ -17,6 +21,12 @@ integrations, not machinery.~~
 > milestone DAG — anywhere" do not hold. D2 is also narrowed there: NHA runs
 > two demos, and only the internal one gates submission. The rest of this
 > document stands, including its model in §4.
+>
+> **E2 and E3 are superseded by `13` §10** (2026-09-06). They put a
+> `review_role` field on `User`; NHA roles become data instead — a
+> `ReviewRole` / `ReviewRoleAssignment` pair — because administrators manage
+> roles at runtime today and a field cannot be granted, audited or scoped. The
+> two seams E3 names, `visible_to` and `get_effective_access`, are unchanged.
 
 ## 1. Why the base changed
 

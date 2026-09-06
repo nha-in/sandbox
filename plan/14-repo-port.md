@@ -1,5 +1,9 @@
 # 14 — Rebuilding this repo on `experience`
 
+> **SUPERSEDED (2026-09-06) by `12-abdm-portal-rebuild.md`.** Do not build
+> from this document. It is kept only for the record of what changed and
+> why; every live decision has moved.
+
 Status: ready to execute (2026-09-05). The mechanical companion to `13`, which
 settles *what* the system is; this settles *how this repository becomes it*.
 
@@ -38,12 +42,15 @@ Whole apps. Nothing in them survives; `13` and `12` §11 say why.
 | `notifications/tests/test_services.py` | 188 | same |
 | `programmes/tests/test_abdm.py` | 256 | tests a workflow definition that no longer exists |
 
-**All 90 templates go** — replaced by `experience`'s 156, or deleted with their
-app:
+**Not quite all 90 templates go.** `templates/notifications/` **stays**: it
+holds the six `.txt` bodies the notification adapter renders, and this table
+first counted it as empty because the count globbed `*.html`. Deleting it
+breaks twenty `test_notification` cases. The rest are replaced by
+`experience`'s 156, or deleted with their app:
 
 | deleted with their app | replaced by `experience`'s |
 | ---------------------- | -------------------------- |
-| `applications/` 9 · `console/` 7 · `journey/` 11 · `declarations/` 0 · `notifications/` 0 | `allauth/` 20 · `components/` 12 · `account/` 6 · `organisations/` 5 · `layouts/` 5 · `users/` 3 · `pages/` 3 · `dashboard/` 3 · `partials/` 1 · the four error pages · `base.html` |
+| `applications/` 9 · `console/` 7 · `journey/` 11 · `declarations/` 0 | `allauth/` 20 · `components/` 12 · `account/` 6 · `organisations/` 5 · `layouts/` 5 · `users/` 3 · `pages/` 3 · `dashboard/` 3 · `partials/` 1 · the four error pages · `base.html` |
 
 Total removed: **~6,054 lines of app source**, **1,512 lines in seven test
 modules** (five of which are rewritten in step 5, two deleted outright), the
@@ -70,7 +77,21 @@ it needs a disposition per file rather than a blanket call.
 | `test_settings_guards.py` | 43 | *(none)* | **port**, then extend for the new settings |
 | `test_stylesheet.py` · `test_template_syntax.py` | 145 | *(none)* | **rewrite** — both assert against this repo's theme, which §4.1 replaces |
 | `test_merge_production_dotenvs_in_dotenv.py` | 39 | *(none)* | **replace** with `experience`'s equivalent |
-| `conftest.py` | 215 | applications, organisations | **merge** — see §4.2 |
+| `conftest.py` | 215 | applications, organisations | **replace with a collection gate** — see below |
+
+**How this directory survives steps 3 and 4.** Its `conftest.py` is the actor
+fixture set for `test_route_gates`, built entirely on `applications`, so it
+cannot be merged the way `sandbox/conftest.py` can — and while it fails to
+import, *nothing in the suite collects*. Replace it with a `collect_ignore`
+list naming every module still awaiting its disposition, and delete an entry as
+each is rewritten. **The list reaching empty is what finishes §1.1**, and it
+keeps the four portable modules (`test_settings_guards`, `test_faults`,
+`wiremock`, the integrations `conftest`) running throughout.
+
+Where a single test is blocked on something a later step delivers, prefer a
+`skipif` on the thing's *existence* over a hard skip — `catalog`'s LGD
+column-width test guards on `Organisation` having `lgd_state_code`, so it
+un-skips itself the moment step 6 adds the column.
 
 ---
 
@@ -248,6 +269,17 @@ source** rather than re-deriving from the plans:
 
 - `users/` — `review_role` (`12` E2). The mobile OTP is **not** state here; it
   stays in `otp/` (`13` R8).
+- `users/middleware.py` — **`VerificationRequiredMiddleware`, and this one is a
+  live regression until it lands.** It enforced two things `experience` has no
+  equivalent for: TOTP for staff (allauth has no "MFA required" setting, and
+  the console is where a stolen password does the most damage) and verified
+  email *and* phone for everyone else. It cannot be restored before step 6
+  because it reads `email_verified_at` / `phone_verified_at` and reverses
+  `users:verify_contacts`, none of which exist on `experience`'s `User` — the
+  phone half is exactly `13` R8. **Meanwhile `STAFF_MFA_REQUIRED` is a setting
+  that guards nothing**, and the console is reachable with a password alone.
+- `users/services.py` — 119 lines, dropped with the directory. Read before
+  step 6 decides what of it survives.
 - `organisations/` — the ABDM identity fields (`12` §6) and the B1–B4 answers
   (`13` R3). Our `Organisation` already carries `category`,
   `nature_of_entity` and the LGD state/district codes that `catalog/` exists to
@@ -268,6 +300,11 @@ entirely**:
 So this touches a dependency, the Tailwind settings block, the justfile build
 step, the compose image, and `tests/test_stylesheet.py`. Do it as its own
 change, not as part of the bulk copy.
+
+`sandbox/theme` also owns the **styleguide URL** (`path("styleguide/", …)` in
+`config/urls.py`) and the `sandbox.theme` entry in both import-linter
+contracts. The arriving `theme/` provides neither, so both references go with
+it — the URL include is the first thing that stops the tree booting otherwise.
 
 ### 4.2 `conftest.py` must merge, not be replaced
 
@@ -313,6 +350,33 @@ step, and decide whether the arriving apps join the layering.
 App *labels* are unchanged (`users`, `organisations`, …), which is what lets
 `integrations/models.py` keep a string FK that only needs its target app
 renamed, not its label.
+
+**The URL conf merges too, and order matters in one place.** §4.4 covered the
+package rename but not `config/urls.py`, which needs the arriving namespaces —
+`pages` at `""`, `users`, `organisations`, `ohc/`, `events/`, `support/`, and
+`experiences` mounted at `applications/`. One line is order-dependent:
+
+```python
+# must precede the allauth include, or an invitation token in the session
+# never reaches the form that reads it
+path("accounts/signup/", user_signup_view, name="account_signup"),
+path("accounts/", include("allauth.urls")),
+```
+
+**The settings merge, in full.** `THIRD_PARTY_APPS` gains `tailwind`, `theme`,
+`crispy_forms`, `crispy_bootstrap5` and **`compressor`** — the last is easy to
+miss because it is a dependency and a template tag but not obviously an app,
+and without it every page inheriting `base.html` dies on `{% load compress %}`.
+`compressor.finders.CompressorFinder` joins `STATICFILES_FINDERS`. The context
+processors change name as well as package: ours were
+`organisations.active_organisation` and `.navigation`, the arriving pair are
+`users.ohc_team` and `organisations.current_organisation`.
+
+**`TIME_ZONE` conflicts, and ours is right.** This repo sets `Asia/Kolkata`;
+`experience` sets `UTC` and three of its event tests assert `"3:00 p.m. UTC"`.
+Keep `Asia/Kolkata` and re-assert in IST — the tests' own docstring says they
+exist because a bare time "sends an Indian partner to a call five and a half
+hours after it ended", which is the case for our zone, not theirs.
 
 **One settings default points at a deleted route.**
 `NOTIFICATION_CREDENTIALS_ROUTE` defaults to `applications:step_review`
@@ -523,9 +587,22 @@ onto `Sandbox.status`.
 both pass. Provisioning is disconnected — the chains are intact and importable,
 but nothing calls them, because the hooks that used to are now no-ops.
 
-**Step 4 — the engine delta.** `12` E1–E4. E1 (`ActionResult.effects`) is the
-prerequisite for everything in step 5; E2–E4 come with it because they are
-small and independent.
+> **Executed 2026-09-06** (`1ce4282`): 639 passed, 13 skipped, 1 xfailed, 0
+> failures; `check` clean, `makemigrations --check` clean, both contracts kept.
+> Of the first 327 failures, 276 were the one missing middleware and 48 the one
+> missing `compressor` — nearly all of a bulk port's noise came from three
+> settings lines, not from the code. What the plan had wrong is folded into
+> §1, §1.1, §4, §4.1 and §4.4 above. Two carried debts leave step 3: staff MFA
+> is unenforced until §4's middleware is re-applied, and `programmes/abdm.py`
+> still imports the deleted `workflow`, harmless only because nothing imports
+> it.
+
+**Step 4 — the engine delta.** `12` E1 and E4, plus `13` §10's access control
+in place of `12` E2/E3. E1 (`ActionResult.effects`) is the prerequisite for
+everything in step 5; E4 (withdraw) is small and independent. §10 replaces the
+`review_role` field with `ReviewRole` and `ReviewRoleAssignment`, and orphans
+the platform half of `assignable_roles`, `MANAGE_REVIEW_ACCESS` and the
+reviewer side of the access workspace — those go in the same change.
 
 **Step 5 — plug in.** §5, now that `effects` exists: the two no-op register
 functions become entries in the approve, reject and withdraw actions' `effects`,
