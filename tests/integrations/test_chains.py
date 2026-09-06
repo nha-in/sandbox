@@ -16,9 +16,11 @@ from __future__ import annotations
 import pytest
 from django.contrib.auth.models import Permission
 from django.test import override_settings
-
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.tests.factories import ApplicationFactory
+from sandbox.workflow import engine as workflow_engine
+from sandbox.workflow.engine import transition
+
 from sandbox.integrations.hooks import register_workflow_hooks
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
@@ -27,8 +29,6 @@ from sandbox.integrations.services import retry_provisioning
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.users.models import User
 from sandbox.users.tests.factories import UserFactory
-from sandbox.workflow import engine as workflow_engine
-from sandbox.workflow.engine import transition
 
 pytestmark = pytest.mark.django_db
 

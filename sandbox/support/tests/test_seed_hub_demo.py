@@ -22,9 +22,7 @@ from django.utils import timezone
 from sandbox.events.models import Event
 from sandbox.organisations.models import Organisation
 from sandbox.support.management.commands.seed_hub_demo import DEFAULT_PASSWORD
-from sandbox.support.management.commands.seed_hub_demo import (
-    DEMO_ORGANISATION_SLUG,
-)
+from sandbox.support.management.commands.seed_hub_demo import DEMO_ORGANISATION_SLUG
 from sandbox.support.models import Category
 from sandbox.support.models import Priority
 from sandbox.support.models import Status

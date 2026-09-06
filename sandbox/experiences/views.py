@@ -144,8 +144,7 @@ def _submission_rows(form_definition, submission) -> list[dict[str, Any]]:
         field = current_fields.get(field_name)
         rows.append(
             {
-                "label": item.get("label")
-                or field_name.replace("_", " ").title(),
+                "label": item.get("label") or field_name.replace("_", " ").title(),
                 "value": _display_historical_value(
                     field,
                     item,
@@ -155,9 +154,7 @@ def _submission_rows(form_definition, submission) -> list[dict[str, Any]]:
             },
         )
     remaining_keys = [
-        key
-        for key in [*submission.data, *attachments]
-        if key not in rendered_keys
+        key for key in [*submission.data, *attachments] if key not in rendered_keys
     ]
     for field_name in dict.fromkeys(remaining_keys):
         field = current_fields.get(field_name)

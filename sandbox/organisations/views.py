@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -18,7 +17,6 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.generic import FormView
-from django.views.generic import TemplateView
 from django.views.generic import UpdateView
 from django_htmx.http import HttpResponseClientRedirect
 

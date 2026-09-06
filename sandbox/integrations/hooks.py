@@ -1,7 +1,7 @@
 """Provisioning entry points, currently unregistered.
 
 These used to be workflow hooks. `sandbox/workflow/` is gone, and the engine's
-`ActionResult.effects` (plan 12 E1) does not exist yet, so plan 14 step 3
+`ActionResult.effects` (plan 12 §6 E1) does not exist yet, so §8 step 3
 leaves them disconnected rather than half-wired: the chains below are intact
 and importable, and step 5 attaches them to the approve, reject and withdraw
 actions.

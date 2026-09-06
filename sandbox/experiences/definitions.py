@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import timedelta
@@ -60,6 +61,14 @@ class QueryRequest:
     initial_status: str = "awaiting_applicant"
 
 
+#: What an action asks to happen *outside* the transaction that performs it —
+#: writing a MilestoneGrant, enqueueing the provisioning chain. Each is called
+#: with the saved `ApplicationInstance` and the acting user, on commit, so an
+#: effect never runs against a transaction that then rolls back and never sees
+#: a half-written row (plan 12 §6 E1).
+Effect = Callable[["ApplicationInstance", "AbstractBaseUser"], None]
+
+
 @dataclass(frozen=True)
 class ActionResult:
     message: str
@@ -67,6 +76,8 @@ class ActionResult:
     metadata_updates: dict[str, Any] = field(default_factory=dict)
     outcome_updates: dict[str, Any] = field(default_factory=dict)
     query: QueryRequest | None = None
+    #: Additive: an action that declares none behaves exactly as before.
+    effects: tuple[Effect, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -609,6 +620,12 @@ COMMON_PERMISSIONS = (
         _("Applicant"),
     ),
     PermissionDefinition(
+        permission_keys.WITHDRAW_APPLICATION,
+        _("Withdraw application"),
+        _("Pull an application out of review before it is decided."),
+        _("Applicant"),
+    ),
+    PermissionDefinition(
         permission_keys.VIEW_QUERIES,
         _("View queries"),
         _("Read application questions and responses."),
@@ -661,11 +678,5 @@ COMMON_PERMISSIONS = (
         _("Reject application"),
         _("Record a rejection and its reasons."),
         _("Decision"),
-    ),
-    PermissionDefinition(
-        permission_keys.MANAGE_REVIEW_ACCESS,
-        _("Manage review access"),
-        _("Assign reviewer and decision-maker roles to OHC team members."),
-        _("Access"),
     ),
 )

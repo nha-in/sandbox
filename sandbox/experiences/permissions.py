@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .models import ApplicationAccess
+from .models import ReviewRoleAssignment
 from .registry import registry
 
 if TYPE_CHECKING:
@@ -48,6 +49,10 @@ def get_effective_access(application, user) -> EffectiveAccess:
 
     known = {item.key for item in definition.permissions}
     permissions = set(role.permissions if role else ())
+    # A standing NHA role needs no per-application grant — that is what
+    # "standing" means (plan 12 §5). It adds to whatever the grant gave, so
+    # someone who is both an applicant and a reviewer keeps both.
+    permissions |= standing_permissions(user)
     if grant and role:
         audience_permissions = set().union(
             *(
@@ -62,3 +67,16 @@ def get_effective_access(application, user) -> EffectiveAccess:
 
 def has_application_permission(application, user, permission: str) -> bool:
     return get_effective_access(application, user).allows(permission)
+
+
+def standing_permissions(user) -> frozenset[str]:
+    """The union of every active review role this person holds."""
+    if not getattr(user, "is_authenticated", False):
+        return frozenset()
+    granted: set[str] = set()
+    for assignment in ReviewRoleAssignment.objects.filter(
+        user=user,
+        role__is_active=True,
+    ).select_related("role"):
+        granted.update(assignment.role.permissions or [])
+    return frozenset(granted)

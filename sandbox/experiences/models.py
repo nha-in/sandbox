@@ -9,15 +9,33 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from . import permission_keys
+
 
 class ApplicationQuerySet(models.QuerySet["ApplicationInstance"]):
     def for_organisation(self, organisation) -> ApplicationQuerySet:
         return self.filter(organisation=organisation)
 
     def visible_to(self, user) -> ApplicationQuerySet:
+        """Who may see an application at all.
+
+        The review-role branch is what makes an NHA role standing: without it a
+        reviewer sees nothing until someone grants them each case one at a time,
+        which is the opposite of what the role means (plan 12 §5).
+        """
         if not getattr(user, "is_authenticated", False):
             return self.none()
         if getattr(user, "is_superuser", False):
+            return self
+        if ReviewRoleAssignment.objects.filter(
+            user=user,
+            role__is_active=True,
+            role__permissions__contains=[permission_keys.VIEW_APPLICATION],
+        ).exists():
+            # A standing NHA role is portal-wide by design: a reviewer is never
+            # granted access one case at a time (v3 specification P1). It is the
+            # permission that opens this, not the bare fact of holding a role —
+            # a role with no permissions must see nothing.
             return self
         return self.filter(
             Q(created_by=user) | Q(access_grants__user=user),
@@ -365,3 +383,103 @@ class ApplicationEvent(models.Model):
         if self.pk:
             raise ValidationError(_("Application audit events cannot be changed."))
         super().save(*args, **kwargs)
+
+
+class ReviewRole(models.Model):
+    """An NHA role: a named bundle of permission keys, editable at runtime.
+
+    Plan 12 §5.2. The v3 specification ruled runtime role editing out, because
+    legacy's screens for it caused several access failures — permissions that
+    matched nothing, a role named `_view` that could decide, users on a role
+    with no permission row at all. Every one of those came from the same cause:
+    the permission strings were free text on *both* sides, and nothing checked
+    that the code and the data agreed.
+
+    Here they cannot disagree. `permissions` may only hold keys the registry
+    declares, enforced in `clean()` and by the admin's own choices, so a role
+    granting something nothing checks is unrepresentable.
+    """
+
+    key = models.SlugField(_("Key"), max_length=80, unique=True)
+    name = models.CharField(_("Name"), max_length=120)
+    description = models.TextField(_("Description"), blank=True)
+    permissions = models.JSONField(
+        _("Permissions"),
+        default=list,
+        blank=True,
+        help_text=_("Permission keys from the application registry."),
+    )
+    is_active = models.BooleanField(_("Active"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Review role")
+        verbose_name_plural = _("Review roles")
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def clean(self) -> None:
+        super().clean()
+        unknown = sorted(set(self.permissions or []) - declared_permission_keys())
+        if unknown:
+            raise ValidationError(
+                {
+                    "permissions": _(
+                        "Not declared by any application: %(keys)s",
+                    )
+                    % {"keys": ", ".join(unknown)},
+                },
+            )
+
+
+class ReviewRoleAssignment(models.Model):
+    """One person holding one review role, with a record of who granted it."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="review_role_assignments",
+    )
+    role = models.ForeignKey(
+        ReviewRole,
+        on_delete=models.CASCADE,
+        related_name="assignments",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="granted_review_roles",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Review role assignment")
+        verbose_name_plural = _("Review role assignments")
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "role"],
+                name="unique_review_role_per_user",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} / {self.role}"
+
+
+def declared_permission_keys() -> frozenset[str]:
+    """Every permission key any registered application declares.
+
+    Read at call time rather than import time: the registry is populated from
+    `AppConfig.ready()`, and a model module is imported before that finishes.
+    """
+    from .registry import registry  # noqa: PLC0415
+
+    return frozenset(
+        item.key for definition in registry.all() for item in definition.permissions
+    )

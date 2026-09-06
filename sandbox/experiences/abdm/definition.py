@@ -257,6 +257,41 @@ class Declaration(ApplicationFormDefinition):
         }
 
 
+class WithdrawApplication(ApplicationAction):
+    """Pull an application before a decision.
+
+    The `withdrawn` status and the `application.withdraw` permission both
+    already existed with no action reaching either (plan 12 §6 E2). Terminal: a
+    fresh application is the way back, which is what keeps the withdrawn one
+    readable rather than reopened.
+    """
+
+    key = "withdraw"
+    name = _("Withdraw application")
+    description = _("Pull this application out of review. This cannot be undone.")
+    permission = permission_keys.WITHDRAW_APPLICATION
+    allowed_statuses = frozenset(
+        {
+            "draft",
+            "submitted",
+            "under_review",
+            "changes_requested",
+            "revision_submitted",
+        },
+    )
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        return ActionResult(
+            message=_("Application withdrawn"),
+            new_status="withdrawn",
+            outcome_updates={
+                "withdrawn_by": context.user.pk,
+                "withdrawn_reason": str(cleaned_data.get("note", "")),
+            },
+        )
+
+
 class SubmitApplication(ApplicationAction):
     key = "submit"
     name = _("Submit for review")
@@ -498,6 +533,7 @@ class ABDMProductionAccess(ApplicationDefinition):
                     permission_keys.OPEN_QUERY,
                     permission_keys.RESPOND_QUERIES,
                     permission_keys.MANAGE_APPLICANT_ACCESS,
+                    permission_keys.WITHDRAW_APPLICATION,
                 },
             ),
         ),
@@ -544,51 +580,6 @@ class ABDMProductionAccess(ApplicationDefinition):
                 },
             ),
         ),
-        RoleDefinition(
-            "reviewer",
-            _("Reviewer"),
-            _("Reviews forms and can raise or resolve queries."),
-            "platform",
-            frozenset(
-                {
-                    permission_keys.VIEW_APPLICATION,
-                    permission_keys.VIEW_QUERIES,
-                    permission_keys.REVIEW_APPLICATION,
-                    permission_keys.RAISE_QUERY,
-                    permission_keys.RESOLVE_QUERY,
-                },
-            ),
-        ),
-        RoleDefinition(
-            "decision_maker",
-            _("Decision maker"),
-            _("Reviews, manages reviewers, and records final decisions."),
-            "platform",
-            frozenset(
-                {
-                    permission_keys.VIEW_APPLICATION,
-                    permission_keys.VIEW_QUERIES,
-                    permission_keys.REVIEW_APPLICATION,
-                    permission_keys.RAISE_QUERY,
-                    permission_keys.RESOLVE_QUERY,
-                    permission_keys.APPROVE_APPLICATION,
-                    permission_keys.REJECT_APPLICATION,
-                    permission_keys.MANAGE_REVIEW_ACCESS,
-                },
-            ),
-        ),
-        RoleDefinition(
-            "review_observer",
-            _("Review observer"),
-            _("Read-only access for assurance and oversight."),
-            "platform",
-            frozenset(
-                {
-                    permission_keys.VIEW_APPLICATION,
-                    permission_keys.VIEW_QUERIES,
-                },
-            ),
-        ),
     )
     forms = (
         OrganisationProfile,
@@ -603,6 +594,7 @@ class ABDMProductionAccess(ApplicationDefinition):
     )
     actions = (
         SubmitApplication,
+        WithdrawApplication,
         AskReviewTeam,
         StartReview,
         RaiseQuery,

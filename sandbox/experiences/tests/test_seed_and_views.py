@@ -12,21 +12,15 @@ from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
 
-from sandbox.experiences.management.commands.seed_experience_demo import (
-    ADMIN_EMAIL,
-)
-from sandbox.experiences.management.commands.seed_experience_demo import (
-    APPLICANT_EMAIL,
-)
+from sandbox.experiences.management.commands.seed_experience_demo import ADMIN_EMAIL
+from sandbox.experiences.management.commands.seed_experience_demo import APPLICANT_EMAIL
 from sandbox.experiences.management.commands.seed_experience_demo import (
     CONTRIBUTOR_EMAIL,
 )
 from sandbox.experiences.management.commands.seed_experience_demo import (
     DEFAULT_PASSWORD,
 )
-from sandbox.experiences.management.commands.seed_experience_demo import (
-    DRAFT_REFERENCE,
-)
+from sandbox.experiences.management.commands.seed_experience_demo import DRAFT_REFERENCE
 from sandbox.experiences.management.commands.seed_experience_demo import (
     REVIEW_REFERENCE,
 )
@@ -143,7 +137,11 @@ def test_seeder_creates_working_accounts_and_both_workflows(seeded_demo):
         ).count()
         == DEMO_ATTACHMENT_COUNT
     )
-    assert review.access_grants.get(user=admin).role_key == "decision_maker"
+    # The admin's authority is standing, not granted per application (§5).
+    assert not review.access_grants.filter(user=admin).exists()
+    assert admin.review_role_assignments.filter(
+        role__key="decision_maker",
+    ).exists()
     assert review.metadata["product_version"] == "3.2.0"
     assert review.metadata["milestones"] == ["m1", "m2", "m3"]
     certifications = review.submissions.filter(
@@ -693,7 +691,9 @@ def test_applicant_cannot_use_admin_console_or_approve(client, seeded_demo):
     assert console_response.status_code == HTTPStatus.FORBIDDEN
     assert approve_response.status_code == HTTPStatus.FORBIDDEN
     assert form_action_response.status_code == HTTPStatus.FORBIDDEN
-    assert "Withdraw" not in draft_html
+    # Withdrawal is theirs, and only theirs — plan 12 §6 E2. This used to
+    # read `not in`, pinning the absence of an action nothing reached.
+    assert "Withdraw application" in draft_html
 
 
 def test_admin_can_run_completed_form_action_with_htmx(client, seeded_demo):

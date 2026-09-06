@@ -12,7 +12,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sandbox.integrations.events import record
-from sandbox.organisations.models import Role
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
@@ -21,6 +20,7 @@ from sandbox.integrations.ports import ExternalSystem
 from sandbox.integrations.registry import get_idp_admin
 from sandbox.integrations.secret_ref import discard_secret
 from sandbox.integrations.secret_ref import resolve_secret
+from sandbox.organisations.models import Role
 from sandbox.utils.errors import DomainError
 
 if TYPE_CHECKING:

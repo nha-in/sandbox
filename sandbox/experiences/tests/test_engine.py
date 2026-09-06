@@ -9,9 +9,10 @@ from django.utils import timezone
 from django.utils.datastructures import MultiValueDict
 
 from sandbox.experiences import permission_keys
-from sandbox.experiences.models import ApplicationAccess
 from sandbox.experiences.models import ApplicationFormSubmission
 from sandbox.experiences.models import QueryStatus
+from sandbox.experiences.models import ReviewRole
+from sandbox.experiences.models import ReviewRoleAssignment
 from sandbox.experiences.permissions import get_effective_access
 from sandbox.experiences.registry import registry
 from sandbox.experiences.services import application_context
@@ -80,10 +81,9 @@ def application(actors):
         organisation=organisation,
         user=owner,
     )
-    ApplicationAccess.objects.create(
-        application=application,
+    ReviewRoleAssignment.objects.create(
         user=reviewer,
-        role_key="decision_maker",
+        role=ReviewRole.objects.get(key="decision_maker"),
         granted_by=reviewer,
     )
     return application
@@ -106,9 +106,11 @@ def test_definition_exposes_static_forms_roles_permissions_and_actions():
     assert len(definition.forms) == FORM_COUNT
     assert {role.key for role in definition.roles} >= {
         "applicant_owner",
-        "reviewer",
-        "decision_maker",
+        "applicant_viewer",
     }
+    # The three platform roles left the registry in plan 12 §5 — they are
+    # ReviewRole rows now, so a definition declares applicant roles only.
+    assert not any(role.audience == "platform" for role in definition.roles)
     assert {permission.key for permission in definition.permissions} >= {
         permission_keys.EDIT_FORMS,
         permission_keys.OPEN_QUERY,
@@ -117,13 +119,16 @@ def test_definition_exposes_static_forms_roles_permissions_and_actions():
     }
     assert {action.key for action in definition.actions} == {
         "submit",
+        "withdraw",
         "ask_review_team",
         "start_review",
         "raise_query",
         "approve",
         "reject",
     }
-    assert permission_keys.WITHDRAW_APPLICATION not in {
+    # Plan 12 §6 E2 closed the gap this used to pin: the permission key and
+    # `withdrawn` status both existed with no action reaching either.
+    assert permission_keys.WITHDRAW_APPLICATION in {
         permission.key for permission in definition.permissions
     }
 
@@ -239,7 +244,9 @@ def test_application_actions_use_effective_permissions(application, actors):
     reviewer_actions = {item.definition.key: item.available for item in reviewer_states}
     assert reviewer_actions["start_review"] is True
     assert reviewer_actions["ask_review_team"] is False
-    assert "withdraw" not in reviewer_actions
+    # Withdrawal is the applicant's alone: plan 12 §6 E2 gave it to the owner,
+    # so it is offered to a reviewer and refused, not absent.
+    assert reviewer_actions["withdraw"] is False
 
 
 def test_progress_uses_forms_applicable_to_the_current_scope(application, actors):
@@ -541,14 +548,8 @@ def test_repeatable_form_retains_history_and_multiple_file_groups(  # noqa: PLR0
     assert edited.submission_number == RENEWED_SUBMISSION_NUMBER
     assert edited.revision == EDITED_REVISION_NUMBER
     assert edited.data["certificate_number"] == "ISO-EDITED-2026"
-    assert (
-        len(edited.data["certificate_documents"])
-        == APPENDED_CERTIFICATE_FILE_COUNT
-    )
-    assert (
-        len(edited.data["supporting_documents"])
-        == RETAINED_SUPPORTING_FILE_COUNT
-    )
+    assert len(edited.data["certificate_documents"]) == APPENDED_CERTIFICATE_FILE_COUNT
+    assert len(edited.data["supporting_documents"]) == RETAINED_SUPPORTING_FILE_COUNT
     assert set(
         edited.attachments.filter(
             field_key="certificate_documents",
@@ -559,22 +560,15 @@ def test_repeatable_form_retains_history_and_multiple_file_groups(  # noqa: PLR0
         original_name=supporting_to_remove.original_name,
         is_current=True,
     ).exists()
-    assert (
-        edited.attachments.filter(is_current=True).count()
-        == TOTAL_MULTI_FILE_COUNT
-    )
-    assert (
-        renewed.attachments.filter(is_current=True).count()
-        == TOTAL_MULTI_FILE_COUNT
-    )
+    assert edited.attachments.filter(is_current=True).count() == TOTAL_MULTI_FILE_COUNT
+    assert renewed.attachments.filter(is_current=True).count() == TOTAL_MULTI_FILE_COUNT
     assert renewed.attachments.filter(pk=supporting_to_remove.pk).exists()
     history = application_context(application, owner).form_history(
         "security_certification",
     )
     assert len(history) == RENEWAL_HISTORY_VERSION_COUNT
     assert (
-        len({item.submission_number for item in history})
-        == RENEWED_SUBMISSION_NUMBER
+        len({item.submission_number for item in history}) == RENEWED_SUBMISSION_NUMBER
     )
 
 

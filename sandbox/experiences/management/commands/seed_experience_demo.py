@@ -18,6 +18,8 @@ from sandbox.experiences.models import ApplicationQueryMessage
 from sandbox.experiences.models import ApplicationQueryThread
 from sandbox.experiences.models import EventKind
 from sandbox.experiences.models import QueryStatus
+from sandbox.experiences.models import ReviewRole
+from sandbox.experiences.models import ReviewRoleAssignment
 from sandbox.experiences.registry import registry
 from sandbox.experiences.services import application_context
 from sandbox.experiences.services import form_field_schema
@@ -210,6 +212,15 @@ class Command(BaseCommand):
             password,
             platform=True,
         )
+        # A standing role, not a grant per application (plan 12 §5).
+        decision_maker = ReviewRole.objects.filter(key="decision_maker").first()
+        if decision_maker is not None:
+            ReviewRoleAssignment.objects.get_or_create(
+                user=admin,
+                role=decision_maker,
+                defaults={"granted_by": admin},
+            )
+
         organisation = self._organisation(applicant, contributor)
 
         draft = self._application(
@@ -445,15 +456,6 @@ class Command(BaseCommand):
                 "role_key": "applicant_owner",
                 "direct_permissions": [],
                 "granted_by": applicant,
-            },
-        )
-        ApplicationAccess.objects.update_or_create(
-            application=application,
-            user=admin,
-            defaults={
-                "role_key": "decision_maker",
-                "direct_permissions": [],
-                "granted_by": admin,
             },
         )
         if not application.events.filter(title="Demo application seeded").exists():

@@ -1,10 +1,10 @@
 """Collection gate for the cross-cutting tests, during the plan-14 port.
 
 The actor fixtures that used to live here defined the route-gate matrix against
-`sandbox/applications/`, which step 1 deleted. Plan 14 §1.1 gives every module
-in this directory a disposition — port, rewrite, or replace — and most of them
-land in steps 5 and 6. Until then they cannot import, so they are ignored here
-rather than left to break collection for the whole suite.
+`sandbox/applications/`, which step 1 deleted. Plan 12 §8.1 names this
+directory's debt: every module here is to be ported, rewritten or replaced, and
+most land in steps 5 and 6. Until then they cannot import, so they are ignored
+here rather than left to break collection for the whole suite.
 
 The previous conftest, with the five-actor fixture set, is at 552692c^ and is
 the reference for the step-5 rewrite.
@@ -12,8 +12,8 @@ the reference for the step-5 rewrite.
 
 from __future__ import annotations
 
-#: Awaiting their disposition in plan 14 §1.1. Delete an entry as its module is
-#: rewritten; the list reaching empty is what finishes §1.1.
+#: Awaiting rewrite in plan 12 §8 steps 5 and 6. Delete an entry as its module
+#: is rewritten; the list reaching empty is what clears the debt.
 collect_ignore = [
     # rewrite against the form registry and the experiences: / ohc: route names
     "test_route_gates.py",

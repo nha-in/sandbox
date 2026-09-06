@@ -8,9 +8,9 @@ from allauth.mfa.totp.internal import auth as totp_auth
 from django.conf import settings as django_settings
 from moto import mock_aws
 
+from sandbox.integrations.fakes import reset_fakes
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import OrganisationFactory
-from sandbox.integrations.fakes import reset_fakes
 from sandbox.users.tests.factories import UserFactory
 
 if TYPE_CHECKING:

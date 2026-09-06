@@ -24,6 +24,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 
 from sandbox.experiences.models import ApplicationInstance
+from sandbox.integrations.events import record
 from sandbox.integrations.keycloak.roles import role_names_for
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
@@ -40,7 +41,6 @@ from sandbox.integrations.secret_ref import store_secret
 from sandbox.integrations.wso2.apis import api_names_for
 from sandbox.utils.correlation import get_correlation_id
 from sandbox.utils.correlation import set_correlation_id
-from sandbox.integrations.events import record
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -177,12 +177,14 @@ def _step(
 
 @shared_task(bind=True, max_retries=None)
 def provision_keycloak(task: Task, application_id: int, correlation_id: str) -> int:
-    """First link, so it is also what moves the application into PROVISIONING."""
-    set_correlation_id(correlation_id)
-    application = ApplicationInstance.objects.get(pk=application_id)
+    """First link in the chain.
 
-    # A retry arrives already in PROVISIONING, having been moved there by the
-    # console's RETRY_PROVISIONING; only a fresh approval needs this move.
+    It used to move the application into PROVISIONING; step 3 deleted that gate
+    because the ABDM registry has no provisioning status, and step 5 re-anchors
+    it onto `Sandbox.status` (plan 12 §7).
+    """
+    set_correlation_id(correlation_id)
+
     def run(application: ApplicationInstance) -> None:
         created = get_idp_admin().create_client(
             ClientSpec(
@@ -316,7 +318,7 @@ def complete_provisioning(application_id: int, correlation_id: str) -> int:
         return application_id
 
     # Step 5 calls `notify_provisioned` from here — it fires on a transition the
-    # chain raises itself, so it is not an `effects` entry (plan 14 §5.4).
+    # chain raises itself, so it is not an `effects` entry (plan 12 §7).
     record(
         "provisioning.completed",
         application=application,

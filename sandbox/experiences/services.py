@@ -5,6 +5,7 @@ import string
 from datetime import date
 from datetime import datetime
 from decimal import Decimal
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -246,10 +247,10 @@ def _clone_current_attachments(*, source, destination, form) -> None:
             attachment.field_key,
             set(),
         )
-        replacing_single_file = (
-            not isinstance(form_field, MultipleFileField)
-            and form.cleaned_data.get(attachment.field_key)
-        )
+        replacing_single_file = not isinstance(
+            form_field,
+            MultipleFileField,
+        ) and form.cleaned_data.get(attachment.field_key)
         if attachment.pk in removed_ids or replacing_single_file:
             continue
         ApplicationAttachment.objects.create(
@@ -531,6 +532,13 @@ def perform_application_action(
         status_after=application.status,
         payload={"query_id": query_thread.pk if query_thread else None},
     )
+
+    # After commit, never inside it: an effect provisions credentials and writes
+    # grants, and neither may happen against a transaction that then rolls back
+    # (plan 12 §6 E1). An action declaring no effects is unaffected.
+    for effect in result.effects:
+        transaction.on_commit(partial(effect, application, user))
+
     return result, query_thread
 
 
@@ -661,10 +669,8 @@ def assignable_roles(application, actor):
     audiences = set()
     if access.allows(permission_keys.MANAGE_APPLICANT_ACCESS):
         audiences.add("organisation")
-    if access.allows(permission_keys.MANAGE_REVIEW_ACCESS):
-        audiences.add("platform")
     if getattr(actor, "is_superuser", False):
-        audiences.update({"organisation", "platform"})
+        audiences.add("organisation")
     is_superuser = getattr(actor, "is_superuser", False)
     return tuple(
         role
@@ -709,9 +715,6 @@ def grant_application_access(  # noqa: C901
     )
     if outside_organisation:
         raise ValidationError(_("Applicant roles are limited to organisation members."))
-    if role.audience == "platform" and not getattr(target_user, "is_ohc_team", False):
-        raise ValidationError(_("Review roles are limited to OHC team members."))
-
     requested = set(direct_permissions or [])
     known = {item.key for item in definition.permissions}
     if requested - known:

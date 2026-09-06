@@ -46,7 +46,7 @@ def _has_lgd_columns() -> bool:
 @pytest.mark.skipif(
     not _has_lgd_columns(),
     reason=(
-        "Organisation's LGD columns are re-applied in plan 14 step 6; this "
+        "Organisation's LGD columns are re-applied in plan 12 §8 step 6; this "
         "un-skips itself the moment they land."
     ),
 )

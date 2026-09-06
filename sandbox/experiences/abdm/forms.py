@@ -123,9 +123,8 @@ class ExperienceForm(forms.Form):
         return cleaned
 
     def require_upload(self, field_name: str, label: str) -> None:
-        has_upload = (
-            self.cleaned_data.get(field_name)
-            or self.retained_existing_files(field_name)
+        has_upload = self.cleaned_data.get(field_name) or self.retained_existing_files(
+            field_name,
         )
         if not has_upload and not self.has_error(field_name):
             self.add_error(

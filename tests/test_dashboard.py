@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import pytest
 from django.urls import reverse
-
 from sandbox.applications.models import ApplicationState
 from sandbox.applications.selectors import EDGE_STATES
 from sandbox.applications.selectors import JOURNEY_LABELS
 from sandbox.applications.selectors import PENDING_STATES
 from sandbox.applications.selectors import journey_for
 from sandbox.applications.tests.factories import ApplicationFactory
+
 from sandbox.organisations.tests.factories import MembershipFactory
 from sandbox.organisations.tests.factories import ProductFactory
 from sandbox.users.tests.factories import VerifiedUserFactory

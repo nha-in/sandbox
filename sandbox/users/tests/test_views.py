@@ -322,7 +322,7 @@ class TestSignOut:
         html = sign_in(owner_membership.user).get(reverse("dashboard")).content.decode()
         # Scoped to the rail: the dashboard still says "Sandbox" on a status
         # tile, which is not a nav entry — and since the Care sandbox flow was
-        # stripped on arrival (plan 14 §3.1) it is no longer a nav entry at all.
+        # stripped on arrival (plan 12 §8 step 2) it is no longer a nav entry.
         nav = html[html.index('<nav id="app-nav"') : html.index("</nav>")]
 
         assert "Soon" not in nav

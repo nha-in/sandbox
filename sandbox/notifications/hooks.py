@@ -92,7 +92,10 @@ def _params(
 def _handler(
     template: TemplateKey,
 ) -> Callable[[ApplicationInstance, ApplicationEvent], None]:
-    def handle(application: ApplicationInstance, transition: WorkflowTransition) -> None:
+    def handle(
+        application: ApplicationInstance,
+        transition: ApplicationEvent,
+    ) -> None:
         enqueue(
             template_key=template,
             recipient=application.applicant.email,
@@ -109,5 +112,5 @@ def register_workflow_hooks() -> None:
 
     `notify_provisioned` is the exception: it fires on a system transition the
     chain raises itself, so it becomes a direct call from `complete_provisioning`
-    rather than an effects entry (plan 14 §5.4).
+    rather than an effects entry (plan 12 §7).
     """

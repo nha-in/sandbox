@@ -87,12 +87,13 @@ class ApplicationAccessForm(forms.Form):
         self.roles = roles
         self.fields["role"].choices = [(role.key, role.label) for role in roles]
 
+        # Applicant roles only: plan 12 §5.1 retired per-application platform
+        # grants, so `assignable_roles` never returns a platform-audience role
+        # and there is no second branch to take.
         audiences = {role.audience for role in roles}
         query = Q(pk__in=[])
         if "organisation" in audiences:
             query |= Q(memberships__organisation=application.organisation)
-        if "platform" in audiences:
-            query |= Q(is_ohc_team=True)
         self.fields["user"].queryset = (
             get_user_model()
             .objects.filter(query)

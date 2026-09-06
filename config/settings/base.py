@@ -180,7 +180,10 @@ MIDDLEWARE = [
 # binary is still the default, so no image needs a node toolchain.
 TAILWIND_APP_NAME = "theme"
 NPM_BIN_PATH = env("NPM_BIN_PATH", default="/usr/bin/node")
-TAILWIND_USE_STANDALONE_BINARY = env.bool("TAILWIND_USE_STANDALONE_BINARY", default=True)
+TAILWIND_USE_STANDALONE_BINARY = env.bool(
+    "TAILWIND_USE_STANDALONE_BINARY",
+    default=True,
+)
 
 # CRISPY FORMS
 # ------------------------------------------------------------------------------

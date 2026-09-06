@@ -6,7 +6,6 @@ from django.urls import path
 from django.views import defaults as default_views
 
 from sandbox.users.views import user_signup_view
-from django.views.generic import TemplateView
 
 urlpatterns = [
     path("", include("sandbox.pages.urls")),

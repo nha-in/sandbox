@@ -1,6 +1,6 @@
 """Writing an audit line, now that `sandbox/audit/` is gone.
 
-Plan 14 §4.5: every `audit.services.emit` call folds into `ApplicationEvent`,
+Plan 12 §4.2: every `audit.services.emit` call folds into `ApplicationEvent`,
 which is append-only by virtue of `save()` raising on any re-save. The one
 guarantee that did not survive is the database-level `REVOKE UPDATE, DELETE`
 the audit app carried — recorded there as a deliberate weakening.
