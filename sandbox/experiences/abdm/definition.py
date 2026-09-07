@@ -30,6 +30,7 @@ from .forms import HealthLockerOperationsForm
 from .forms import IntegrationScopeForm
 from .forms import MilestoneDeclarationForm
 from .forms import OrganisationProfileForm
+from .forms import ProductionDetailsForm
 from .forms import ProductUseCaseForm
 from .forms import RaiseQueryForm
 from .forms import RejectionForm
@@ -107,7 +108,6 @@ class IntegrationScope(ApplicationFormDefinition):
             "abdm_roles": cleaned_data["abdm_roles"],
             "sandbox_client_id": cleaned_data["sandbox_client_id"],
         }
-
 
 
 class MilestoneDeclaration(ApplicationFormDefinition):
@@ -226,7 +226,6 @@ class ConformanceEvidence(ApplicationFormDefinition):
         }
 
 
-
 class Declaration(ApplicationFormDefinition):
     key = "declaration"
     name = _("Authorised declaration")
@@ -277,6 +276,28 @@ class WithdrawApplication(ApplicationAction):
             },
             effects=(lambda application, user: start_deprovisioning(application),),
         )
+
+
+class ProductionDetails(ApplicationFormDefinition):
+    """Recorded by the review team once production access exists (§9.5).
+
+    Not the applicant's: NHA's production realm issues the client, and this
+    portal has no way to verify it. `is_applicable` is gated on the permission
+    so it stays off the applicant's checklist until there is a value to show.
+    """
+
+    key = "production_details"
+    name = _("Production details")
+    description = _("The production client issued outside the sandbox.")
+    form_class = ProductionDetailsForm
+    permission = permission_keys.APPROVE_APPLICATION
+    editable_statuses = frozenset({"approved"})
+    allow_updates = True
+    required = False
+
+    @classmethod
+    def is_applicable(cls, context):
+        return context.has_permission(cls.permission)
 
 
 class SubmitApplication(ApplicationAction):
@@ -392,7 +413,6 @@ class RaiseQuery(ApplicationAction):
         )
 
 
-
 class ReviewEvidence(ApplicationAction):
     """One reviewer judgement over everything the exit turns on (§4.7).
 
@@ -493,7 +513,6 @@ class ApproveApplication(ApplicationAction):
             new_status="approved",
             outcome_updates={
                 "decision": "approved",
-                "production_client_id": cleaned_data["production_client_id"],
                 "effective_date": cleaned_data["effective_date"],
                 "certificate_reference": cleaned_data["certificate_reference"],
                 "decision_note": cleaned_data.get("note", ""),
@@ -734,6 +753,7 @@ class ABDMProductionAccess(ApplicationDefinition):
         SecurityCertification,
         ConformanceEvidence,
         Declaration,
+        ProductionDetails,
     )
     actions = (
         SubmitApplication,

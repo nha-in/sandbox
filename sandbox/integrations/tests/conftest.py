@@ -23,7 +23,6 @@ from sandbox.users.tests.factories import UserFactory
 #: What `ApprovalForm` would have cleaned. Passed straight to the action, since
 #: these tests are about what approval *causes*, not about its form.
 APPROVAL = {
-    "production_client_id": "PROD-CLIENT-1001",
     "approved_milestones": ["m1", "m2", "m3"],
     "certificate_reference": "CERT-2026-1001",
     "note": "All evidence verified.",

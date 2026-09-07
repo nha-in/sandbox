@@ -71,9 +71,10 @@ That is the engine rebuilt one level higher. One instance instead;
 `MilestoneGrant` carries the fact that outlives it.
 
 **Counts, so the levels are not confused.** One *type* today
-(`abdm_production_access`) → one *instance* per vendor request → up to nine
-*submissions* per instance today, **eleven once D8 and D9 add their forms** →
-several *revisions* per submission.
+(`abdm_production_access`) → one *instance* per vendor request → **eleven**
+*submissions* per instance: ten the applicant owes (one of which,
+`health_locker_operations`, is conditional on scope) plus `production_details`,
+which only the review team fills (§4.8) → several *revisions* per submission.
 
 Legacy's scale is tens of thousands of applications and thousands of exits.
 `ApplicationAccess` is keyed on the instance — the level that grows without
@@ -260,7 +261,7 @@ met by a form, an audit event, or a column before it is met by a table.**
 | `Verification` | `VerifySecurityEvidence`, which already exists: a reviewer-only action stamping `verified_revision`, so staleness is a revision comparison rather than stored state. It needs to cover §3.2's four artifacts and the milestone declaration — but as **one review action, not five** (§4.7) |
 | `BlockAnswer` + `BlockConfirmation` | fields on `Organisation`, plus the snapshot that `ApplicationFormSubmission.data` already keeps |
 | `MilestoneDeclaration` | a form — §6, `milestone_declaration` |
-| `Correction`, `CredentialEvent` | `ApplicationEvent` rows — with the weakening §4.2 records. A correction is an NHA edit *after* a decision, and `editable_statuses` is `{draft, changes_requested}`, so it cannot be a form edit: it needs its own action available in `approved` |
+| `Correction`, `CredentialEvent` | `ApplicationEvent` rows — with the weakening §4.2 records. **Not a bespoke action.** The one thing NHA actually corrects after a decision is the production client id, and §4.8 makes that a form whose `editable_statuses` is `{approved}`: a correction is then revision *n+1*, and `save_form_submission`'s `FORM_SUBMITTED` event is the audit row. Nothing else the decision records has a correction case — the client the sandbox issues is `ProvisionedResource.public_ref`, which no human types |
 | `Decision` | `ApplicationInstance.outcome` (JSON — the typing loss is accepted) |
 | `ExportRecord` | deferred: the console has no export feature to record |
 | `VerificationCode` | `sandbox/otp/`, 129 lines, already sending through the `NotificationGateway` port. **Mobile only** — allauth owns email (`ACCOUNT_EMAIL_VERIFICATION = "mandatory"`) |
@@ -341,6 +342,41 @@ action at all, so `VerifyMilestoneDeclaration` can only gate on the WASA being
 nobody has read.
 
 ---
+
+### 4.8 The production client id
+
+NHA's production realm issues it; this portal does not, and cannot verify it.
+It is a **form the review team fills**, `production_details` — client id and
+issue date — available in `approved` only, with `permission =
+APPROVE_APPLICATION` and `allow_updates = True`.
+
+`is_applicable` is gated on that permission, which is what keeps it off the
+applicant's checklist. Visibility and editability are separate in the engine:
+`is_visible` asks only about applicability and dependencies, and the detail view
+filters on `visible`, so a permission alone would leave the applicant a
+permanent card reading *"Your application role cannot edit forms."* Once the
+form has a submission the applicant sees the value anyway, because
+`submission_sections` includes any form that has one.
+
+**Correction comes free.** A second save writes revision 2 and keeps revision 1
+with `is_current = False`, and `save_form_submission` already emits a
+`FORM_SUBMITTED` event carrying the actor and the revision. That is the whole
+audit trail, with no bespoke action and no engine change.
+
+Legacy is the argument for doing it this way. It captures the id on the exit and
+NHCX enrolment screens, locks the field once it holds a value
+(`disabled={... || getValues().ProductionClientId ...}`), and then needs a
+separate screen — `PUT /v1/update/prodId/{id}` — to change it. That screen is
+gated on the super-admin role *and* the username `admin`, and never calls
+`auditLogger.logEvent`, though the applicant-details update beside it does. So
+legacy can change a live integrator's production client id with no record of who
+or when. **Nothing gates the value itself**: the search SQL has no status or
+milestone predicate, both fields are `disabled={false}`, and `integrationLevel`
+is fetched only to display. It is admin judgement, which is the only thing it
+can be — there is no system here to check the value against.
+
+It also gates NHCX enrolment (`SdLoginServiceImpl:1341`), which is the second of
+the two checks §3.3 describes.
 
 ## 5. Access control
 
@@ -571,7 +607,7 @@ becomes a direct call from `complete_provisioning`.
 | 3 · settle settings, unplug the chain, reset migrations | **done** — `1ce4282`. 639 tests green. Restored the six `.txt` notification bodies step 1 deleted — they were counted as zero because the count globbed `*.html`, and twenty tests failed on it |
 | 4 · engine delta + access control | **done** — `6094eb0`. E1, E2, §5 in full |
 | 5 · plug in | **done** — `b9c102b`, `ac4a410`, `108b88a`. §7 wired onto `effects`; `Sandbox` → `ProvisioningRun`; §7.1's couplings; retries back as registry actions; the deleted test modules restored; `test_chains.py` out of the gate and verified against real WireMock. 751 tests green, 1 skip |
-| 6 · re-apply the design | not started — `MilestoneGrant`, `NotificationLog`, `ApplicationEvent.is_internal`, the `VerifySecurityEvidence` replication for the other three exit artifacts (§4.4), a `Correction` action reachable in `approved` (§4.4), D1–D11, and the fields §8.3 names |
+| 6 · re-apply the design | **in progress** — `MilestoneGrant`, `ApplicationEvent.is_internal`, §4.7's single review, §4.8's `production_details` form, D1–D8 and D11, §8.3's `Organisation` fields and staff MFA are all done; `NotificationLog`, D9 and D10 were dissolved rather than built, and so was the `Correction` action §4.4 asked for — §4.8 answers it with a form, whose revisions carry the correction and its audit. What is left: the eight modules in `tests/conftest.py`'s `collect_ignore`, the DHIS predicates (blocked on a solution-type concept), and deleting `programmes/abdm.py` once mined |
 
 The suite needs Postgres, and the counts above were run against a local server
 rather than the project's Docker one: `POSTGRES_HOST=localhost USE_DOCKER=no`
@@ -664,13 +700,21 @@ reason worth keeping:
 - **`legacy_sd_id`** — §4.6. Wrong cardinality on this model, and the
   migration reshapes rather than copies, so nothing in the result is described
   by it.
-- **`sandbox_client_id` / `production_client_id`** — each would be a third home
-  for a value two places already hold with clear owners:
-  `ApplicationInstance.outcome["production_client_id"]` is what the reviewer
-  recorded at approval, `ProvisionedResource.public_ref` is what Keycloak
-  issued. A column on `Organisation` would have no owner, no rule for
-  disagreement, and — since an org holds several applications, ABDM now and
-  NHCX/UHI later — no way to represent more than one. They exist on legacy's
+- **`sandbox_client_id` / `production_client_id`** — two different ids, and
+  neither belongs on `Organisation`. The **sandbox** client is
+  `ProvisionedResource.public_ref`, what Keycloak issued and what
+  `credentials_for` shows; legacy's equivalent is `sd_status.client_id`,
+  generated at registration by `createClientId`. The **production** client is
+  issued by NHA's production realm, which this portal does not run — legacy
+  keeps it on `sd_login.production_client_id`, and no applicant-facing page ever
+  asks for it: NHA staff type it on the exit and NHCX enrolment screens, once
+  the integrator is already live. `ApprovalForm` used to collect it at the
+  decision, which is earlier than the value can exist — provisioning is an
+  *effect* of approval — and `_outcome_rows` then displayed the guess to the
+  applicant beside the real sandbox one. It was removed; §4.8 owns where it
+  lands instead. A column on `Organisation` would in any case have no owner,
+  no rule for disagreement, and — since an org holds several applications, ABDM
+  now and NHCX/UHI later — no way to represent more than one. They exist on legacy's
   `sd_login` because that one row *was* the org, the application and the
   credentials at once; we have already split that three ways. Add them only
   once someone names which of the three is authoritative.

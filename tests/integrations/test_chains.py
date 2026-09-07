@@ -173,7 +173,6 @@ def _approve(application, reviewer, callbacks) -> None:
             action_key="approve",
             user=reviewer,
             cleaned_data={
-                "production_client_id": "PROD-CLIENT-1001",
                 "approved_milestones": ["m1"],
                 "certificate_reference": "CERT-2026-1001",
                 "effective_date": None,

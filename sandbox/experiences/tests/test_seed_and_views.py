@@ -651,7 +651,7 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
 
     assert approve_response.status_code == HTTPStatus.OK
     approve_html = approve_response.content.decode()
-    assert "Production client ID" in approve_html
+    assert "Certification / approval reference" in approve_html
     assert 'id="application-action"' in approve_html
     assert 'hx-post="' in approve_html
 

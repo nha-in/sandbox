@@ -34,7 +34,9 @@ from sandbox.users.tests.factories import UserFactory
 pytestmark = pytest.mark.django_db
 
 APPLICATION_TYPE = "abdm_production_access"
-FORM_COUNT = 10
+FORM_COUNT = 11
+#: `production_details` is not required — the review team fills it after approval.
+REQUIRED_FORM_COUNT = 10
 BASE_REQUIRED_FORM_COUNT = 9
 SCOPED_COMPLETED_FORM_COUNT = 3
 SCOPED_PROGRESS_PERCENT = 30
@@ -277,7 +279,7 @@ def test_progress_uses_forms_applicable_to_the_current_scope(application, actors
     )
 
     assert application.metadata["completed_forms"] == SCOPED_COMPLETED_FORM_COUNT
-    assert application.metadata["required_forms"] == FORM_COUNT
+    assert application.metadata["required_forms"] == REQUIRED_FORM_COUNT
     assert application.progress_percent == SCOPED_PROGRESS_PERCENT
     assert health_locker_state.applicable is True
     assert health_locker_state.visible is True
@@ -615,9 +617,9 @@ def test_the_evidence_review_covers_every_exit_artifact(application, actors):
             action_key="review_evidence",
             user=owner,
             cleaned_data={
-            "hard_copy_received_on": timezone.localdate(),
-            "verified_milestones": [],
-        },
+                "hard_copy_received_on": timezone.localdate(),
+                "verified_milestones": [],
+            },
         )
 
     result, _query = perform_application_action(
@@ -662,9 +664,9 @@ def test_a_second_review_is_refused_while_nothing_has_changed(application, actor
             action_key="review_evidence",
             user=reviewer,
             cleaned_data={
-            "hard_copy_received_on": timezone.localdate(),
-            "verified_milestones": [],
-        },
+                "hard_copy_received_on": timezone.localdate(),
+                "verified_milestones": [],
+            },
         )
 
 
@@ -690,9 +692,13 @@ def test_editing_a_reviewed_form_makes_the_review_stale(application, actors):
     submission.save(update_fields=["revision"])
 
     context = application_context(application, reviewer)
-    available, _reason = registry.get(APPLICATION_TYPE).get_action(
-        "review_evidence",
-    ).availability(context)
+    available, _reason = (
+        registry.get(APPLICATION_TYPE)
+        .get_action(
+            "review_evidence",
+        )
+        .availability(context)
+    )
 
     assert available is True
 
@@ -792,7 +798,6 @@ def test_full_query_resubmission_and_approval_flow(application, actors):
         action_key="approve",
         user=reviewer,
         cleaned_data={
-            "production_client_id": "PROD-CLIENT-1001",
             "approved_milestones": ["m1", "m2", "m3"],
             "effective_date": timezone.localdate() + timedelta(days=1),
             "certificate_reference": "CERT-2026-1001",
@@ -802,6 +807,8 @@ def test_full_query_resubmission_and_approval_flow(application, actors):
 
     application.refresh_from_db()
     assert application.status == "approved"
-    assert application.outcome["production_client_id"] == "PROD-CLIENT-1001"
+    assert application.outcome["certificate_reference"] == "CERT-2026-1001"
+    # The client id has one home: ProvisionedResource.public_ref.
+    assert "production_client_id" not in application.outcome
     assert application.decided_by == reviewer
     assert application.events.filter(action_key="approve").exists()

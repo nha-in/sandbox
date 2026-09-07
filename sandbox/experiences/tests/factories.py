@@ -108,6 +108,8 @@ def application_under_review(owner, reviewer):
         user=owner,
     )
     for form_definition in registry.get(APPLICATION_TYPE).forms:
+        if not form_definition.required:
+            continue
         ApplicationFormSubmission.objects.create(
             application=application,
             form_key=form_definition.key,

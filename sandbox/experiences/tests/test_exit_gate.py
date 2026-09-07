@@ -127,7 +127,6 @@ def test_the_gate_refuses_the_submission_itself(ready, owner):
         perform_application_action(application=ready, action_key="submit", user=owner)
 
 
-
 # ── D11: M1 on the V3 APIs ───────────────────────────────────────────────────
 
 

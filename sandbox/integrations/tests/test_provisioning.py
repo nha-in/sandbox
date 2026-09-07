@@ -143,7 +143,6 @@ def test_nothing_is_provisioned_until_the_approval_commits(
             action_key="approve",
             user=reviewer,
             cleaned_data={
-                "production_client_id": "PROD-CLIENT-1001",
                 "approved_milestones": ["m1"],
                 "certificate_reference": "CERT-1",
                 "effective_date": None,
@@ -466,7 +465,6 @@ def test_the_chain_carries_the_id_the_approval_was_made_under(
             action_key="approve",
             user=reviewer,
             cleaned_data={
-                "production_client_id": "PROD-CLIENT-1001",
                 "approved_milestones": ["m1"],
                 "certificate_reference": "CERT-1",
                 "effective_date": None,
@@ -508,7 +506,6 @@ def test_punctuation_is_stripped_before_the_name_reaches_keycloak(
             action_key="approve",
             user=reviewer,
             cleaned_data={
-                "production_client_id": "PROD-CLIENT-1001",
                 "approved_milestones": ["m1"],
                 "certificate_reference": "CERT-1",
                 "effective_date": None,

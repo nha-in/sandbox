@@ -82,7 +82,7 @@ class ExperienceForm(forms.Form):
         for value in values:
             try:
                 result.add(int(value))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError):  # fmt: skip
                 continue
         return result
 
@@ -290,7 +290,6 @@ class IntegrationScopeForm(ExperienceForm):
         return cleaned
 
 
-
 class MilestoneDeclarationForm(ExperienceForm):
     """The applicant's own attestation. A reviewer verifies it before it counts."""
 
@@ -317,8 +316,7 @@ class MilestoneDeclarationForm(ExperienceForm):
                 widget=forms.DateInput(attrs={"type": "date"}),
             )
             self.fields[f"{value}_completed_on"] = forms.DateField(
-                label=_("%(milestone)s — integration completed")
-                % {"milestone": label},
+                label=_("%(milestone)s — integration completed") % {"milestone": label},
                 required=False,
                 widget=forms.DateInput(attrs={"type": "date"}),
             )
@@ -692,6 +690,26 @@ class DeclarationForm(ExperienceForm):
         return value
 
 
+class ProductionDetailsForm(ExperienceForm):
+    """NHA's realm issues the production client; the review team records it here."""
+
+    production_client_id = forms.CharField(
+        label=_("Production client ID"),
+        min_length=3,
+        max_length=100,
+    )
+    issued_on = forms.DateField(
+        label=_("Production issued date"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+
+    def clean_issued_on(self):
+        value = self.cleaned_data["issued_on"]
+        if value > timezone.localdate():
+            raise ValidationError(_("The issue date cannot be in the future."))
+        return value
+
+
 class ActionForm(ExperienceForm):
     pass
 
@@ -743,10 +761,6 @@ class ApplicantQueryForm(RaiseQueryForm):
 
 
 class ApprovalForm(ActionForm):
-    production_client_id = forms.CharField(
-        label=_("Production client ID"),
-        max_length=150,
-    )
     effective_date = forms.DateField(
         label=_("Access effective date"),
         widget=forms.DateInput(attrs={"type": "date"}),
@@ -760,7 +774,6 @@ class ApprovalForm(ActionForm):
         widget=forms.Textarea(attrs={"rows": 4}),
         required=False,
     )
-
 
 
 class ReviewEvidenceForm(ActionForm):

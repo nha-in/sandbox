@@ -27,7 +27,6 @@ from sandbox.users.tests.factories import UserFactory
 pytestmark = pytest.mark.django_db
 
 APPROVAL = {
-    "production_client_id": "PROD-CLIENT-1001",
     "certificate_reference": "CERT-2026-1001",
     "effective_date": None,
 }
