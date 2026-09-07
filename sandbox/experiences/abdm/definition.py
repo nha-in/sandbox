@@ -37,6 +37,7 @@ from .forms import ReviewEvidenceForm
 from .forms import SecurityCertificationForm
 from .forms import SecurityComplianceForm
 from .forms import TechnicalReadinessForm
+from .gates import exit_gate_blockers
 from .reviews import stale_reviews
 
 
@@ -294,6 +295,9 @@ class SubmitApplication(ApplicationAction):
         ).exists()
         if context.application.status == "changes_requested" and has_unanswered_query:
             return False, _("Respond to every open query before resubmitting.")
+        blockers = exit_gate_blockers(context)
+        if blockers:
+            return False, blockers[0]
         return True, ""
 
     @classmethod

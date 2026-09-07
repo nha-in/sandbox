@@ -24,6 +24,7 @@ from sandbox.experiences.services import post_query_reply
 from sandbox.experiences.services import recalculate_progress
 from sandbox.experiences.services import resolve_query
 from sandbox.experiences.services import save_form_submission
+from sandbox.experiences.tests.factories import gate_data
 from sandbox.experiences.views import _submission_rows
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Role
@@ -89,12 +90,13 @@ def application(actors):
 
 
 def complete_all_forms(application, owner) -> None:
+    """Every form complete, and enough content to clear §6 D1's exit gate."""
     definition = registry.get(APPLICATION_TYPE)
     for form_definition in definition.forms:
         ApplicationFormSubmission.objects.create(
             application=application,
             form_key=form_definition.key,
-            data={},
+            data=gate_data().get(form_definition.key, {}),
             submitted_by=owner,
         )
 

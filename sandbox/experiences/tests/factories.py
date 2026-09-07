@@ -13,6 +13,8 @@ inexplicably.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.utils import timezone
 from factory import LazyAttribute
 from factory import Sequence
@@ -43,6 +45,27 @@ class ApprovedApplicationFactory(ApplicationInstanceFactory):
 
     status = "approved"
     decided_at = LazyAttribute(lambda _o: timezone.now())
+
+
+def gate_data() -> dict[str, dict]:
+    """The minimum §6 D1's exit gate accepts. Keyed by form."""
+    from django.utils import timezone  # noqa: PLC0415
+
+    today = timezone.localdate()
+    return {
+        "conformance_evidence": {
+            "functional_testing_agency": "Empanelled Agency",
+            "functional_certificate_number": "FT-2026-0001",
+            "demonstration_date": today.isoformat(),
+        },
+        "security_certification": {
+            "certification_type": "wasa",
+            "expires_on": (today + timedelta(days=180)).isoformat(),
+        },
+        "technical_readiness": {
+            "production_callback_url": "https://abdm.example.in/callback",
+        },
+    }
 
 
 def review_role_holder(role_key: str = "decision_maker", *, email: str = ""):
@@ -83,7 +106,7 @@ def application_under_review(owner, reviewer):
         ApplicationFormSubmission.objects.create(
             application=application,
             form_key=form_definition.key,
-            data={},
+            data=gate_data().get(form_definition.key, {}),
             submitted_by=owner,
         )
     perform_application_action(
