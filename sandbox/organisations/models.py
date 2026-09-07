@@ -86,6 +86,13 @@ class NatureOfEntity(models.TextChoices):
     TRUST = "TRUST", _("Trust")
 
 
+class OrganisationOwnership(models.TextChoices):
+    """Legacy `typeOfApplication`. M1's test-case matrix keys on it."""
+
+    GOVERNMENT = "GOVERNMENT", _("Government")
+    PRIVATE = "PRIVATE", _("Private")
+
+
 class OrganisationCategory(models.TextChoices):
     """Legacy `selectCategory` — what the integrator builds, not what it is."""
 
@@ -166,6 +173,12 @@ class Organisation(models.Model):
         choices=NatureOfEntity.choices,
         blank=True,
     )
+    ownership = models.CharField(
+        _("Type of organisation"),
+        max_length=20,
+        choices=OrganisationOwnership.choices,
+        blank=True,
+    )
     category = models.CharField(
         _("Category"),
         max_length=40,
@@ -220,6 +233,12 @@ class Organisation(models.Model):
                     category__in=[*OrganisationCategory.values, ""],
                 ),
                 name="organisations_organisation_category_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    ownership__in=[*OrganisationOwnership.values, ""],
+                ),
+                name="organisations_organisation_ownership_valid",
             ),
         ]
 

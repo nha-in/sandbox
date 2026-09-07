@@ -259,7 +259,10 @@ def test_roles_are_unattached_until_provisioning_says_otherwise():
 
 def _declaration(milestones):
     completed = timezone.localdate() - timedelta(days=30)
-    data = {"milestones": milestones, "demonstrated_on_current_apis": True}
+    data = {
+        "milestones": milestones,
+        "demonstrated_on_current_apis": True,
+    }
     for milestone in milestones:
         data[f"{milestone}_completed_on"] = completed.isoformat()
     return data

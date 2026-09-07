@@ -113,7 +113,7 @@ the behaviour they describe, not as the current design.
 | M1 | ABHA creation, capture and verification | — | `healthId`, `HidAbhaSearch` |
 | M2 | HIP — link records to ABHA, consented sharing | none stated | `hip`, `HIP_PAYER` |
 | M3 | HIU — consented access to records | none stated | `hiu`, `HIU_PAYER` |
-| M4 | NHPR — native professional and facility registration | **M1, M2 and M3** | `hp_id`, `DIGI_DOCTOR`, `hfr`, `bridge` — see below |
+| M4 | NHPR — native professional and facility registration | **M1, M2 and M3** | `hp_id`, `DIGI_DOCTOR`, `hfr`, `bridge` |
 
 The FAQ says *"There are mainly three different Milestones"*, but
 `?doc=NHPR` is headed **"What is Milestone M4?"** and states *"Integration of
@@ -134,11 +134,9 @@ The role map is sourced and confirms both legacy's map and the v3
 specification's own role column, neither of which previously had a source. All ten
 names already exist in `FAKE_KEYCLOAK_REALM_ROLES`.
 
-**One unreconciled difference.** `?doc=NHPR` names two roles for M4 — *"HPID
-role, HFR role"* — where the supplied map has four, adding `DIGI_DOCTOR` and
-`bridge`. The map is the more recent source and may simply be more granular,
-but granting two roles nobody asked for is the wrong way to be wrong. Confirm
-with NHA before the first M4 provisioning.
+M4's four do not contradict `?doc=NHPR`'s *"HPID role, HFR role"*: `hp_id` and
+`hfr` are those two, and the page names what must be assigned for an integrator
+to begin, not the full Keycloak set.
 
 Because all four milestones owe roles, `MilestoneGrant` needs no "none owed"
 state — the case cannot arise. Role-attachment **failures** go to
@@ -480,15 +478,15 @@ when reading older commit messages.)*
 **Verified against legacy.** Its exit DTO marks two fields mandatory — the sd id and the self-declaration id — and nothing else, which is why a large minority of decided exits hold no evidence at all. But `GeneralUtils.validateFiles` names precisely these artefacts as mandatory and **has no callers**: the rule was written and never wired up. So this gate is not stricter than legacy intended, only stricter than legacy managed.
 
 Two findings from that comparison: legacy modelled `wasa_file` and `host_file` as separate document types and `host_file` holds no rows, which confirms §3.2's "same artefact under two names". And legacy's intended set has a fifth member, `supporting_doc`, well populated in the dump; §3.2's list of four does not mention it, so the gate does not require it — a question for NHA rather than a guess |
-| D2 | **done.** health information types 6 → 8: add `HealthDocumentRecord`, `Invoice`. Sourced from the Integrator Guide alone — legacy has no health-information-type vocabulary anywhere, in code or schema, so it can neither confirm nor contradict this |
+| D2 | **done.** health information types 6 → 8: add `HealthDocumentRecord`, `Invoice`. Sourced from the Integrator Guide alone. Legacy has no health-information-type vocabulary anywhere — not in code, schema, or its portal's own UI bundle — so the six we started from came from `experience`'s scaffold rather than from ABDM, and the move to eight rests on that one document. The sandbox documentation never enumerates them — not on `?doc=MileStone_two`, whose "Health Record formats" is a heading with no list, nor on Test Cases, which is links to external sheets. The canonical definition is ABDM's consent-artefact HI Type enum, outside these pages |
 | D3 | **done.** dropped `wasa_certificate_number` from `SecurityComplianceForm` — it duplicated `SecurityCertification`'s copy, which alone carries expiry and renewal, so the two could disagree about one certificate |
 | D4 | **done, relocated.** The ceiling is `ReviewEvidenceForm.verified_milestones`, not `ApprovalForm`: §4.7 moved the judgement to the review, and grants follow it, so a ceiling applied later at approval would have had nothing left to narrow. The reviewer may drop what the evidence does not support, never add. `ApprovalForm` no longer names milestones at all |
-| D5 | **done, plus one.** `ABDM_ROLES` gains `hrp` — legacy's `SandboxConstant` maps it to "Health Repository Provider" and `sd_exit.ndhm_role` shows it widely used. It also gains `phr`, which §3.1 names an ABDM role and this list omitted; legacy records it as a separate `ndhm_role` token from health locker. Legacy has a sixth, `End User Applications (EUA)`, left out for want of evidence anyone selects it |
+| D5 | **done, and split.** `ABDM_ROLES` gains `phr` — the legacy portal's own UI carries it heavily and this list had only health locker, matching §3.1's "PHR and health locker are `ABDM_ROLES`". It also gains `hrp`, but on weaker ground: the current UI does **not** offer it. That came from `SandboxConstant`'s accepted-values whitelist and from historical `ndhm_role` values, so it is a legacy spelling the importer will meet rather than a role NHA offers today. Keep it for migration; drop it from the applicant's form if NHA confirms it is retired. Legacy has a fourth, `End User Applications (EUA)`, left out for want of evidence anyone selects it |
 | D6 | `MILESTONES` becomes `[m1, m2, m3, m4]` |
 | D7 | enforce `m4 → m1 + m2 + m3` in `clean()`. **The only prerequisite there is** |
 | D8 | a `milestone_declaration` form owning `milestones` and per-milestone start/end dates, split out of `integration_scope` — §6.1 |
 | D9 | **dropped, and the plan corrected.** An `nhpr_evidence` form was built and reverted: `?doc=NHPR`'s steps describe an email track the NHPR team runs, not the sandbox exit — §3.2. Gating submission on it would have blocked every M4 applicant on evidence the portal never sees. What survives is `ReviewEvidence.applicable_reviewed_forms`, since building it exposed that a conditional entry in `reviewed_forms` reads as permanently unreviewed and blocks approval for ever |
-| D10 | government applicants declaring M1 must additionally cover Aadhaar biometrics and offline demographics |
+| D10 | **not a portal requirement.** `?doc=Milestone_one` carries the matrix, headed **"M1 Test Cases mapping by Role"** — it scopes what the empanelled agency's functional testing must cover for a government application, which owes Aadhaar biometrics and offline demographics where a private one owes neither. Legacy collects none of it: no Aadhaar, biometric, demographic or test-case column anywhere, in schema or Java. The portal takes the FT report as the evidence, which D1 already requires and `ConformanceEvidence.test_request_ids` already references. A capability checklist was built and reverted — the second time a documentation table was read as a form, after D9 |
 | D11 | **done.** `demonstrated_on_current_apis` on the milestone declaration, required when M1 is declared and checked by D1's gate. Unlike D9 this is genuinely an exit rule — `?doc=SandboxExit` states it under step 1b, the internal demo. Asked only of an M1 declaration, since that is what the rule names |
 
 ### 6.1 Why `milestone_declaration` is its own form
@@ -662,6 +660,14 @@ reason worth keeping:
   `sd_login` because that one row *was* the org, the application and the
   credentials at once; we have already split that three ways. Add them only
   once someone names which of the three is authoritative.
+
+**`ownership`** was missing from the list above and is now added
+(`0006_organisation_ownership`) — legacy's `typeOfApplication`, part of the
+company profile. It is **not** interchangeable with `nature_of_entity`: they
+answer different questions, and in the dump most government *applications* come
+from entities that are not government bodies — a private company building for a
+state health department files one while remaining a Company. Nothing gates on
+it today; it exists because the profile is incomplete without it.
 
 **`users/`** gains back `middleware.py` (§8.2) and whatever of the dropped
 `services.py` survives review.

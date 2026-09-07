@@ -97,6 +97,17 @@ individuality in that separate code and left `entity_type` blank for those
 rows, so the fact cannot be read off `entity_type` at all. 12 §4.5 has the
 design; this is the mapping.
 
+**`self_declaration` → the milestone declaration.** Legacy's own version of the
+same form, and the closest structural match in the dump: `complete_mil`,
+`will_complete_mil`, `working_on`, and start/end date pairs per milestone. Two
+differences to settle rather than discover:
+
+- It carries date pairs for `phr`, `health_locker` and `nhcx` as well. 12 §3.1
+  makes those roles and a separate programme, not milestones, so those dates
+  have no field to land in.
+- It records *planned* milestones (`will_complete_mil`, `working_on`) where
+  ours records only what is complete.
+
 **`sd_exit.integration_detail` → the milestone declaration.** A free-text,
 comma-separated list carrying `m1`…`m4` mixed in with `phr`, `health locker`
 and `nhcx`. Only the first four are milestones (12 §3.1): PHR and health locker
@@ -118,6 +129,18 @@ this only names clients created after cutover.
 null. Ours is `nature_of_entity = INDIVIDUAL`, which is better information, but
 it changes what any downstream consumer of the bridge table's `entity` column
 receives.
+
+### 4.1 Reading the legacy UI
+
+Faster than the database for "did the portal ever ask this?", and it answers a
+different question — what the form offered, rather than what got stored. The
+legacy portal is a single unlazy React bundle, public at
+`/sandbox/v3/static/js/main.*.js`; fetch it and count occurrences.
+
+Probe for terms the exit form certainly has before trusting an absence:
+`selfDeclaration`, `Milestone`, `WASA`, `Undertaking`, `Exit Form` all appear
+in the hundreds. Against that baseline, a zero means the portal genuinely never
+asked. This settled 12 §6's D9 and D10 in one pass, and corrected D5.
 
 ## 5. Legacy roles
 

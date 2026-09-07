@@ -326,7 +326,13 @@ class MilestoneDeclarationForm(ExperienceForm):
     def clean(self):
         cleaned = super().clean()
         declared = cleaned.get("milestones") or []
+        self._check_prerequisites(declared)
+        self._check_dates(cleaned, declared)
+        self._check_m1(cleaned, declared)
+        self._check_roles(declared)
+        return cleaned
 
+    def _check_prerequisites(self, declared) -> None:
         for milestone in declared:
             missing = unmet_prerequisites(
                 self._organisation(),
@@ -341,6 +347,7 @@ class MilestoneDeclarationForm(ExperienceForm):
                     % {"milestone": Milestone(milestone).label, "missing": labels},
                 )
 
+    def _check_dates(self, cleaned, declared) -> None:
         for milestone in declared:
             started = cleaned.get(f"{milestone}_started_on")
             completed = cleaned.get(f"{milestone}_completed_on")
@@ -360,18 +367,19 @@ class MilestoneDeclarationForm(ExperienceForm):
                     _("A completion date cannot be in the future."),
                 )
 
+    def _check_m1(self, cleaned, declared) -> None:
         if "m1" in declared and not cleaned.get("demonstrated_on_current_apis"):
             self.add_error(
                 "demonstrated_on_current_apis",
                 _("An M1 implementation on the V1 or V2 APIs cannot exit."),
             )
 
+    def _check_roles(self, declared) -> None:
         roles = self._roles()
         if "hip" in roles and "m2" not in declared:
             self.add_error("milestones", _("HIP production access requires M2."))
         if "hiu" in roles and "m3" not in declared:
             self.add_error("milestones", _("HIU production access requires M3."))
-        return cleaned
 
     def _organisation(self):
         return self.experience_context.application.organisation
