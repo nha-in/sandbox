@@ -36,6 +36,13 @@ def exit_gate_blockers(context) -> tuple[str, ...]:
         blockers.append(
             _("An unexpired WASA or CERT-In Safe-to-Host certificate is required."),
         )
+    declaration = context.form_data("milestone_declaration")
+    if "m1" in declaration.get("milestones", []) and not declaration.get(
+        "demonstrated_on_current_apis",
+    ):
+        blockers.append(
+            _("Confirm M1 was implemented on the V3 APIs; V1 and V2 cannot exit."),
+        )
     if not context.form_data("technical_readiness").get("production_callback_url"):
         blockers.append(
             _("Give the production callback URL before submitting the exit form."),

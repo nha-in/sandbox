@@ -126,3 +126,48 @@ def test_the_gate_refuses_the_submission_itself(ready, owner):
     with pytest.raises(PermissionDenied):
         perform_application_action(application=ready, action_key="submit", user=owner)
 
+
+
+# ── D11: M1 on the V3 APIs ───────────────────────────────────────────────────
+
+
+def _declares(application, milestones, **extra):
+    submission = application.submissions.get(form_key="milestone_declaration")
+    submission.data = {**submission.data, "milestones": list(milestones), **extra}
+    submission.save(update_fields=["data"])
+
+
+def test_m1_without_the_v3_attestation_cannot_exit(ready, owner):
+    """NHA: "no implementation is accepted for Exit process if the milestone M1
+    is done using V1/2 APIs"."""
+    _declares(ready, ["m1"], demonstrated_on_current_apis=False)
+
+    assert "V3 APIs" in str(_blockers(ready, owner)[0])
+
+
+def test_m1_on_the_v3_apis_clears_the_gate(ready, owner):
+    _declares(ready, ["m1"], demonstrated_on_current_apis=True)
+
+    assert _blockers(ready, owner) == ()
+
+
+def test_the_attestation_is_only_asked_of_an_m1_declaration(ready, owner):
+    """The rule names M1. A declaration without it owes nothing here."""
+    _declares(ready, ["m2", "m3"], demonstrated_on_current_apis=False)
+
+    assert _blockers(ready, owner) == ()
+
+
+def test_the_declaration_form_refuses_m1_without_the_attestation(ready, owner):
+    from sandbox.experiences.abdm.forms import MilestoneDeclarationForm  # noqa: PLC0415
+
+    form = MilestoneDeclarationForm(
+        data={
+            "milestones": ["m1"],
+            "m1_completed_on": timezone.localdate().isoformat(),
+        },
+        experience_context=application_context(ready, owner),
+    )
+
+    assert not form.is_valid()
+    assert "demonstrated_on_current_apis" in form.errors

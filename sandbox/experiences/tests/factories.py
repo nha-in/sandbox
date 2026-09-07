@@ -62,6 +62,11 @@ def gate_data() -> dict[str, dict]:
             "certification_type": "wasa",
             "expires_on": (today + timedelta(days=180)).isoformat(),
         },
+        "milestone_declaration": {
+            "milestones": ["m1"],
+            "m1_completed_on": today.isoformat(),
+            "demonstrated_on_current_apis": True,
+        },
         "technical_readiness": {
             "production_callback_url": "https://abdm.example.in/callback",
         },

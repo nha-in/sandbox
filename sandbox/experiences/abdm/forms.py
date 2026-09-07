@@ -300,6 +300,14 @@ class MilestoneDeclarationForm(ExperienceForm):
         widget=forms.CheckboxSelectMultiple,
     )
 
+    demonstrated_on_current_apis = forms.BooleanField(
+        label=_("M1 was implemented on V3 APIs"),
+        required=False,
+        help_text=_(
+            "NHA accepts no exit implementation where M1 used the V1 or V2 APIs.",
+        ),
+    )
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         for value, label in MILESTONES:
@@ -351,6 +359,12 @@ class MilestoneDeclarationForm(ExperienceForm):
                     f"{milestone}_completed_on",
                     _("A completion date cannot be in the future."),
                 )
+
+        if "m1" in declared and not cleaned.get("demonstrated_on_current_apis"):
+            self.add_error(
+                "demonstrated_on_current_apis",
+                _("An M1 implementation on the V1 or V2 APIs cannot exit."),
+            )
 
         roles = self._roles()
         if "hip" in roles and "m2" not in declared:

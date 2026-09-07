@@ -489,7 +489,7 @@ Two findings from that comparison: legacy modelled `wasa_file` and `host_file` a
 | D8 | a `milestone_declaration` form owning `milestones` and per-milestone start/end dates, split out of `integration_scope` — §6.1 |
 | D9 | **dropped, and the plan corrected.** An `nhpr_evidence` form was built and reverted: `?doc=NHPR`'s steps describe an email track the NHPR team runs, not the sandbox exit — §3.2. Gating submission on it would have blocked every M4 applicant on evidence the portal never sees. What survives is `ReviewEvidence.applicable_reviewed_forms`, since building it exposed that a conditional entry in `reviewed_forms` reads as permanently unreviewed and blocks approval for ever |
 | D10 | government applicants declaring M1 must additionally cover Aadhaar biometrics and offline demographics |
-| D11 | record `demonstrated_on_current_apis`; an M1 graduation on V1/V2 APIs is not acceptable |
+| D11 | **done.** `demonstrated_on_current_apis` on the milestone declaration, required when M1 is declared and checked by D1's gate. Unlike D9 this is genuinely an exit rule — `?doc=SandboxExit` states it under step 1b, the internal demo. Asked only of an M1 declaration, since that is what the rule names |
 
 ### 6.1 Why `milestone_declaration` is its own form
 

@@ -108,7 +108,10 @@ def integration_data(*, include_health_locker: bool = False) -> dict:
 
 def milestone_data() -> dict:
     completed = timezone.localdate() - timedelta(days=60)
-    data: dict = {"milestones": ["m1", "m2", "m3"]}
+    data: dict = {
+        "milestones": ["m1", "m2", "m3"],
+        "demonstrated_on_current_apis": True,
+    }
     for milestone in ("m1", "m2", "m3"):
         data[f"{milestone}_started_on"] = (completed - timedelta(days=30)).isoformat()
         data[f"{milestone}_completed_on"] = completed.isoformat()
