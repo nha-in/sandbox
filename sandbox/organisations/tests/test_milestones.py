@@ -125,12 +125,18 @@ def _declare(application, _owner, milestones):
     application.submissions.filter(form_key="milestone_declaration").update(data=data)
 
 
-def _verify(application, reviewer):
+def _verify(application, reviewer, verified=None):
+    declared = application.submissions.get(form_key="milestone_declaration").data
     return perform_application_action(
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": (
+                declared.get("milestones", []) if verified is None else verified
+            ),
+        },
     )
 
 
@@ -248,52 +254,96 @@ def test_roles_are_unattached_until_provisioning_says_otherwise():
     assert grant.roles_owed == ("hip", "HIP_PAYER")
 
 
-# ── The gate on the approval form ────────────────────────────────────────────
+# ── The gate, where the rule lives ───────────────────────────────────────────
 
 
-def _posted(milestones):
-    return {
-        **APPROVAL,
-        "approved_milestones": milestones,
-        "effective_date": "2026-09-07",
-    }
+def _declaration(milestones):
+    completed = timezone.localdate() - timedelta(days=30)
+    data = {"milestones": milestones}
+    for milestone in milestones:
+        data[f"{milestone}_completed_on"] = completed.isoformat()
+    return data
 
 
-def test_the_form_refuses_m4_without_its_prerequisites(under_review, reviewer):
-    from sandbox.experiences.abdm.forms import ApprovalForm  # noqa: PLC0415
-    from sandbox.experiences.services import application_context  # noqa: PLC0415
+def _declaration_form(application, user, milestones):
+    from sandbox.experiences.abdm.forms import MilestoneDeclarationForm  # noqa: PLC0415
 
-    form = ApprovalForm(
-        data=_posted(["m4"]),
+    return MilestoneDeclarationForm(
+        data=_declaration(milestones),
+        experience_context=application_context(application, user),
+    )
+
+
+def test_declaring_m4_without_its_prerequisites_is_refused(under_review, owner):
+    form = _declaration_form(under_review, owner, ["m4"])
+
+    assert not form.is_valid()
+    assert "M1" in str(form.errors["milestones"])
+
+
+def test_m4_may_be_declared_alongside_the_three_it_owes(under_review, owner):
+    form = _declaration_form(under_review, owner, ["m1", "m2", "m3", "m4"])
+
+    assert form.is_valid(), form.errors
+
+
+def test_m4_may_be_declared_when_the_three_are_already_held(under_review, owner):
+    for milestone in (Milestone.M1, Milestone.M2, Milestone.M3):
+        _grant(under_review.organisation, milestone, under_review)
+
+    form = _declaration_form(under_review, owner, ["m4"])
+
+    assert form.is_valid(), form.errors
+
+
+# ── D4: the reviewer may narrow, never widen ─────────────────────────────────
+
+
+def test_the_review_offers_only_what_was_declared(under_review, reviewer):
+    from sandbox.experiences.abdm.forms import ReviewEvidenceForm  # noqa: PLC0415
+
+    _declare(under_review, None, ["m1", "m2"])
+
+    form = ReviewEvidenceForm(
+        experience_context=application_context(under_review, reviewer),
+    )
+
+    assert [value for value, _label in form.fields["verified_milestones"].choices] == [
+        "m1",
+        "m2",
+    ]
+    assert form.fields["verified_milestones"].initial == ["m1", "m2"]
+
+
+def test_a_reviewer_cannot_verify_a_milestone_that_was_not_declared(
+    under_review,
+    reviewer,
+):
+    from sandbox.experiences.abdm.forms import ReviewEvidenceForm  # noqa: PLC0415
+
+    _declare(under_review, None, ["m1"])
+
+    form = ReviewEvidenceForm(
+        data={
+            "verified_milestones": ["m1", "m2"],
+            "hard_copy_received_on": timezone.localdate().isoformat(),
+        },
         experience_context=application_context(under_review, reviewer),
     )
 
     assert not form.is_valid()
-    assert "M1" in str(form.errors["approved_milestones"])
+    assert "verified_milestones" in form.errors
 
 
-def test_the_form_allows_m4_alongside_the_three_it_owes(under_review, reviewer):
-    from sandbox.experiences.abdm.forms import ApprovalForm  # noqa: PLC0415
-    from sandbox.experiences.services import application_context  # noqa: PLC0415
+def test_a_narrowed_review_grants_only_what_it_verified(
+    under_review,
+    reviewer,
+    django_capture_on_commit_callbacks,
+):
+    """The point of the ceiling: the evidence covered less than was claimed."""
+    _declare(under_review, None, ["m1", "m2"])
 
-    form = ApprovalForm(
-        data=_posted(["m1", "m2", "m3", "m4"]),
-        experience_context=application_context(under_review, reviewer),
-    )
+    with django_capture_on_commit_callbacks(execute=True):
+        _verify(under_review, reviewer, verified=["m1"])
 
-    assert form.is_valid(), form.errors
-
-
-def test_the_form_allows_m4_when_the_three_are_already_held(under_review, reviewer):
-    from sandbox.experiences.abdm.forms import ApprovalForm  # noqa: PLC0415
-    from sandbox.experiences.services import application_context  # noqa: PLC0415
-
-    for milestone in (Milestone.M1, Milestone.M2, Milestone.M3):
-        _grant(under_review.organisation, milestone, under_review)
-
-    form = ApprovalForm(
-        data=_posted(["m4"]),
-        experience_context=application_context(under_review, reviewer),
-    )
-
-    assert form.is_valid(), form.errors
+    assert granted_milestones(under_review.organisation) == {Milestone.M1}

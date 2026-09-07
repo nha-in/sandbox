@@ -628,7 +628,10 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
         application=ApplicationInstance.objects.get(reference=REVIEW_REFERENCE),
         action_key="review_evidence",
         user=admin,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": ["m1", "m2", "m3"],
+        },
     )
     approve_response = client.get(
         reverse("ohc:application-action", args=[REVIEW_REFERENCE, "approve"]),
@@ -719,7 +722,10 @@ def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
     workspace = client.get(url)
     response = client.post(
         url,
-        {"hard_copy_received_on": timezone.localdate().isoformat()},
+        {
+            "hard_copy_received_on": timezone.localdate().isoformat(),
+            "verified_milestones": ["m1", "m2", "m3"],
+        },
         headers=HTMX_HEADERS,
     )
     application = ApplicationInstance.objects.get(reference=REVIEW_REFERENCE)

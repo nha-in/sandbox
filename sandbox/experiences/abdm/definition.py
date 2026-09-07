@@ -423,9 +423,7 @@ class ReviewEvidence(ApplicationAction):
 
     @classmethod
     def perform(cls, context, cleaned_data):
-        declared = tuple(
-            context.form_data("milestone_declaration").get("milestones", ()),
-        )
+        verified = tuple(cleaned_data["verified_milestones"])
         return ActionResult(
             message=_("Evidence reviewed"),
             outcome_updates={
@@ -434,6 +432,7 @@ class ReviewEvidence(ApplicationAction):
                     for key in cls.reviewed_forms
                     if key in context.submissions
                 },
+                "verified_milestones": list(verified),
                 "hard_copy_received_on": cleaned_data["hard_copy_received_on"],
                 "reviewed_by": context.user.display_name,
                 "reviewed_at": timezone.now(),
@@ -441,7 +440,7 @@ class ReviewEvidence(ApplicationAction):
             effects=(
                 lambda application, _user: record_milestone_grants(
                     application,
-                    declared,
+                    verified,
                 ),
             ),
         )
@@ -474,7 +473,6 @@ class ApproveApplication(ApplicationAction):
             outcome_updates={
                 "decision": "approved",
                 "production_client_id": cleaned_data["production_client_id"],
-                "approved_milestones": cleaned_data["approved_milestones"],
                 "effective_date": cleaned_data["effective_date"],
                 "certificate_reference": cleaned_data["certificate_reference"],
                 "decision_note": cleaned_data.get("note", ""),

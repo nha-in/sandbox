@@ -60,7 +60,10 @@ def _reviewed(application, reviewer):
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
     )
 
 

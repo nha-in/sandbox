@@ -612,14 +612,20 @@ def test_the_evidence_review_covers_every_exit_artifact(application, actors):
             application=application,
             action_key="review_evidence",
             user=owner,
-            cleaned_data={"hard_copy_received_on": timezone.localdate()},
+            cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
         )
 
     result, _query = perform_application_action(
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
     )
     application.refresh_from_db()
 
@@ -640,7 +646,10 @@ def test_a_second_review_is_refused_while_nothing_has_changed(application, actor
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
     )
 
     with pytest.raises(PermissionDenied):
@@ -648,7 +657,10 @@ def test_a_second_review_is_refused_while_nothing_has_changed(application, actor
             application=application,
             action_key="review_evidence",
             user=reviewer,
-            cleaned_data={"hard_copy_received_on": timezone.localdate()},
+            cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
         )
 
 
@@ -663,7 +675,10 @@ def test_editing_a_reviewed_form_makes_the_review_stale(application, actors):
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
     )
 
     submission = application.submissions.get(form_key="conformance_evidence")
@@ -763,7 +778,10 @@ def test_full_query_resubmission_and_approval_flow(application, actors):
         application=application,
         action_key="review_evidence",
         user=reviewer,
-        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        cleaned_data={
+            "hard_copy_received_on": timezone.localdate(),
+            "verified_milestones": [],
+        },
     )
     perform_application_action(
         application=application,

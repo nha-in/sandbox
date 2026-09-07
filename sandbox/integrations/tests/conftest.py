@@ -63,7 +63,10 @@ def approve(under_review, reviewer, django_capture_on_commit_callbacks):
             application=under_review,
             action_key="review_evidence",
             user=reviewer,
-            cleaned_data={"hard_copy_received_on": timezone.localdate()},
+            cleaned_data={
+                "hard_copy_received_on": timezone.localdate(),
+                "verified_milestones": [],
+            },
         )
         with django_capture_on_commit_callbacks(execute=True):
             perform_application_action(

@@ -726,11 +726,6 @@ class ApprovalForm(ActionForm):
         label=_("Production client ID"),
         max_length=150,
     )
-    approved_milestones = forms.MultipleChoiceField(
-        label=_("Approved milestones"),
-        choices=MILESTONES,
-        widget=forms.CheckboxSelectMultiple,
-    )
     effective_date = forms.DateField(
         label=_("Access effective date"),
         widget=forms.DateInput(attrs={"type": "date"}),
@@ -745,29 +740,20 @@ class ApprovalForm(ActionForm):
         required=False,
     )
 
-    def clean_approved_milestones(self):
-        """M4 owes M1, M2 and M3 — the one ordering NHA states (plan 12 §3.1)."""
-        approved = self.cleaned_data["approved_milestones"]
-        if self.experience_context is None:
-            return approved
-        organisation = self.experience_context.application.organisation
-        for milestone in approved:
-            missing = unmet_prerequisites(
-                organisation,
-                milestone,
-                also_granting=approved,
-            )
-            if missing:
-                labels = ", ".join(str(Milestone(key).label) for key in missing)
-                message = _(
-                    "%(milestone)s cannot be approved before %(missing)s.",
-                ) % {"milestone": Milestone(milestone).label, "missing": labels}
-                raise ValidationError(message)
-        return approved
-
 
 
 class ReviewEvidenceForm(ActionForm):
+    """D4's ceiling, at the point the judgement is made.
+
+    A reviewer may narrow what was declared — the evidence covers less than
+    the applicant claimed — but never widen it.
+    """
+
+    verified_milestones = forms.MultipleChoiceField(
+        label=_("Milestones the evidence supports"),
+        widget=forms.CheckboxSelectMultiple,
+        choices=(),
+    )
     hard_copy_received_on = forms.DateField(
         label=_("Undertaking hard copy received on"),
         widget=forms.DateInput(attrs={"type": "date"}),
@@ -778,6 +764,38 @@ class ReviewEvidenceForm(ActionForm):
         widget=forms.Textarea(attrs={"rows": 4}),
         required=False,
     )
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        declared = self._declared()
+        self.fields["verified_milestones"].choices = [
+            (value, label) for value, label in MILESTONES if value in declared
+        ]
+        self.fields["verified_milestones"].initial = declared
+
+    def _declared(self) -> list[str]:
+        if self.experience_context is None:
+            return []
+        return self.experience_context.form_data("milestone_declaration").get(
+            "milestones",
+            [],
+        )
+
+    def clean_verified_milestones(self):
+        verified = self.cleaned_data["verified_milestones"]
+        for milestone in verified:
+            missing = unmet_prerequisites(
+                self.experience_context.application.organisation,
+                milestone,
+                also_granting=verified,
+            )
+            if missing:
+                labels = ", ".join(str(Milestone(key).label) for key in missing)
+                message = _(
+                    "%(milestone)s cannot be verified without %(missing)s.",
+                ) % {"milestone": Milestone(milestone).label, "missing": labels}
+                raise ValidationError(message)
+        return verified
 
     def clean_hard_copy_received_on(self):
         received = self.cleaned_data["hard_copy_received_on"]

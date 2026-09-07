@@ -463,7 +463,7 @@ when reading older commit messages.)*
 | D1 | exit gate — FT evidence · an unexpired `wasa` certification · the **internal** NHA demo. The HTC demo is a review step. The fields exist already: `ConformanceEvidence` carries `functional_testing_agency`, `functional_certificate_number`, `demonstration_date`, `demo_recording_url`; WASA is a `security_certification` submission; `TechnicalReadiness.production_callback_url` is the callback NHA requires — *"The Callback URL must be specified when submitting the Exit Form"* |
 | D2 | health information types 6 → 8: add `HealthDocumentRecord`, `Invoice` |
 | D3 | drop `wasa_certificate_number` from `SecurityComplianceForm` — it duplicates the copy that carries expiry and renewal |
-| D4 | decision-time ceiling on `ApprovalForm.approved_milestones`: narrow to what was declared |
+| D4 | **done, relocated.** The ceiling is `ReviewEvidenceForm.verified_milestones`, not `ApprovalForm`: §4.7 moved the judgement to the review, and grants follow it, so a ceiling applied later at approval would have had nothing left to narrow. The reviewer may drop what the evidence does not support, never add. `ApprovalForm` no longer names milestones at all |
 | D5 | `ABDM_ROLES` gains `hrp` |
 | D6 | `MILESTONES` becomes `[m1, m2, m3, m4]` |
 | D7 | enforce `m4 → m1 + m2 + m3` in `clean()`. **The only prerequisite there is** |
