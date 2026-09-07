@@ -92,7 +92,6 @@ def integration_data(*, include_health_locker: bool = False) -> dict:
         roles.append("health_locker")
     return {
         "abdm_roles": roles,
-        "milestones": ["m1", "m2", "m3"],
         "sandbox_client_id": "SBX-AROGYA-HMIS-032",
         "sandbox_exit_request_id": "EXIT-2026-1042",
         "hfr_facility_ids": "IN2910000123\nIN2910000456",
@@ -107,11 +106,21 @@ def integration_data(*, include_health_locker: bool = False) -> dict:
     }
 
 
+def milestone_data() -> dict:
+    completed = timezone.localdate() - timedelta(days=60)
+    data: dict = {"milestones": ["m1", "m2", "m3"]}
+    for milestone in ("m1", "m2", "m3"):
+        data[f"{milestone}_started_on"] = (completed - timedelta(days=30)).isoformat()
+        data[f"{milestone}_completed_on"] = completed.isoformat()
+    return data
+
+
 def complete_submission_data() -> dict[str, dict]:
     return {
         "organisation_profile": profile_data(),
         "product_use_case": product_data("Arogya One HMIS", days_until_launch=45),
         "integration_scope": integration_data(),
+        "milestone_declaration": milestone_data(),
         "technical_readiness": {
             "production_callback_url": "https://abdm.example.com/gateway/v3",
             "health_check_url": "https://abdm.example.com/health",

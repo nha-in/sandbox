@@ -22,6 +22,7 @@ from sandbox.integrations.services import start_deprovisioning
 from sandbox.integrations.services import start_provisioning
 from sandbox.notifications.hooks import notify
 from sandbox.notifications.models import TemplateKey
+from sandbox.organisations.grants import record_milestone_grants
 
 from .forms import ApplicantQueryForm
 from .forms import ApprovalForm
@@ -29,6 +30,7 @@ from .forms import ConformanceEvidenceForm
 from .forms import DeclarationForm
 from .forms import HealthLockerOperationsForm
 from .forms import IntegrationScopeForm
+from .forms import MilestoneDeclarationForm
 from .forms import OrganisationProfileForm
 from .forms import ProductUseCaseForm
 from .forms import RaiseQueryForm
@@ -102,9 +104,75 @@ class IntegrationScope(ApplicationFormDefinition):
     def metadata_updates(cls, cleaned_data, context):
         return {
             "abdm_roles": cleaned_data["abdm_roles"],
-            "milestones": cleaned_data["milestones"],
             "sandbox_client_id": cleaned_data["sandbox_client_id"],
         }
+
+
+
+class VerifyMilestoneDeclaration(ApplicationFormAction):
+    """NHA confirming the attestation. This is what earns the grants."""
+
+    key = "verify_milestones"
+    name = _("Verify milestone declaration")
+    description = _(
+        "Record that the declared milestones and their evidence were reviewed.",
+    )
+    permission = permission_keys.REVIEW_APPLICATION
+    allowed_statuses = frozenset({"under_review", "revision_submitted"})
+
+    @classmethod
+    def extra_availability(cls, context, submission):
+        if submission.metadata.get("verified_revision") == submission.revision:
+            return False, _("The current declaration is already verified.")
+        # Submitted, not verified: nothing verifies the WASA yet. §4.7's single
+        # review action closes that, and tightens this to "verified".
+        if not context.has_completed(SecurityCertification.key):
+            return False, _("The security certification is not complete yet.")
+        return True, ""
+
+    @classmethod
+    def outcome_label(cls, context, submission):
+        if submission and submission.metadata.get("verified_revision") == (
+            submission.revision
+        ):
+            return str(_("Milestones verified"))
+        return ""
+
+    @classmethod
+    def perform(cls, context, submission, cleaned_data):
+        declared = tuple(submission.data.get("milestones", ()))
+        return FormActionResult(
+            message=_("Milestone declaration verified"),
+            metadata_updates={
+                "milestones_verified_at": timezone.now(),
+                "milestones_verified_by": context.user.pk,
+                "milestones_verified_by_name": context.user.display_name,
+                "verified_revision": submission.revision,
+                "granted_milestones": list(declared),
+            },
+            effects=(
+                lambda submission, _user: record_milestone_grants(
+                    submission.application,
+                    declared,
+                ),
+            ),
+        )
+
+
+class MilestoneDeclaration(ApplicationFormDefinition):
+    key = "milestone_declaration"
+    name = _("Milestone declaration")
+    description = _(
+        "Which ABDM milestones are complete, and when each was integrated.",
+    )
+    form_class = MilestoneDeclarationForm
+    dependencies = (IntegrationScope.key,)
+    allow_updates = True
+    actions = (VerifyMilestoneDeclaration,)
+
+    @classmethod
+    def metadata_updates(cls, cleaned_data, context):
+        return {"milestones": cleaned_data["milestones"]}
 
 
 class HealthLockerOperations(ApplicationFormDefinition):
@@ -665,6 +733,7 @@ class ABDMProductionAccess(ApplicationDefinition):
         OrganisationProfile,
         ProductUseCase,
         IntegrationScope,
+        MilestoneDeclaration,
         HealthLockerOperations,
         TechnicalReadiness,
         SecurityCompliance,

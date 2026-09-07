@@ -34,14 +34,14 @@ from sandbox.experiences.models import QueryStatus
 pytestmark = pytest.mark.django_db
 
 DRAFT_SUBMISSION_COUNT = 3
-COMPLETE_SUBMISSION_COUNT = 9
-CURRENT_COMPLETE_SUBMISSION_COUNT = 8
+COMPLETE_SUBMISSION_COUNT = 10
+CURRENT_COMPLETE_SUBMISSION_COUNT = 9
 DEMO_ATTACHMENT_COUNT = 9
-DRAFT_REQUIRED_FORM_COUNT = 9
-REVIEW_REQUIRED_FORM_COUNT = 8
-DRAFT_PROGRESS_PERCENT = 33
+DRAFT_REQUIRED_FORM_COUNT = 10
+REVIEW_REQUIRED_FORM_COUNT = 9
+DRAFT_PROGRESS_PERCENT = 30
 COMPLETE_PROGRESS_PERCENT = 100
-FOUR_OF_NINE_PERCENT = 44
+FOUR_OF_TEN_PERCENT = 40
 MULTI_FILE_COUNT = 2
 RENEWED_CERTIFICATION_NUMBER = 3
 EDITED_REVISION_NUMBER = 2
@@ -202,7 +202,7 @@ def test_applicant_dashboard_detail_and_form_render(client, seeded_demo):
     assert detail_response.status_code == HTTPStatus.OK
     detail_html = detail_response.content.decode()
     assert "Application forms" in detail_html
-    assert "3 of 9 currently required forms complete" in detail_html
+    assert "3 of 10 currently required forms complete" in detail_html
     assert "Health locker operations" in detail_html
     assert "Technical readiness" in detail_html
     assert "Security and privacy" not in detail_html
@@ -245,7 +245,7 @@ def test_applicant_can_complete_the_next_gated_form(client, seeded_demo):
     assert response.status_code == HTTPStatus.FOUND
     application = ApplicationInstance.objects.get(reference=DRAFT_REFERENCE)
     assert application.submissions.filter(form_key="technical_readiness").exists()
-    assert application.progress_percent == FOUR_OF_NINE_PERCENT
+    assert application.progress_percent == FOUR_OF_TEN_PERCENT
     detail_html = client.get(
         reverse("experiences:detail", args=[DRAFT_REFERENCE]),
     ).content.decode()

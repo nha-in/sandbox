@@ -238,11 +238,6 @@ class IntegrationScopeForm(ExperienceForm):
         choices=ABDM_ROLES,
         widget=forms.CheckboxSelectMultiple,
     )
-    milestones = forms.MultipleChoiceField(
-        label=_("Completed sandbox milestones"),
-        choices=MILESTONES,
-        widget=forms.CheckboxSelectMultiple,
-    )
     sandbox_client_id = forms.CharField(label=_("Sandbox client ID"), max_length=150)
     sandbox_exit_request_id = forms.CharField(
         label=_("Sandbox exit request ID"),
@@ -281,18 +276,6 @@ class IntegrationScopeForm(ExperienceForm):
 
     def clean(self):
         cleaned = super().clean()
-        roles = cleaned.get("abdm_roles") or []
-        milestones = cleaned.get("milestones") or []
-        if "hip" in roles and "m2" not in milestones:
-            self.add_error(
-                "milestones",
-                _("HIP production access requires M2 evidence."),
-            )
-        if "hiu" in roles and "m3" not in milestones:
-            self.add_error(
-                "milestones",
-                _("HIU production access requires M3 evidence."),
-            )
         if cleaned.get("integration_approach") == "connector" and not cleaned.get(
             "connector_name",
         ):
@@ -301,6 +284,87 @@ class IntegrationScopeForm(ExperienceForm):
                 _("Name the connector used by the product."),
             )
         return cleaned
+
+
+
+class MilestoneDeclarationForm(ExperienceForm):
+    """The applicant's own attestation. A reviewer verifies it before it counts."""
+
+    milestones = forms.MultipleChoiceField(
+        label=_("Completed sandbox milestones"),
+        choices=MILESTONES,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        for value, label in MILESTONES:
+            self.fields[f"{value}_started_on"] = forms.DateField(
+                label=_("%(milestone)s — integration started") % {"milestone": label},
+                required=False,
+                widget=forms.DateInput(attrs={"type": "date"}),
+            )
+            self.fields[f"{value}_completed_on"] = forms.DateField(
+                label=_("%(milestone)s — integration completed")
+                % {"milestone": label},
+                required=False,
+                widget=forms.DateInput(attrs={"type": "date"}),
+            )
+
+    def clean(self):
+        cleaned = super().clean()
+        declared = cleaned.get("milestones") or []
+
+        for milestone in declared:
+            missing = unmet_prerequisites(
+                self._organisation(),
+                milestone,
+                also_granting=declared,
+            )
+            if missing:
+                labels = ", ".join(str(Milestone(key).label) for key in missing)
+                self.add_error(
+                    "milestones",
+                    _("%(milestone)s cannot be declared before %(missing)s.")
+                    % {"milestone": Milestone(milestone).label, "missing": labels},
+                )
+
+        for milestone in declared:
+            started = cleaned.get(f"{milestone}_started_on")
+            completed = cleaned.get(f"{milestone}_completed_on")
+            if not completed:
+                self.add_error(
+                    f"{milestone}_completed_on",
+                    _("Give the date this milestone was completed."),
+                )
+            elif started and completed < started:
+                self.add_error(
+                    f"{milestone}_completed_on",
+                    _("Completion cannot precede the start date."),
+                )
+            elif completed > timezone.localdate():
+                self.add_error(
+                    f"{milestone}_completed_on",
+                    _("A completion date cannot be in the future."),
+                )
+
+        roles = self._roles()
+        if "hip" in roles and "m2" not in declared:
+            self.add_error("milestones", _("HIP production access requires M2."))
+        if "hiu" in roles and "m3" not in declared:
+            self.add_error("milestones", _("HIU production access requires M3."))
+        return cleaned
+
+    def _organisation(self):
+        return self.experience_context.application.organisation
+
+    def _roles(self) -> list[str]:
+        if self.experience_context is None:
+            return []
+        return self.experience_context.form_data("integration_scope").get(
+            "abdm_roles",
+            [],
+        )
 
 
 class HealthLockerOperationsForm(ExperienceForm):

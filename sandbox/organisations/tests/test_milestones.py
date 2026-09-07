@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
-import pytest
+from datetime import timedelta
 
+import pytest
+from django.core.exceptions import PermissionDenied
+from django.utils import timezone
+
+from sandbox.experiences.models import ApplicationFormSubmission
+from sandbox.experiences.models import SubmissionStatus
+from sandbox.experiences.registry import registry
+from sandbox.experiences.services import application_context
+from sandbox.experiences.services import perform_form_action
 from sandbox.experiences.tests.factories import ApplicationInstanceFactory
 from sandbox.experiences.tests.factories import application_under_review
 from sandbox.experiences.tests.factories import review_role_holder
@@ -30,8 +39,13 @@ def reviewer(db):
 
 
 @pytest.fixture
-def under_review(db, reviewer):
-    return application_under_review(UserFactory(email="owner@vendor.in"), reviewer)
+def owner(db):
+    return UserFactory(email="owner@vendor.in")
+
+
+@pytest.fixture
+def under_review(db, owner, reviewer):
+    return application_under_review(owner, reviewer)
 
 
 def _grant(organisation, milestone, application=None):
@@ -94,29 +108,113 @@ def test_every_milestone_owes_keycloak_roles():
         assert MILESTONE_KEYCLOAK_ROLES[milestone]
 
 
-# ── Written from the declaration ─────────────────────────────────────────────
+# ── Written by the reviewer's verification ───────────────────────────────────
 
 
-def test_grants_are_recorded_for_the_milestones_earned(under_review):
-    record_milestone_grants(under_review, ["m1", "m2"])
+def _declare(application, _owner, milestones):
+    """The applicant's attestation, and the certification the verify gates on."""
+    completed = timezone.localdate() - timedelta(days=30)
+    data = {"milestones": list(milestones)}
+    for milestone in milestones:
+        data[f"{milestone}_completed_on"] = completed.isoformat()
+    # `application_under_review` already made one per form; fill them in.
+    ApplicationFormSubmission.objects.filter(
+        application=application,
+        form_key__in=("milestone_declaration", "security_certification"),
+    ).update(status=SubmissionStatus.COMPLETED)
+    application.submissions.filter(form_key="milestone_declaration").update(data=data)
+
+
+def _verify(application, reviewer):
+    return perform_form_action(
+        application=application,
+        form_key="milestone_declaration",
+        action_key="verify_milestones",
+        user=reviewer,
+    )
+
+
+def test_verification_grants_the_declared_milestones(
+    under_review,
+    owner,
+    reviewer,
+    django_capture_on_commit_callbacks,
+):
+    _declare(under_review, owner, ["m1", "m2"])
+
+    with django_capture_on_commit_callbacks(execute=True):
+        _verify(under_review, reviewer)
 
     assert granted_milestones(under_review.organisation) == {
         Milestone.M1,
         Milestone.M2,
     }
-    assert MilestoneGrant.objects.get(milestone="m1").granted_by == under_review
 
 
-def test_an_unknown_milestone_is_ignored(under_review):
-    record_milestone_grants(under_review, ["m1", "m9"])
+def test_declaring_alone_grants_nothing(under_review, owner):
+    """It is an attestation. Nothing is earned until NHA has verified it."""
+    _declare(under_review, owner, ["m1", "m2"])
+
+    assert granted_milestones(under_review.organisation) == frozenset()
+
+
+def test_the_grant_lands_only_after_the_verification_commits(
+    under_review,
+    owner,
+    reviewer,
+    django_capture_on_commit_callbacks,
+):
+    """A grant carries realm roles, so it must never follow a rolled-back
+    verification."""
+    _declare(under_review, owner, ["m1"])
+
+    with django_capture_on_commit_callbacks(execute=True):
+        _verify(under_review, reviewer)
+        assert granted_milestones(under_review.organisation) == frozenset()
 
     assert granted_milestones(under_review.organisation) == {Milestone.M1}
 
 
-def test_a_grant_outlives_the_application_that_made_it(under_review):
+def test_verification_needs_the_security_certification_first(under_review, reviewer):
+    """WASA is bundled with the declaration: the audit backs the attestation."""
+    under_review.submissions.filter(form_key="milestone_declaration").update(
+        data={"milestones": ["m1"]},
+        status=SubmissionStatus.COMPLETED,
+    )
+    under_review.submissions.filter(form_key="security_certification").update(
+        status=SubmissionStatus.NEEDS_CHANGES,
+    )
+    context = application_context(under_review, reviewer)
+    definition = registry.get(under_review.application_type)
+    action = definition.get_form("milestone_declaration").actions[0]
+    submission = under_review.submissions.get(form_key="milestone_declaration")
+
+    available, reason = action.availability(context, submission)
+
+    assert available is False
+    assert "security certification" in str(reason)
+
+
+def test_an_applicant_cannot_verify_their_own_declaration(under_review, owner):
+    _declare(under_review, owner, ["m1"])
+
+    with pytest.raises(PermissionDenied):
+        _verify(under_review, owner)
+
+    assert granted_milestones(under_review.organisation) == frozenset()
+
+
+def test_a_grant_outlives_the_application_that_made_it(
+    under_review,
+    owner,
+    reviewer,
+    django_capture_on_commit_callbacks,
+):
     """The reason it is organisation-scoped: a later application reads these
     rather than re-deriving from forms."""
-    record_milestone_grants(under_review, ["m1"])
+    _declare(under_review, owner, ["m1"])
+    with django_capture_on_commit_callbacks(execute=True):
+        _verify(under_review, reviewer)
 
     later = ApplicationInstanceFactory(organisation=under_review.organisation)
 
@@ -131,7 +229,7 @@ def test_one_grant_per_organisation_and_milestone():
         _grant(application.organisation, Milestone.M1, application)
 
 
-def test_re_recording_does_not_move_an_earlier_grant(under_review):
+def test_re_verifying_does_not_move_an_earlier_grant(under_review):
     """Grants are additive. `granted_at` records when it was first earned."""
     record_milestone_grants(under_review, ["m1"])
     first = MilestoneGrant.objects.get(milestone="m1").granted_at

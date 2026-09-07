@@ -244,7 +244,7 @@ met by a form, an audit event, or a column before it is met by a table.**
 | asked for | answered by |
 | --------- | ----------- |
 | `Opinion` | `ApplicationQueryMessage.is_internal`, which **already exists** — an internal message *is* the opinion |
-| `Verification` | `VerifySecurityEvidence`, which already exists: a reviewer-only action stamping `verified_revision`, so staleness is a revision comparison rather than stored state. **Replicate it for the other three exit artifacts** — §3.2's four — since an action takes `cleaned_data`, which is where §3.2's hard-copy received date is collected |
+| `Verification` | `VerifySecurityEvidence`, which already exists: a reviewer-only action stamping `verified_revision`, so staleness is a revision comparison rather than stored state. It needs to cover §3.2's four artifacts and the milestone declaration — but as **one review action, not five** (§4.7) |
 | `BlockAnswer` + `BlockConfirmation` | fields on `Organisation`, plus the snapshot that `ApplicationFormSubmission.data` already keeps |
 | `MilestoneDeclaration` | a form — §6, `milestone_declaration` |
 | `Correction`, `CredentialEvent` | `ApplicationEvent` rows — with the weakening §4.2 records. A correction is an NHA edit *after* a decision, and `editable_statuses` is `{draft, changes_requested}`, so it cannot be a form edit: it needs its own action available in `approved` |
@@ -308,6 +308,24 @@ in a mapping table the importer owns.
 
 `13-legacy-import.md` has the whole of it: the table map, the field mappings,
 the repeat-applicant rule, and what is still open.
+
+### 4.7 One review action, not five
+
+A reviewer works through an application in one sitting: the milestone
+declaration and the security audit backing it are read together, and §3.2's
+four exit artifacts arrive as one bundle. Five separate verify actions is five
+clicks for one judgement, and lets the parts drift — a milestone verified
+against a WASA nobody looked at.
+
+So `VerifySecurityEvidence` is replaced by a single application-level review
+action stamping `verified_revision` on every submission it covers, in one
+transaction, with one `ApplicationEvent`. `cleaned_data` still collects §3.2's
+hard-copy received date.
+
+Until it lands there is a real gap: `security_certification` has no verify
+action at all, so `VerifyMilestoneDeclaration` can only gate on the WASA being
+*submitted*. A reviewer can therefore verify milestones against a certificate
+nobody has read.
 
 ---
 
