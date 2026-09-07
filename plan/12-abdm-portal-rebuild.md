@@ -647,7 +647,7 @@ becomes a direct call from `complete_provisioning`.
 | 3 · settle settings, unplug the chain, reset migrations | **done** — `1ce4282`. 639 tests green. Restored the six `.txt` notification bodies step 1 deleted — they were counted as zero because the count globbed `*.html`, and twenty tests failed on it |
 | 4 · engine delta + access control | **done** — `6094eb0`. E1, E2, §5 in full |
 | 5 · plug in | **done** — `b9c102b`, `ac4a410`, `108b88a`. §7 wired onto `effects`; `Sandbox` → `ProvisioningRun`; §7.1's couplings; retries back as registry actions; the deleted test modules restored; `test_chains.py` out of the gate and verified against real WireMock. 751 tests green, 1 skip |
-| 6 · re-apply the design | **in progress** — `MilestoneGrant`, `ApplicationEvent.is_internal`, §4.7's single review, §4.8's `production_details` form, D1–D8 and D11, §8.3's `Organisation` fields and staff MFA are all done; `NotificationLog`, D9 and D10 were dissolved rather than built, and so was the `Correction` action §4.4 asked for — §4.8 answers it with a form, whose revisions carry the correction and its audit. What is left: the eight modules in `tests/conftest.py`'s `collect_ignore`, the DHIS predicates (blocked on a solution-type concept), and deleting `programmes/abdm.py` once mined |
+| 6 · re-apply the design | **in progress** — §8.4 re-triages what is left of it; `MilestoneGrant`, `ApplicationEvent.is_internal`, §4.7's single review, §4.8's `production_details` form, D1–D8 and D11, §8.3's `Organisation` fields and staff MFA are all done; `NotificationLog`, D9 and D10 were dissolved rather than built, and so was the `Correction` action §4.4 asked for — §4.8 answers it with a form, whose revisions carry the correction and its audit. What is left: the view layer §8.4 describes and the eight modules in `tests/conftest.py`'s `collect_ignore`, the DHIS predicates (blocked on a solution-type concept), and deleting `programmes/abdm.py` once mined |
 
 The suite needs Postgres, and the counts above were run against a local server
 rather than the project's Docker one: `POSTGRES_HOST=localhost USE_DOCKER=no`
@@ -713,8 +713,65 @@ Executed, and recorded because the preamble promises the reasoning is kept.
 - **`catalog/selectors.py`** has no caller between steps 2 and 6. Do not let
   that fool anyone into deleting it.
 - **`tests/`** at the repo root carries a `collect_ignore` list; the list
-  reaching empty is what finishes it. `test_credentials_panel` holds the
-  "secret appears in no audit row" assertion and must survive its rewrite.
+  reaching empty is what finishes it. **Four of the eight are not rewrites** —
+  §8.4 re-triages them.
+
+### 8.4 The view layer that did not arrive
+
+`experience` brought the shell: 150 templates covering the vendor side (list,
+detail, form workspace, action workspace, query thread, access) and the console
+(queue, application list and detail, organisations, events, tickets), each with
+its htmx partials. Almost nothing is missing at the screen level. What is
+missing is narrow, specific, and invisible until you go looking, because in
+every case the layer *underneath* it was ported and tested.
+
+**One template is a genuine orphan.** `components/secret_value.html` — a masked
+value with reveal and copy controls — has no users. Every other unreferenced
+template resolves by framework convention (allauth elements, error pages,
+`users/user_detail.html` through `DetailView` naming).
+
+#### The three gaps
+
+**C7's credentials panel.** `sandbox/integrations/selectors.py` is a
+presentation layer with no consumer: `credentials_for`, `provisioning_progress`
+and `latest_run` have **zero callers outside their own tests**. So an approved
+integrator can see neither their client id, nor their one-time secret, nor
+whether provisioning succeeded. The domain half is done and covered —
+`take_initial_secret`, `rotate_credentials`, and the never-persisted,
+never-logged, never-in-a-repr assertions in `integrations/tests/`. What is
+absent is a panel partial, a one-shot reveal POST, an owner-only rotate POST,
+htmx polling that stops at a terminal state, and a quickstart snippet. The
+tests in `tests/test_credentials_panel.py` are C7's acceptance criteria and
+are the specification for building it — not a module to be rewritten first.
+
+**Provisioning progress.** Same selectors, same absence. `provisioning_progress`
+returns one row per system in chain order *including the ones not reached yet*,
+which is the display §7 was written for, and nothing renders it.
+
+**The dashboard predates ABDM.** Its tiles are OHC Network's: *Sandbox* — "Not
+provisioned … per vendor on demo.ohc.network"; *Certification* — "Not started …
+Care Basic opens on school.ohc.network"; *Deployments*. `SETUP_STEPS` still
+reads "Sign in to your sandbox facility" and "Finish Care Basic certification",
+both hardcoded `False`. **None of it is ABDM**, and the dashboard does not
+mention applications at all — the one thing a vendor signs in to do. It needs
+re-thinking against §3's milestones rather than patching.
+
+#### Re-triaging `collect_ignore`
+
+| module | verdict |
+| ------ | ------- |
+| `test_merge_production_dotenvs_in_dotenv` | **delete** — the function it tests exists nowhere in the repo |
+| `test_enrollment_wizard` | **delete** — a multi-step draft wizard with product selection and back-navigation, a concept the engine replaced wholesale with `StartApplicationView` plus form workspaces, which are already tested |
+| `test_route_gates` | **do first** — a matrix of every named URL against who may reach it, plus "every named url has a row" and "no stale rows". Needs nothing built: 48 project routes to enumerate, and it is the module that would have caught §4.9's leak |
+| `test_credentials_panel` | build the panel first; the tests are its specification |
+| `test_dashboard` | after the dashboard is re-thought. Its wizard assertions go with `test_enrollment_wizard` either way |
+| `test_navigation` | rewrite — it references `NAV_SECTIONS`, which no longer exists, and an application rail/switcher that may be obsolete |
+| `test_stylesheet`, `test_template_syntax` | wait on the theme (§4.1) |
+
+The order that follows from this: `test_route_gates`, then the credentials
+panel and its tests, then provisioning progress, then the dashboard and its
+tests, then navigation. The two theme modules last, and the two deletions
+whenever.
 
 ### 8.3 The fields step 6 re-applies
 
