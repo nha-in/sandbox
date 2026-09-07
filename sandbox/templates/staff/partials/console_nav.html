@@ -4,9 +4,10 @@
   everything it says about boosting, the out-of-band swap and the per-link ids
   applies here with #staff-nav in place of #app-nav.
 
-  Three sections: Queue, Organisations and Events. Below them, "Vendor view"
-  leaves for the hub, because a staff staff member usually also belongs to an
-  organisation and needs a way back that is not the browser's history.
+  Four sections: Queue, Organisations, Applications and Events. Below them,
+  "Vendor view" leaves for the hub, because a staff member usually also belongs
+  to an organisation and needs a way back that is not the browser's history,
+  and the account card is the console's only route to 2FA and email settings.
 
   Context: nav_section — "queue", "organisations" or "events", set by each view.
 
@@ -62,12 +63,20 @@
   </ul>
   {% if request.user.is_authenticated %}
     <div class="mt-2.5 flex items-center gap-2 border-t border-border px-2.5 pt-3">
-      <span class="ui-avatar ui-avatar--muted size-7 text-[11px]"
-            aria-hidden="true">{{ request.user.display_name|slice:":2"|upper }}</span>
-      <span class="min-w-0 flex-1">
-        <span class="block truncate text-[12.5px] font-semibold">{% translate "review team" %}</span>
-        <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
-      </span>
+      {# The console is the only shell staff see, so 2FA and email settings are #}
+      {# unreachable unless this card is a link. It opens in the vendor shell, #}
+      {# which carries #app-nav rather than #staff-nav — so never boosted. #}
+      <a id="staff-nav-account"
+         class="flex min-w-0 flex-1 items-center gap-2 text-foreground no-underline"
+         href="{% url 'users:profile' %}"
+         hx-boost="false">
+        <span class="ui-avatar ui-avatar--muted size-7 text-[11px]"
+              aria-hidden="true">{{ request.user.display_name|slice:":2"|upper }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[12.5px] font-semibold">{% translate "Your account" %}</span>
+          <span class="block truncate text-[11px] text-soft-foreground">{{ request.user.email }}</span>
+        </span>
+      </a>
       {# Signing out is a state change, so a real POST — never boosted, because #}
       {# the response is the signed-out shell and has no #staff-nav to swap. #}
       <form method="post" action="{% url 'account_logout' %}" hx-boost="false">

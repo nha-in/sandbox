@@ -42,7 +42,6 @@ from sandbox.users.tests.factories import UserFactory
 collect_ignore = [
     # build the subject first, then port (§8.4)
     "test_dashboard.py",
-    "test_navigation.py",
     # rewrite against the arriving theme (§4.1)
     "test_stylesheet.py",
     "test_template_syntax.py",

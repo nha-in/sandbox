@@ -789,12 +789,40 @@ door should claim is a decision, and it is open.
 | `test_route_gates` | **done** — 84 named URLs, 88 gate cases. It found the shipped htmx demo, the console access screen only a superuser could open, and that `is_superuser` did not open the console |
 | `test_credentials_panel` | **done** — the panel was built to it; 13 tests |
 | `test_dashboard` | after the dashboard is re-thought. Its wizard assertions go with `test_enrollment_wizard` either way |
-| `test_navigation` | rewrite — it references `NAV_SECTIONS`, which no longer exists, and an application rail/switcher that may be obsolete |
+| `test_navigation` | **done** — rewritten against the two shells; 25 tests. It found the console's account card was still inert text, and that the vendor detail template links no form actions |
 | `test_stylesheet`, `test_template_syntax` | wait on the theme (§4.1) |
 
 The order that follows from this: `test_route_gates` **(done)**, then the
 credentials panel and its tests, then provisioning progress, then the dashboard
 and its tests, then navigation. The two theme modules last.
+
+**What the navigation rewrite found.** The old module was written against a
+`NAV_SECTIONS` registry, an organisation switcher and a per-application rail,
+none of which the port kept: sections are a `nav_section` string each view sets,
+and there are two flat shells rather than a rail that swaps. So the rewrite
+asserts the properties rather than the old structure — every link a shell
+renders is followed as its actor, and every named URL must be linked from some
+template or carry a stated reason.
+
+Two things were wrong. The console's user card was still inert text, so a staff
+member — for whom MFA is *mandatory* — could reach their own 2FA and email
+settings only by typing the URL: the console is the only shell they see, and
+"Vendor view" bounces them straight back to it. That card is now a link.
+
+The second is left standing and pinned instead. `experiences:form-action` has no
+inbound link, because the vendor application detail template renders form links
+but not form actions, while the staff template renders both. Nothing is
+unreachable today — no registered form declares an action — so the route sits in
+`NO_INBOUND_LINK` with a guard beside it that fails the moment any form declares
+one. The allowlist entry expires by itself rather than outliving its reason.
+
+Two more are noted, not fixed. A signed-in user with no membership renders the
+vendor shell on `users:profile` and `events:list`, and four of its five items
+403 for them — but signup always creates an organisation, so the state only
+arises after a membership is removed, which is a §9 question rather than a nav
+one. And for staff, those same four items redirect to the console rather than
+answering: `OrganisationMixin` does that deliberately, with a message, so the
+test pins the behaviour rather than calling it a defect.
 
 ### 8.5 The rename off OHC Network
 
