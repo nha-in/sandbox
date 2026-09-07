@@ -371,6 +371,9 @@ class ApplicationEvent(models.Model):
     status_before = models.CharField(max_length=50, blank=True)
     status_after = models.CharField(max_length=50, blank=True)
     payload = models.JSONField(default=dict, blank=True)
+    #: Hidden from the applicant. A flag, not a filter on `kind`: one internal
+    #: note of an otherwise public kind has to be hideable.
+    is_internal = models.BooleanField(_("Internal"), default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

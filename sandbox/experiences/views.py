@@ -391,7 +391,7 @@ class ApplicationDetailContextMixin(ApplicationObjectMixin):
                 ],
                 "query_threads": query_threads,
                 "open_query_count": open_query_count,
-                "recent_events": self.application.events.select_related("actor")[:12],
+                "recent_events": self.visible_events(),
                 "outcome_rows": _outcome_rows(self.application.outcome),
                 "submission_sections": submission_sections(
                     self.definition,
@@ -403,6 +403,12 @@ class ApplicationDetailContextMixin(ApplicationObjectMixin):
             },
         )
         return context
+
+    def visible_events(self):
+        events = self.application.events.select_related("actor")
+        if not getattr(self, "console", False):
+            events = events.filter(is_internal=False)
+        return events[:12]
 
 
 class VendorApplicationDetailView(

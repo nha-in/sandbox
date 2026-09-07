@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from sandbox.users.models import User
 
 
+#: Events here stay visible to the applicant — a failed run they can see is one
+#: they can chase (plan 12 §4.2).
 def record(
     action_key: str,
     *,

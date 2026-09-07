@@ -221,9 +221,8 @@ raises `revision`; a *resubmission* raises `submission_number`.
 | model | why |
 | ----- | --- |
 | `MilestoneGrant` | organisation-scoped, durable. `organisation` · `milestone` · `granted_by → ApplicationInstance` · `granted_at` · `roles_attached` · `roles_attached_at`. A later application reads it rather than re-deriving from forms. Written from D8's `milestone_declaration` submission, not from the approval — §1.1. **The model has landed; its writer arrives with D8** — a `VerifyMilestoneDeclaration` form action following `VerifySecurityEvidence`'s pattern |
-| `NotificationLog` | `event → ApplicationEvent` · `recipient` · `channel` · `template_key` · `status` · `sent_at`. The v3 model also wanted `body_as_sent` and `resent_from`, to make "a resend reuses the original wording" enforceable — that is a service-layer guarantee a test can hold, so the columns are dropped |
 | `ReviewRole`, `ReviewRoleAssignment` | §5 |
-| `ApplicationEvent.is_internal` | **new** — not to be confused with `ApplicationQueryMessage.is_internal`, which already exists and answers §4.4's `Opinion`. v3's "hidden from the applicant" had nowhere to live. A flag, not a projection filtered by `kind` — otherwise one internal note of an otherwise public kind cannot be hidden |
+| `ApplicationEvent.is_internal` | **done** — not to be confused with `ApplicationQueryMessage.is_internal`, which already exists and answers §4.4's `Opinion`. v3's "hidden from the applicant" had nowhere to live. A flag, not a projection filtered by `kind` — otherwise one internal note of an otherwise public kind cannot be hidden. It closed a live leak: `VendorApplicationDetailView` and `AdminApplicationDetailView` share one mixin, so the applicant's timeline showed every event including NHA's. An action declares `is_internal`; `review_evidence` and both retries do. Events written outside any action stay public, `provisioning.failed` deliberately among them: the applicant seeing a failed run is what lets them chase a retry that NHA never made, through the query threads that already exist |
 
 **Append-only weakened, deliberately.** The deleted `audit` app carried a
 migration running `REVOKE UPDATE, DELETE ON … FROM CURRENT_USER`;
@@ -256,6 +255,7 @@ met by a form, an audit event, or a column before it is met by a table.**
 
 | asked for | answered by |
 | --------- | ----------- |
+| `NotificationLog` | `notifications.Message`, which **already exists** and carries every column asked for — recipient, channel, template_key, `state` for status, and BaseModel's timestamps — plus params, attempts, last_error and the provider's id. Only the `event → ApplicationEvent` link is absent; it is a column on `Message` if a view ever wants it, not a table. Legacy's own `notification_audit` has the same shape |
 | `Opinion` | `ApplicationQueryMessage.is_internal`, which **already exists** — an internal message *is* the opinion |
 | `Verification` | `VerifySecurityEvidence`, which already exists: a reviewer-only action stamping `verified_revision`, so staleness is a revision comparison rather than stored state. It needs to cover §3.2's four artifacts and the milestone declaration — but as **one review action, not five** (§4.7) |
 | `BlockAnswer` + `BlockConfirmation` | fields on `Organisation`, plus the snapshot that `ApplicationFormSubmission.data` already keeps |

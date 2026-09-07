@@ -383,6 +383,8 @@ class ApplicationAction:
     allowed_statuses: ClassVar[frozenset[str]] = frozenset()
     form_class: ClassVar[type[forms.Form] | None] = None
     style: ClassVar[str] = "default"
+    #: Whether this action's event is hidden from the applicant.
+    is_internal: ClassVar[bool] = False
 
     @classmethod
     def availability(cls, context: ExperienceContext) -> tuple[bool, str]:

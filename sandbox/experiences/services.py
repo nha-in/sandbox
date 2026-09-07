@@ -531,6 +531,7 @@ def perform_application_action(
         status_before=status_before,
         status_after=application.status,
         payload={"query_id": query_thread.pk if query_thread else None},
+        is_internal=action.is_internal,
     )
 
     # After commit, never inside it: an effect provisions credentials and writes

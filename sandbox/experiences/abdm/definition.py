@@ -405,6 +405,7 @@ class ReviewEvidence(ApplicationAction):
     name = _("Record evidence review")
     description = _("Confirm the declared milestones and their exit artifacts.")
     permission = permission_keys.REVIEW_APPLICATION
+    is_internal = True
     allowed_statuses = frozenset({"under_review", "revision_submitted"})
     form_class = ReviewEvidenceForm
 
@@ -551,6 +552,7 @@ class RetryProvisioning(ApplicationAction):
     name = _("Retry provisioning")
     description = _("Re-run credential provisioning after a failed attempt.")
     permission = permission_keys.RETRY_PROVISIONING
+    is_internal = True
     allowed_statuses = frozenset({"approved"})
 
     @classmethod
@@ -582,6 +584,7 @@ class RetryDeprovisioning(ApplicationAction):
         "Re-run credential teardown for a rejected or withdrawn application.",
     )
     permission = permission_keys.RETRY_PROVISIONING
+    is_internal = True
     allowed_statuses = frozenset({"rejected", "withdrawn"})
     style = "destructive"
 
