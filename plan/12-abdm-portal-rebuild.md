@@ -113,7 +113,7 @@ the behaviour they describe, not as the current design.
 | M1 | ABHA creation, capture and verification | — | `healthId`, `HidAbhaSearch` |
 | M2 | HIP — link records to ABHA, consented sharing | none stated | `hip`, `HIP_PAYER` |
 | M3 | HIU — consented access to records | none stated | `hiu`, `HIU_PAYER` |
-| M4 | NHPR — native professional and facility registration | **M1, M2 and M3** | `hp_id`, `DIGI_DOCTOR`, `hfr`, `bridge` |
+| M4 | NHPR — native professional and facility registration | **M1, M2 and M3** | `hp_id`, `DIGI_DOCTOR`, `hfr`, `bridge` — see below |
 
 The FAQ says *"There are mainly three different Milestones"*, but
 `?doc=NHPR` is headed **"What is Milestone M4?"** and states *"Integration of
@@ -133,6 +133,12 @@ programme run with IRDAI.
 The role map is sourced and confirms both legacy's map and the v3
 specification's own role column, neither of which previously had a source. All ten
 names already exist in `FAKE_KEYCLOAK_REALM_ROLES`.
+
+**One unreconciled difference.** `?doc=NHPR` names two roles for M4 — *"HPID
+role, HFR role"* — where the supplied map has four, adding `DIGI_DOCTOR` and
+`bridge`. The map is the more recent source and may simply be more granular,
+but granting two roles nobody asked for is the wrong way to be wrong. Confirm
+with NHA before the first M4 provisioning.
 
 Because all four milestones owe roles, `MilestoneGrant` needs no "none owed"
 state — the case cannot arise. Role-attachment **failures** go to
@@ -168,9 +174,18 @@ Four consequences:
   if the milestone M1 is done using V1/2 APIs"*, migration deadline
   31-Jan-2025.
 
-**M4 runs a different evidence track**: functional testing by NHA's own NHPR
-team rather than an empanelled agency, plus a video recording of the workflow
-and a security audit *with* a VAPT report.
+**M4's extra evidence is not part of this process.** `?doc=NHPR` lists steps
+that look like exit requirements — functional testing by NHA's own NHPR team, a
+video recording of the workflow, a security audit *with* a VAPT report — but
+they belong to a separate track. Read the verbs: *write to* two NHA addresses,
+*share* the recording *with NHA*, and finally *"Assignment of required roles
+(HFR/HPID) by NHA team"*. It is an email process the NHPR team runs, ending in
+NHA attaching the roles directly.
+
+The exit process on this page never mentions M4, VAPT or a recording, and the
+legacy portal collects none of them — an M4 integrator files the same exit form
+as everyone else. So M4 is declared, reviewed and granted exactly like M1-M3
+here; the evidence behind it reached NHA another way.
 
 **One deliberate departure.** NHA emails the production secret. We show it once
 in the portal instead. That is a change we are choosing, not a requirement we
@@ -472,7 +487,7 @@ Two findings from that comparison: legacy modelled `wasa_file` and `host_file` a
 | D6 | `MILESTONES` becomes `[m1, m2, m3, m4]` |
 | D7 | enforce `m4 → m1 + m2 + m3` in `clean()`. **The only prerequisite there is** |
 | D8 | a `milestone_declaration` form owning `milestones` and per-milestone start/end dates, split out of `integration_scope` — §6.1 |
-| D9 | an `nhpr_evidence` form, `is_applicable` when M4 is declared: video, security audit **and** VAPT |
+| D9 | **dropped, and the plan corrected.** An `nhpr_evidence` form was built and reverted: `?doc=NHPR`'s steps describe an email track the NHPR team runs, not the sandbox exit — §3.2. Gating submission on it would have blocked every M4 applicant on evidence the portal never sees. What survives is `ReviewEvidence.applicable_reviewed_forms`, since building it exposed that a conditional entry in `reviewed_forms` reads as permanently unreviewed and blocks approval for ever |
 | D10 | government applicants declaring M1 must additionally cover Aadhaar biometrics and offline demographics |
 | D11 | record `demonstrated_on_current_apis`; an M1 graduation on V1/V2 APIs is not acceptable |
 

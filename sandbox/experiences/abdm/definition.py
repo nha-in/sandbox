@@ -226,6 +226,7 @@ class ConformanceEvidence(ApplicationFormDefinition):
         }
 
 
+
 class Declaration(ApplicationFormDefinition):
     key = "declaration"
     name = _("Authorised declaration")
@@ -417,11 +418,27 @@ class ReviewEvidence(ApplicationAction):
     )
 
     @classmethod
+    def applicable_reviewed_forms(cls, context) -> tuple[str, ...]:
+        """Every entry applies today. Filtered anyway: a conditional form added
+        here would otherwise read as permanently unreviewed, blocking approval
+        for ever."""
+        definition = registry.get(context.application.application_type)
+        return tuple(
+            key
+            for key in cls.reviewed_forms
+            if definition.get_form(key).is_applicable(context)
+        )
+
+    @classmethod
     def extra_availability(cls, context):
-        missing = [key for key in cls.reviewed_forms if not context.has_completed(key)]
+        missing = [
+            key
+            for key in cls.applicable_reviewed_forms(context)
+            if not context.has_completed(key)
+        ]
         if missing:
             return False, _("Every exit artifact must be submitted first.")
-        if not stale_reviews(context.application, context.submissions):
+        if not stale_reviews(context):
             return False, _("The current evidence is already reviewed.")
         return True, ""
 
@@ -433,7 +450,7 @@ class ReviewEvidence(ApplicationAction):
             outcome_updates={
                 "verified_revisions": {
                     key: context.submissions[key].revision
-                    for key in cls.reviewed_forms
+                    for key in cls.applicable_reviewed_forms(context)
                     if key in context.submissions
                 },
                 "verified_milestones": list(verified),
@@ -464,8 +481,7 @@ class ApproveApplication(ApplicationAction):
             status=QueryStatus.RESOLVED,
         ).exists():
             return False, _("Resolve every application query before approval.")
-        stale = stale_reviews(context.application, context.submissions)
-        if stale:
+        if stale_reviews(context):
             return False, _("Review the evidence before approving.")
         return True, ""
 

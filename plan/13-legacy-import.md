@@ -97,6 +97,17 @@ individuality in that separate code and left `entity_type` blank for those
 rows, so the fact cannot be read off `entity_type` at all. 12 §4.5 has the
 design; this is the mapping.
 
+**`sd_exit.integration_detail` → the milestone declaration.** A free-text,
+comma-separated list carrying `m1`…`m4` mixed in with `phr`, `health locker`
+and `nhcx`. Only the first four are milestones (12 §3.1): PHR and health locker
+map onto `ABDM_ROLES` and NHCX is a separate programme, so the importer splits
+this one field three ways rather than copying it. `milestone_dif` is a
+yes/no answer to a different question and is not the milestone list.
+
+**M4 carries no evidence to import.** Legacy has no NHPR testing reference,
+VAPT or recording anywhere, so a migrated M4 application arrives with its
+`nhpr_evidence` form empty — the same open question as §6's first item.
+
 **Names sent onward are sanitised** by `integrations.tasks._external_name`,
 reproducing legacy's `[^a-zA-Z0-9]` → space. One deviation: legacy replaced
 each character singly and trimmed only the ends, leaving double spaces inside;

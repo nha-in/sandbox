@@ -634,7 +634,9 @@ def test_the_evidence_review_covers_every_exit_artifact(application, actors):
     assert str(result.message) == "Evidence reviewed"
     assert application.outcome["reviewed_by"] == reviewer.display_name
     assert set(application.outcome["verified_revisions"]) == set(
-        registry.get(APPLICATION_TYPE).get_action("review_evidence").reviewed_forms,
+        registry.get(APPLICATION_TYPE)
+        .get_action("review_evidence")
+        .applicable_reviewed_forms(application_context(application, reviewer)),
     )
     assert application.events.filter(action_key="review_evidence").exists()
 

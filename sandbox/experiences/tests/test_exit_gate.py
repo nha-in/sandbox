@@ -125,3 +125,4 @@ def test_the_gate_refuses_the_submission_itself(ready, owner):
 
     with pytest.raises(PermissionDenied):
         perform_application_action(application=ready, action_key="submit", user=owner)
+
