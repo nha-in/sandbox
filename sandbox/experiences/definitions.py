@@ -413,10 +413,10 @@ class ApplicationAction:
     allowed_statuses: ClassVar[frozenset[str]] = frozenset()
     form_class: ClassVar[type[forms.Form] | None] = None
     style: ClassVar[str] = "default"
-    #: Whether this action's event is hidden from the applicant. A separate
-    #: question from `view`: `approve` is listed to NHA only, but its event is
-    #: how the applicant learns the decision.
-    is_internal: ClassVar[bool] = False
+    #: Whether the event this action writes is hidden from the applicant — set
+    #: when the action neither moves the status nor was raised by the applicant.
+    #: Separate from `view`: `approve` is NHA-only but its event is not (§4.2).
+    internal_event: ClassVar[bool] = False
 
     @classmethod
     def permission_for(cls, capability: str) -> str:

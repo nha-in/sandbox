@@ -44,11 +44,11 @@ def test_the_reviewer_only_actions_are_internal():
     """Their notes and operational retries are NHA's, not the applicant's."""
     definition = registry.get(APPLICATION_TYPE)
 
-    assert definition.get_action("review_evidence").is_internal is True
-    assert definition.get_action("retry_provisioning").is_internal is True
-    assert definition.get_action("retry_deprovisioning").is_internal is True
-    assert definition.get_action("approve").is_internal is False
-    assert definition.get_action("raise_query").is_internal is False
+    assert definition.get_action("review_evidence").internal_event is True
+    assert definition.get_action("retry_provisioning").internal_event is True
+    assert definition.get_action("retry_deprovisioning").internal_event is True
+    assert definition.get_action("approve").internal_event is False
+    assert definition.get_action("raise_query").internal_event is False
 
 
 def test_reviewing_writes_an_internal_event(application, reviewer):
