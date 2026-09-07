@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from .permissions import is_ohc_team
+from .permissions import is_console_user
 
 
 def allauth_settings(request):
@@ -16,4 +16,4 @@ def ohc_team(request):
     The app shell reads this to offer the console link, so it has to be
     available on every page rather than passed view by view.
     """
-    return {"is_ohc_team": is_ohc_team(getattr(request, "user", None))}
+    return {"is_console_user": is_console_user(getattr(request, "user", None))}

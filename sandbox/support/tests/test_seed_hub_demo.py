@@ -234,7 +234,6 @@ class TestTheCredentials:
 
         anand = User.objects.get(email=OHC_EMAIL)
 
-        assert anand.is_ohc_team is True
         assert anand.is_staff is True
         assert anand.is_superuser is False
 
@@ -243,7 +242,6 @@ class TestTheCredentials:
         seed()
 
         for email in (OWNER_EMAIL, DEVELOPER_EMAIL):
-            assert User.objects.get(email=email).is_ohc_team is False
             assert User.objects.get(email=email).is_staff is False
 
     def test_an_override_password_is_the_one_that_works(self):

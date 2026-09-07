@@ -390,7 +390,6 @@ class Command(BaseCommand):
         )
         user.name = name
         user.is_active = True
-        user.is_ohc_team = platform
         user.is_staff = platform
         user.is_superuser = False
         user.set_password(password)

@@ -79,7 +79,7 @@ class Event(models.Model):
         blank=True,
         related_name="events_created",
         verbose_name=_("Created by"),
-        limit_choices_to={"is_ohc_team": True},
+        limit_choices_to={"is_staff": True},
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

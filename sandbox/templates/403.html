@@ -18,7 +18,7 @@
 {% endblock message %}
 {% block actions %}
   {% if request.user.is_authenticated %}
-    {% if is_ohc_team %}
+    {% if is_console_user %}
       <a class="ui-btn ui-btn--default ui-btn--size-default"
          href="{% url 'ohc:queue' %}">{% translate "Go to the OHC console" %}</a>
     {% else %}

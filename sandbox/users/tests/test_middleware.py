@@ -17,7 +17,7 @@ CONSOLE = "ohc:queue"
 
 @pytest.fixture
 def staff(db):
-    return UserFactory(email="ops@nha.gov.in", is_staff=True, is_ohc_team=True)
+    return UserFactory(email="ops@nha.gov.in", is_staff=True)
 
 
 def test_a_staff_account_without_totp_is_sent_to_set_it_up(client, db):
@@ -26,7 +26,6 @@ def test_a_staff_account_without_totp_is_sent_to_set_it_up(client, db):
     without = UserFactory(
         email="new@nha.gov.in",
         is_staff=True,
-        is_ohc_team=True,
         mfa=False,
     )
     client.force_login(without)
@@ -77,7 +76,6 @@ def test_the_setting_can_be_turned_off_for_local_work(client, db):
     without = UserFactory(
         email="new@nha.gov.in",
         is_staff=True,
-        is_ohc_team=True,
         mfa=False,
     )
     client.force_login(without)

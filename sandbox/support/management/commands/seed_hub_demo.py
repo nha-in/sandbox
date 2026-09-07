@@ -500,12 +500,11 @@ class Command(BaseCommand):
     def _ensure_ohc_member(self, password: str, report: Report):
         user, created = User.objects.get_or_create(
             email=OHC_EMAIL,
-            defaults={"name": OHC_NAME, "is_ohc_team": True, "is_staff": True},
+            defaults={"name": OHC_NAME, "is_staff": True},
         )
         # Re-running has to leave the printed credentials true, so the flags and
         # the password are asserted every time rather than only on creation.
         user.name = user.name or OHC_NAME
-        user.is_ohc_team = True
         user.is_staff = True
         user.set_password(password)
         user.save()

@@ -258,7 +258,7 @@ class TestOnlyOhcCanPublish:
         forbidden to everyone, and "vendors are refused" would mean nothing.
         """
         draft = EventFactory.create(title="Draft roadmap AMA")
-        staffer = UserFactory.create(email="ops@ohc.network", is_ohc_team=True)
+        staffer = UserFactory.create(email="ops@ohc.network", is_staff=True)
 
         response = sign_in(staffer).post(
             reverse("ohc:event-publish", kwargs={"slug": draft.slug}),

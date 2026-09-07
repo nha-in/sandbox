@@ -75,7 +75,7 @@ def ohc_user(db) -> User:
     return UserFactory.create(
         name="Anand Suresh",
         email="anand@ohc.network",
-        is_ohc_team=True,
+        is_staff=True,
     )
 
 
@@ -84,7 +84,7 @@ def other_ohc_user(db) -> User:
     return UserFactory.create(
         name="Divya Menon",
         email="divya@ohc.network",
-        is_ohc_team=True,
+        is_staff=True,
     )
 
 
@@ -175,15 +175,6 @@ class TestEveryRouteIsGated:
         )
 
         assert response.status_code == HTTPStatus.FORBIDDEN
-
-    def test_django_staff_is_not_the_ohc_team(
-        self,
-        sign_in: Callable[[User], Client],
-    ):
-        """is_staff only opens the Django admin; the console asks for is_ohc_team."""
-        staff = UserFactory.create(email="ops@ohc.network", is_staff=True)
-
-        assert sign_in(staff).get(QUEUE_URL).status_code == HTTPStatus.FORBIDDEN
 
     def test_the_ohc_team_gets_through_on_every_route(
         self,

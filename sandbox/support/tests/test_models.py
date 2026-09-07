@@ -32,7 +32,7 @@ def ohc_member():
     return UserFactory.create(
         name="Anand S",
         email="anand@ohc.network",
-        is_ohc_team=True,
+        is_staff=True,
     )
 
 

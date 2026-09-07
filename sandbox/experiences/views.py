@@ -23,7 +23,7 @@ from django.views.generic import TemplateView
 from django_htmx.http import HttpResponseClientRedirect
 
 from sandbox.organisations.views import OrganisationMixin
-from sandbox.users.permissions import OhcTeamRequiredMixin
+from sandbox.users.permissions import StaffConsoleMixin
 
 from . import permission_keys
 from .forms import ApplicationAccessForm
@@ -420,7 +420,7 @@ class VendorApplicationDetailView(
 
 
 class AdminApplicationDetailView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     ApplicationDetailContextMixin,
     TemplateView,
 ):
@@ -429,7 +429,7 @@ class AdminApplicationDetailView(
 
 
 class AdminApplicationListView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     HtmxApplicationListMixin,
     ListView,
 ):
@@ -687,7 +687,7 @@ class VendorActionWorkspaceView(
 
 
 class AdminActionWorkspaceView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     ActionWorkspaceMixin,
     View,
 ):
@@ -792,7 +792,7 @@ class VendorFormActionWorkspaceView(
 
 
 class AdminFormActionWorkspaceView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     FormActionWorkspaceMixin,
     View,
 ):
@@ -882,7 +882,7 @@ class VendorQueryWorkspaceView(
 
 
 class AdminQueryWorkspaceView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     QueryWorkspaceMixin,
     View,
 ):
@@ -890,7 +890,7 @@ class AdminQueryWorkspaceView(
 
 
 class AdminResolveQueryView(
-    OhcTeamRequiredMixin,
+    StaffConsoleMixin,
     QueryWorkspaceMixin,
     View,
 ):

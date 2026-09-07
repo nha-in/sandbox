@@ -34,7 +34,7 @@ ASSIGNEE_MINE = "mine"
 
 def ohc_team_members() -> QuerySet[User]:
     """Everyone who can own a ticket, in the order every picker lists them."""
-    return get_user_model().objects.filter(is_ohc_team=True).order_by("name", "email")
+    return get_user_model().objects.filter(is_staff=True).order_by("name", "email")
 
 
 def queue_status_choices(*, include_any: bool = False) -> list[tuple[str, str]]:

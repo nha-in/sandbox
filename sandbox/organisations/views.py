@@ -20,7 +20,7 @@ from django.views.generic import FormView
 from django.views.generic import UpdateView
 from django_htmx.http import HttpResponseClientRedirect
 
-from sandbox.users.permissions import is_ohc_team
+from sandbox.users.permissions import is_console_user
 
 from .forms import InvitationForm
 from .forms import MembershipRoleForm
@@ -57,7 +57,7 @@ class OrganisationMixin(LoginRequiredMixin):
             # console beats a 403 that reads as breakage on a page they were
             # never meant to open. Staff who *do* belong to a vendor keep the
             # vendor route; the console stays one click away in the sidebar.
-            if is_ohc_team(request.user):
+            if is_console_user(request.user):
                 messages.info(
                     request,
                     _("That is a vendor page. Here is the OHC console instead."),

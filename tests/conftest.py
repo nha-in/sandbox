@@ -132,7 +132,7 @@ def reviewer(db):
     console row look like a broken gate.
     """
     user = _with_mfa(
-        verified_user(email="reviewer@nha.gov.in", is_staff=True, is_ohc_team=True),
+        verified_user(email="reviewer@nha.gov.in", is_staff=True),
     )
     ReviewRoleAssignment.objects.create(
         user=user,
@@ -148,9 +148,6 @@ def staff_user(db):
             email="superuser@nha.gov.in",
             is_staff=True,
             is_superuser=True,
-            # `is_superuser` does not open the console on its own — the gate is
-            # `is_ohc_team`, deliberately (users/permissions.py).
-            is_ohc_team=True,
         ),
     )
 

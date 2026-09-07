@@ -1,7 +1,7 @@
 """The OHC team's console: the support queue, the vendor register, and events.
 
 Every view here inherits OhcConsoleMixin, and OhcConsoleMixin exists to make the
-gate impossible to forget: it is OhcTeamRequiredMixin plus the shell's active
+gate impossible to forget: it is StaffConsoleMixin plus the shell's active
 nav item, so there is no way to add a screen to this app without the check. That
 gate is the security boundary of the whole feature — a signed-in vendor who
 guesses a URL under /ohc/ is looking at every other vendor's tickets — so it is
@@ -35,7 +35,7 @@ from sandbox.support.models import Status
 from sandbox.support.models import Ticket
 from sandbox.support.models import post_reply
 from sandbox.support.models import record_status_change
-from sandbox.users.permissions import OhcTeamRequiredMixin
+from sandbox.users.permissions import StaffConsoleMixin
 
 from .forms import ASSIGNEE_MINE
 from .forms import ASSIGNEE_UNASSIGNED
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
 QUEUE_PAGE_SIZE = 25
 
 
-class OhcConsoleMixin(OhcTeamRequiredMixin):
+class OhcConsoleMixin(StaffConsoleMixin):
     """The gate on every console screen, plus which nav item is lit.
 
     Subclasses that are pure POST endpoints never call get_context_data; they

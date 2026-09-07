@@ -5,9 +5,9 @@
   <div class="min-w-0 space-y-3">
     <ol class="space-y-3" aria-label="{% translate 'Query conversation' %}">
       {% for query_message in thread_messages %}
-        <li class="rounded-md border {% if query_message.kind == 'event' %}border-border bg-muted-background{% elif query_message.author.is_ohc_team %}border-primary/20 bg-primary/5{% else %}border-border bg-card{% endif %} p-4">
+        <li class="rounded-md border {% if query_message.kind == 'event' %}border-border bg-muted-background{% elif query_message.author.is_staff %}border-primary/20 bg-primary/5{% else %}border-border bg-card{% endif %} p-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-xs font-semibold">{% if query_message.author %}{{ query_message.author.display_name }}{% else %}{% translate "System" %}{% endif %}{% if query_message.author.is_ohc_team %}<span class="ml-1 text-[10px] font-medium uppercase text-primary">{% translate "OHC" %}</span>{% endif %}</p>
+            <p class="text-xs font-semibold">{% if query_message.author %}{{ query_message.author.display_name }}{% else %}{% translate "System" %}{% endif %}{% if query_message.author.is_staff %}<span class="ml-1 text-[10px] font-medium uppercase text-primary">{% translate "NHA" %}</span>{% endif %}</p>
             <time class="text-[11px] text-soft-foreground"
                   datetime="{{ query_message.created_at|date:'c' }}">{{ query_message.created_at|date:"j M Y, H:i" }}</time>
           </div>

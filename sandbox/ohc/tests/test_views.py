@@ -58,7 +58,6 @@ def ohc_member(db) -> User:
     return UserFactory.create(
         email="anand@ohc.network",
         name="Anand S",
-        is_ohc_team=True,
         is_staff=True,
     )
 
@@ -330,19 +329,6 @@ class TestOhcTeamGetsThrough:
 
         references = {t.reference for t in response.context["tickets"]}
         assert {theirs.reference, ours.reference} <= references
-
-    def test_a_staff_account_without_the_flag_is_still_refused(
-        self,
-        sign_in: Callable[[User], Client],
-        ticket: Ticket,
-    ):
-        """is_staff is admin access; it is not console access."""
-        desk = UserFactory.create(email="desk@ohc.network", is_staff=True)
-        client = sign_in(desk)
-
-        response = client.get(reverse("ohc:ticket", args=[ticket.reference]))
-
-        assert response.status_code == HTTPStatus.FORBIDDEN
 
 
 # ── no-JS ──────────────────────────────────────────────────────────────────

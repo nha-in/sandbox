@@ -125,7 +125,7 @@ class Ticket(models.Model):
         related_name="tickets_assigned",
         verbose_name=_("Assignee"),
         # Only OHC staff answer tickets, so the picker never offers a vendor.
-        limit_choices_to={"is_ohc_team": True},
+        limit_choices_to={"is_staff": True},
     )
     linked_facility = models.CharField(
         _("Linked facility"),
@@ -297,5 +297,5 @@ def record_status_change(ticket: Ticket, author, status: str) -> TicketMessage:
         author=author,
         kind=TicketMessage.Kind.EVENT,
         body=str(label),
-        from_ohc_team=bool(getattr(author, "is_ohc_team", False)),
+        from_ohc_team=bool(getattr(author, "is_staff", False)),
     )

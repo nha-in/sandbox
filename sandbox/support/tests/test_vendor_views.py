@@ -714,7 +714,7 @@ def test_the_new_ticket_form_ignores_the_fields_a_vendor_does_not_own(
     are not on the form at all. This posts all of them anyway.
     """
     other = OrganisationFactory.create(name="Rival Health Systems", onboarded=True)
-    ohc_person = UserFactory.create(is_ohc_team=True)
+    ohc_person = UserFactory.create(is_staff=True)
 
     vendor_client.post(
         CREATE_URL,

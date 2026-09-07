@@ -9,7 +9,7 @@ from django.views.generic import TemplateView
 from sandbox.events.selectors import dashboard_events
 from sandbox.organisations.selectors import get_membership_for
 from sandbox.organisations.views import OrganisationMixin
-from sandbox.users.permissions import is_ohc_team
+from sandbox.users.permissions import is_console_user
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -109,7 +109,7 @@ def resolve_post_login_destination(user) -> str:
     """
     membership = get_membership_for(user)
     if membership is None:
-        return "ohc:queue" if is_ohc_team(user) else "home"
+        return "ohc:queue" if is_console_user(user) else "home"
     if not membership.organisation.is_onboarded:
         return "organisations:onboarding"
     return "dashboard"

@@ -1,7 +1,12 @@
 """Who may act on what.
 
 The vendor side is scoped by Membership (see organisations.selectors); this
-module covers the platform side — the OHC team, who work across every vendor.
+module covers the platform side — NHA's own people, who work across every
+vendor.
+
+`is_staff` is the whole console gate. Authority *within* it is finer and lives
+elsewhere: applications answer to `ReviewRole` (plan 12 §5), which is why a
+staff account with no assignment sees the console but can decide nothing.
 """
 
 from __future__ import annotations
@@ -17,15 +22,14 @@ if TYPE_CHECKING:
     from django.http import HttpResponse
 
 
-def is_ohc_team(user) -> bool:
+def is_console_user(user) -> bool:
     return bool(
-        getattr(user, "is_authenticated", False)
-        and getattr(user, "is_ohc_team", False),
+        getattr(user, "is_authenticated", False) and getattr(user, "is_staff", False),
     )
 
 
-class OhcTeamRequiredMixin(AccessMixin):
-    """Gate a view to the OHC team.
+class StaffConsoleMixin(AccessMixin):
+    """Gate a view to the console.
 
     Anonymous users are sent to the login page as usual; a signed-in vendor gets
     a 403 rather than a redirect, because bouncing them to a login form they are
@@ -35,7 +39,7 @@ class OhcTeamRequiredMixin(AccessMixin):
     def dispatch(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         if not getattr(request.user, "is_authenticated", False):
             return self.handle_no_permission()
-        if not is_ohc_team(request.user):
-            msg = _("This area is for the OHC team.")
+        if not is_console_user(request.user):
+            msg = _("This area is for the review team.")
             raise PermissionDenied(msg)
         return super().dispatch(request, *args, **kwargs)

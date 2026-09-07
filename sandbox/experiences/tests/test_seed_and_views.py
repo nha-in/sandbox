@@ -130,7 +130,6 @@ def test_seeder_creates_working_accounts_and_both_workflows(seeded_demo):
 
     assert applicant.check_password(DEFAULT_PASSWORD)
     assert admin.check_password(DEFAULT_PASSWORD)
-    assert admin.is_ohc_team is True
     assert admin.is_staff is True
     assert EmailAddress.objects.get(user=applicant).verified is True
     assert draft.submissions.count() == DRAFT_SUBMISSION_COUNT

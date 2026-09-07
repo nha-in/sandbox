@@ -59,7 +59,6 @@ def actors():
     contributor = UserFactory(email="contributor@example.in")
     reviewer = UserFactory(
         email="reviewer@ohc.network",
-        is_ohc_team=True,
         is_staff=True,
     )
     Membership.objects.create(

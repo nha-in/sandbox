@@ -363,7 +363,11 @@ class TestOhcConsoleLink:
         sign_in: Callable[[User], Client],
         owner_membership: MembershipType,
     ):
-        owner_membership.user.is_ohc_team = True
-        owner_membership.user.save(update_fields=["is_ohc_team"])
+        from allauth.mfa.totp.internal import auth  # noqa: PLC0415
+
+        owner_membership.user.is_staff = True
+        owner_membership.user.save(update_fields=["is_staff"])
+        # Staff without TOTP are held at the door by StaffMfaRequiredMiddleware.
+        auth.TOTP.activate(owner_membership.user, auth.generate_totp_secret())
 
         assert "OHC console" in self._nav_of(sign_in(owner_membership.user))
