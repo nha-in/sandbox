@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 from django.test import override_settings
+from django.utils import timezone
 
 from sandbox.experiences.services import perform_application_action
 from sandbox.experiences.tests.factories import application_under_review
@@ -157,6 +158,12 @@ def application(owner, reviewer):
 
 
 def _approve(application, reviewer, callbacks) -> None:
+    perform_application_action(
+        application=application,
+        action_key="review_evidence",
+        user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+    )
     with callbacks(execute=True):
         perform_application_action(
             application=application,

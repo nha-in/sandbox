@@ -12,7 +12,7 @@ from sandbox.experiences.models import ApplicationFormSubmission
 from sandbox.experiences.models import SubmissionStatus
 from sandbox.experiences.registry import registry
 from sandbox.experiences.services import application_context
-from sandbox.experiences.services import perform_form_action
+from sandbox.experiences.services import perform_application_action
 from sandbox.experiences.tests.factories import ApplicationInstanceFactory
 from sandbox.experiences.tests.factories import application_under_review
 from sandbox.experiences.tests.factories import review_role_holder
@@ -126,11 +126,11 @@ def _declare(application, _owner, milestones):
 
 
 def _verify(application, reviewer):
-    return perform_form_action(
+    return perform_application_action(
         application=application,
-        form_key="milestone_declaration",
-        action_key="verify_milestones",
+        action_key="review_evidence",
         user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
     )
 
 
@@ -175,27 +175,23 @@ def test_the_grant_lands_only_after_the_verification_commits(
     assert granted_milestones(under_review.organisation) == {Milestone.M1}
 
 
-def test_verification_needs_the_security_certification_first(under_review, reviewer):
-    """WASA is bundled with the declaration: the audit backs the attestation."""
-    under_review.submissions.filter(form_key="milestone_declaration").update(
-        data={"milestones": ["m1"]},
-        status=SubmissionStatus.COMPLETED,
-    )
+def test_the_review_waits_for_every_exit_artifact(under_review, reviewer):
+    """§4.7 covers the declaration and the artifacts backing it together, so an
+    incomplete one holds the whole review."""
+    _declare(under_review, None, ["m1"])
     under_review.submissions.filter(form_key="security_certification").update(
         status=SubmissionStatus.NEEDS_CHANGES,
     )
     context = application_context(under_review, reviewer)
-    definition = registry.get(under_review.application_type)
-    action = definition.get_form("milestone_declaration").actions[0]
-    submission = under_review.submissions.get(form_key="milestone_declaration")
+    action = registry.get(under_review.application_type).get_action("review_evidence")
 
-    available, reason = action.availability(context, submission)
+    available, reason = action.availability(context)
 
     assert available is False
-    assert "security certification" in str(reason)
+    assert "exit artifact" in str(reason)
 
 
-def test_an_applicant_cannot_verify_their_own_declaration(under_review, owner):
+def test_an_applicant_cannot_review_their_own_evidence(under_review, owner):
     _declare(under_review, owner, ["m1"])
 
     with pytest.raises(PermissionDenied):

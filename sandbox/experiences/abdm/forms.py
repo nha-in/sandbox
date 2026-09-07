@@ -766,6 +766,26 @@ class ApprovalForm(ActionForm):
         return approved
 
 
+
+class ReviewEvidenceForm(ActionForm):
+    hard_copy_received_on = forms.DateField(
+        label=_("Undertaking hard copy received on"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text=_("The signed Undertaking must arrive by courier or speed post."),
+    )
+    note = forms.CharField(
+        label=_("Review note"),
+        widget=forms.Textarea(attrs={"rows": 4}),
+        required=False,
+    )
+
+    def clean_hard_copy_received_on(self):
+        received = self.cleaned_data["hard_copy_received_on"]
+        if received > timezone.localdate():
+            raise ValidationError(_("That date is in the future."))
+        return received
+
+
 class RejectionForm(ActionForm):
     reason = forms.ChoiceField(
         label=_("Primary reason"),

@@ -58,6 +58,13 @@ def approve(under_review, reviewer, django_capture_on_commit_callbacks):
     """Approve, running the chain the approval schedules on commit."""
 
     def _approve():
+        # §4.7: approval waits on the evidence review.
+        perform_application_action(
+            application=under_review,
+            action_key="review_evidence",
+            user=reviewer,
+            cleaned_data={"hard_copy_received_on": timezone.localdate()},
+        )
         with django_capture_on_commit_callbacks(execute=True):
             perform_application_action(
                 application=under_review,

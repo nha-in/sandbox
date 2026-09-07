@@ -20,7 +20,6 @@ from sandbox.experiences.services import assignable_roles
 from sandbox.experiences.services import create_application
 from sandbox.experiences.services import grant_application_access
 from sandbox.experiences.services import perform_application_action
-from sandbox.experiences.services import perform_form_action
 from sandbox.experiences.services import post_query_reply
 from sandbox.experiences.services import recalculate_progress
 from sandbox.experiences.services import resolve_query
@@ -123,6 +122,7 @@ def test_definition_exposes_static_forms_roles_permissions_and_actions():
         "ask_review_team",
         "start_review",
         "raise_query",
+        "review_evidence",
         "approve",
         "reject",
         "retry_provisioning",
@@ -599,43 +599,83 @@ def test_expired_repeatable_form_is_no_longer_complete(application, actors):
     assert application.metadata["required_forms"] == BASE_REQUIRED_FORM_COUNT
 
 
-def test_admin_form_action_runs_after_completion(application, actors):
+def test_the_evidence_review_covers_every_exit_artifact(application, actors):
+    """§4.7: one reviewer judgement over everything the exit turns on, rather
+    than a verify action per form that can drift out of step."""
     _organisation, owner, _contributor, reviewer = actors
     complete_all_forms(application, owner)
     application.status = "under_review"
     application.save(update_fields=["status", "updated_at"])
 
     with pytest.raises(PermissionDenied):
-        perform_form_action(
+        perform_application_action(
             application=application,
-            form_key="security_compliance",
-            action_key="verify_evidence",
+            action_key="review_evidence",
             user=owner,
+            cleaned_data={"hard_copy_received_on": timezone.localdate()},
         )
 
-    result = perform_form_action(
+    result, _query = perform_application_action(
         application=application,
-        form_key="security_compliance",
-        action_key="verify_evidence",
+        action_key="review_evidence",
         user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
     )
-    submission = application.submissions.get(form_key="security_compliance")
+    application.refresh_from_db()
 
-    assert str(result.message) == "Security evidence verified"
-    assert submission.metadata["verified_revision"] == submission.revision
-    assert submission.metadata["evidence_verified_by"] == reviewer.pk
-    assert application.events.filter(
-        action_key="security_compliance.verify_evidence",
-        submission=submission,
-    ).exists()
+    assert str(result.message) == "Evidence reviewed"
+    assert application.outcome["reviewed_by"] == reviewer.display_name
+    assert set(application.outcome["verified_revisions"]) == set(
+        registry.get(APPLICATION_TYPE).get_action("review_evidence").reviewed_forms,
+    )
+    assert application.events.filter(action_key="review_evidence").exists()
+
+
+def test_a_second_review_is_refused_while_nothing_has_changed(application, actors):
+    _organisation, owner, _contributor, reviewer = actors
+    complete_all_forms(application, owner)
+    application.status = "under_review"
+    application.save(update_fields=["status", "updated_at"])
+    perform_application_action(
+        application=application,
+        action_key="review_evidence",
+        user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+    )
 
     with pytest.raises(PermissionDenied):
-        perform_form_action(
+        perform_application_action(
             application=application,
-            form_key="security_compliance",
-            action_key="verify_evidence",
+            action_key="review_evidence",
             user=reviewer,
+            cleaned_data={"hard_copy_received_on": timezone.localdate()},
         )
+
+
+def test_editing_a_reviewed_form_makes_the_review_stale(application, actors):
+    """Staleness stays a revision comparison — the point of recording the
+    revision rather than a boolean."""
+    _organisation, owner, _contributor, reviewer = actors
+    complete_all_forms(application, owner)
+    application.status = "under_review"
+    application.save(update_fields=["status", "updated_at"])
+    perform_application_action(
+        application=application,
+        action_key="review_evidence",
+        user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+    )
+
+    submission = application.submissions.get(form_key="conformance_evidence")
+    submission.revision += 1
+    submission.save(update_fields=["revision"])
+
+    context = application_context(application, reviewer)
+    available, _reason = registry.get(APPLICATION_TYPE).get_action(
+        "review_evidence",
+    ).availability(context)
+
+    assert available is True
 
 
 def test_applicant_can_open_query_without_changing_application_status(
@@ -718,6 +758,12 @@ def test_full_query_resubmission_and_approval_flow(application, actors):
         application=application,
         action_key="start_review",
         user=reviewer,
+    )
+    perform_application_action(
+        application=application,
+        action_key="review_evidence",
+        user=reviewer,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
     )
     perform_application_action(
         application=application,

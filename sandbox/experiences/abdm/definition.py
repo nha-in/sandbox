@@ -8,9 +8,7 @@ from sandbox.experiences.definitions import COMMON_PERMISSIONS
 from sandbox.experiences.definitions import ActionResult
 from sandbox.experiences.definitions import ApplicationAction
 from sandbox.experiences.definitions import ApplicationDefinition
-from sandbox.experiences.definitions import ApplicationFormAction
 from sandbox.experiences.definitions import ApplicationFormDefinition
-from sandbox.experiences.definitions import FormActionResult
 from sandbox.experiences.definitions import QueryRequest
 from sandbox.experiences.definitions import RoleDefinition
 from sandbox.experiences.definitions import StatusDefinition
@@ -35,9 +33,11 @@ from .forms import OrganisationProfileForm
 from .forms import ProductUseCaseForm
 from .forms import RaiseQueryForm
 from .forms import RejectionForm
+from .forms import ReviewEvidenceForm
 from .forms import SecurityCertificationForm
 from .forms import SecurityComplianceForm
 from .forms import TechnicalReadinessForm
+from .reviews import stale_reviews
 
 
 class OrganisationProfile(ApplicationFormDefinition):
@@ -109,56 +109,6 @@ class IntegrationScope(ApplicationFormDefinition):
 
 
 
-class VerifyMilestoneDeclaration(ApplicationFormAction):
-    """NHA confirming the attestation. This is what earns the grants."""
-
-    key = "verify_milestones"
-    name = _("Verify milestone declaration")
-    description = _(
-        "Record that the declared milestones and their evidence were reviewed.",
-    )
-    permission = permission_keys.REVIEW_APPLICATION
-    allowed_statuses = frozenset({"under_review", "revision_submitted"})
-
-    @classmethod
-    def extra_availability(cls, context, submission):
-        if submission.metadata.get("verified_revision") == submission.revision:
-            return False, _("The current declaration is already verified.")
-        # Submitted, not verified: nothing verifies the WASA yet. §4.7's single
-        # review action closes that, and tightens this to "verified".
-        if not context.has_completed(SecurityCertification.key):
-            return False, _("The security certification is not complete yet.")
-        return True, ""
-
-    @classmethod
-    def outcome_label(cls, context, submission):
-        if submission and submission.metadata.get("verified_revision") == (
-            submission.revision
-        ):
-            return str(_("Milestones verified"))
-        return ""
-
-    @classmethod
-    def perform(cls, context, submission, cleaned_data):
-        declared = tuple(submission.data.get("milestones", ()))
-        return FormActionResult(
-            message=_("Milestone declaration verified"),
-            metadata_updates={
-                "milestones_verified_at": timezone.now(),
-                "milestones_verified_by": context.user.pk,
-                "milestones_verified_by_name": context.user.display_name,
-                "verified_revision": submission.revision,
-                "granted_milestones": list(declared),
-            },
-            effects=(
-                lambda submission, _user: record_milestone_grants(
-                    submission.application,
-                    declared,
-                ),
-            ),
-        )
-
-
 class MilestoneDeclaration(ApplicationFormDefinition):
     key = "milestone_declaration"
     name = _("Milestone declaration")
@@ -168,7 +118,6 @@ class MilestoneDeclaration(ApplicationFormDefinition):
     form_class = MilestoneDeclarationForm
     dependencies = (IntegrationScope.key,)
     allow_updates = True
-    actions = (VerifyMilestoneDeclaration,)
 
     @classmethod
     def metadata_updates(cls, cleaned_data, context):
@@ -209,44 +158,6 @@ class TechnicalReadiness(ApplicationFormDefinition):
     allow_updates = True
 
 
-class VerifySecurityEvidence(ApplicationFormAction):
-    key = "verify_evidence"
-    name = _("Verify security evidence")
-    description = _(
-        "Record that the current security submission and assessment report "
-        "were reviewed.",
-    )
-    permission = permission_keys.REVIEW_APPLICATION
-    allowed_statuses = frozenset({"under_review", "revision_submitted"})
-
-    @classmethod
-    def extra_availability(cls, context, submission):
-        if submission.metadata.get("verified_revision") == submission.revision:
-            return False, _("The current security evidence is already verified.")
-        return True, ""
-
-    @classmethod
-    def outcome_label(cls, context, submission):
-        if (
-            submission
-            and submission.metadata.get("verified_revision") == submission.revision
-        ):
-            return str(_("Evidence verified"))
-        return ""
-
-    @classmethod
-    def perform(cls, context, submission, cleaned_data):
-        return FormActionResult(
-            message=_("Security evidence verified"),
-            metadata_updates={
-                "evidence_verified_at": timezone.now(),
-                "evidence_verified_by": context.user.pk,
-                "evidence_verified_by_name": context.user.display_name,
-                "verified_revision": submission.revision,
-            },
-        )
-
-
 class SecurityCompliance(ApplicationFormDefinition):
     key = "security_compliance"
     name = _("Security and privacy")
@@ -254,7 +165,6 @@ class SecurityCompliance(ApplicationFormDefinition):
     form_class = SecurityComplianceForm
     dependencies = (TechnicalReadiness.key,)
     allow_updates = True
-    actions = (VerifySecurityEvidence,)
 
     @classmethod
     def metadata_updates(cls, cleaned_data, context):
@@ -477,6 +387,66 @@ class RaiseQuery(ApplicationAction):
         )
 
 
+
+class ReviewEvidence(ApplicationAction):
+    """One reviewer judgement over everything the exit turns on (§4.7).
+
+    `verified_revisions` lives on the application rather than on each
+    submission: review is application-level, and staleness stays a revision
+    comparison — an applicant editing a reviewed form makes its entry stale.
+    """
+
+    key = "review_evidence"
+    name = _("Record evidence review")
+    description = _("Confirm the declared milestones and their exit artifacts.")
+    permission = permission_keys.REVIEW_APPLICATION
+    allowed_statuses = frozenset({"under_review", "revision_submitted"})
+    form_class = ReviewEvidenceForm
+
+    #: §3.2's four exit artifacts, plus the declaration they are evidence for.
+    reviewed_forms = (
+        "milestone_declaration",
+        "security_compliance",
+        "security_certification",
+        "conformance_evidence",
+        "declaration",
+    )
+
+    @classmethod
+    def extra_availability(cls, context):
+        missing = [key for key in cls.reviewed_forms if not context.has_completed(key)]
+        if missing:
+            return False, _("Every exit artifact must be submitted first.")
+        if not stale_reviews(context.application, context.submissions):
+            return False, _("The current evidence is already reviewed.")
+        return True, ""
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        declared = tuple(
+            context.form_data("milestone_declaration").get("milestones", ()),
+        )
+        return ActionResult(
+            message=_("Evidence reviewed"),
+            outcome_updates={
+                "verified_revisions": {
+                    key: context.submissions[key].revision
+                    for key in cls.reviewed_forms
+                    if key in context.submissions
+                },
+                "hard_copy_received_on": cleaned_data["hard_copy_received_on"],
+                "reviewed_by": context.user.display_name,
+                "reviewed_at": timezone.now(),
+            },
+            effects=(
+                lambda application, _user: record_milestone_grants(
+                    application,
+                    declared,
+                ),
+            ),
+        )
+
+
 class ApproveApplication(ApplicationAction):
     key = "approve"
     name = _("Approve production access")
@@ -491,6 +461,9 @@ class ApproveApplication(ApplicationAction):
             status=QueryStatus.RESOLVED,
         ).exists():
             return False, _("Resolve every application query before approval.")
+        stale = stale_reviews(context.application, context.submissions)
+        if stale:
+            return False, _("Review the evidence before approving.")
         return True, ""
 
     @classmethod
@@ -747,6 +720,7 @@ class ABDMProductionAccess(ApplicationDefinition):
         AskReviewTeam,
         StartReview,
         RaiseQuery,
+        ReviewEvidence,
         ApproveApplication,
         RejectApplication,
         RetryProvisioning,

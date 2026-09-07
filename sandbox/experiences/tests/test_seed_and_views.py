@@ -25,11 +25,11 @@ from sandbox.experiences.management.commands.seed_experience_demo import (
     REVIEW_REFERENCE,
 )
 from sandbox.experiences.models import ApplicationAttachment
-from sandbox.experiences.models import ApplicationFormSubmission
 from sandbox.experiences.models import ApplicationInstance
 from sandbox.experiences.models import ApplicationQueryMessage
 from sandbox.experiences.models import ApplicationQueryThread
 from sandbox.experiences.models import QueryStatus
+from sandbox.experiences.services import perform_application_action
 
 pytestmark = pytest.mark.django_db
 
@@ -608,7 +608,7 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
     detail_response = client.get(
         reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
     )
-    approve_response = client.get(
+    blocked = client.get(
         reverse("ohc:application-action", args=[REVIEW_REFERENCE, "approve"]),
     )
 
@@ -617,9 +617,23 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
     assert detail_response.status_code == HTTPStatus.OK
     detail_html = detail_response.content.decode()
     assert "Submitted application pack" in detail_html
-    assert "Verify security evidence" in detail_html
+    assert "Record evidence review" in detail_html
     assert "100%" in detail_html
-    assert "Decision blockers" not in detail_html
+    # §4.7: approval waits on the evidence review, and the console says so.
+    assert "Decision blockers" in detail_html
+    assert "Review the evidence before approving." in detail_html
+    assert blocked.status_code == HTTPStatus.FORBIDDEN
+
+    perform_application_action(
+        application=ApplicationInstance.objects.get(reference=REVIEW_REFERENCE),
+        action_key="review_evidence",
+        user=admin,
+        cleaned_data={"hard_copy_received_on": timezone.localdate()},
+    )
+    approve_response = client.get(
+        reverse("ohc:application-action", args=[REVIEW_REFERENCE, "approve"]),
+    )
+
     assert approve_response.status_code == HTTPStatus.OK
     approve_html = approve_response.content.decode()
     assert "Production client ID" in approve_html
@@ -678,11 +692,8 @@ def test_applicant_cannot_use_admin_console_or_approve(client, seeded_demo):
     approve_response = client.get(
         reverse("experiences:action", args=[REVIEW_REFERENCE, "approve"]),
     )
-    form_action_response = client.get(
-        reverse(
-            "experiences:form-action",
-            args=[REVIEW_REFERENCE, "security_compliance", "verify_evidence"],
-        ),
+    review_response = client.get(
+        reverse("experiences:action", args=[REVIEW_REFERENCE, "review_evidence"]),
     )
     draft_html = client.get(
         reverse("experiences:detail", args=[DRAFT_REFERENCE]),
@@ -690,42 +701,43 @@ def test_applicant_cannot_use_admin_console_or_approve(client, seeded_demo):
 
     assert console_response.status_code == HTTPStatus.FORBIDDEN
     assert approve_response.status_code == HTTPStatus.FORBIDDEN
-    assert form_action_response.status_code == HTTPStatus.FORBIDDEN
+    assert review_response.status_code == HTTPStatus.FORBIDDEN
     # Withdrawal is theirs, and only theirs — plan 12 §6 E2. This used to
     # read `not in`, pinning the absence of an action nothing reached.
     assert "Withdraw application" in draft_html
 
 
-def test_admin_can_run_completed_form_action_with_htmx(client, seeded_demo):
+def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
+    """§4.7's single review, through the console it is driven from."""
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
     client.force_login(admin)
     url = reverse(
-        "ohc:application-form-action",
-        args=[REVIEW_REFERENCE, "security_compliance", "verify_evidence"],
+        "ohc:application-action",
+        args=[REVIEW_REFERENCE, "review_evidence"],
     )
 
     workspace = client.get(url)
-    response = client.post(url, headers=HTMX_HEADERS)
-    submission = ApplicationFormSubmission.objects.get(
-        application__reference=REVIEW_REFERENCE,
-        form_key="security_compliance",
+    response = client.post(
+        url,
+        {"hard_copy_received_on": timezone.localdate().isoformat()},
+        headers=HTMX_HEADERS,
     )
+    application = ApplicationInstance.objects.get(reference=REVIEW_REFERENCE)
 
     assert workspace.status_code == HTTPStatus.OK
-    assert "Verify security evidence" in workspace.content.decode()
+    assert "Record evidence review" in workspace.content.decode()
     assert 'id="application-action"' in workspace.content.decode()
     assert response.status_code == HTTPStatus.OK
     assert response["HX-Redirect"] == reverse(
         "ohc:application-detail",
         args=[REVIEW_REFERENCE],
     )
-    assert submission.metadata["verified_revision"] == submission.revision
+    assert application.outcome["verified_revisions"]
 
     detail_html = client.get(
         reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
     ).content.decode()
-    assert "Evidence verified" in detail_html
-    assert "Verify security evidence" not in detail_html
+    assert "The current evidence is already reviewed." in detail_html
 
 
 def test_admin_can_raise_a_query_from_the_review_workspace(client, seeded_demo):

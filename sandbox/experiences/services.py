@@ -590,10 +590,6 @@ def perform_form_action(
         status_after=application.status,
         payload={"form_key": form_key, "form_action_key": action_key},
     )
-
-    for effect in result.effects:
-        transaction.on_commit(partial(effect, submission, user))
-
     return result
 
 
