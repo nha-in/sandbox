@@ -34,14 +34,16 @@ from django.urls import get_resolver
 from django.urls import reverse
 
 from tests.conftest import ANONYMOUS
-from tests.conftest import DOCUMENT_A
+from tests.conftest import APPLICATION
+from tests.conftest import ATTACHMENT
+from tests.conftest import EVENT
+from tests.conftest import INVITATION
 from tests.conftest import MEMBER_OTHER_ORG
-from tests.conftest import MILESTONE_M1
+from tests.conftest import MEMBERSHIP
 from tests.conftest import ORG_MEMBER
-from tests.conftest import REVIEWER
-from tests.conftest import ROLE
-from tests.conftest import STAFF
+from tests.conftest import QUERY
 from tests.conftest import STAFF_ACTORS
+from tests.conftest import TICKET
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,6 +55,7 @@ HTTP_FORBIDDEN = 403
 HTTP_NOT_FOUND = 404
 REDIRECT_CODES = frozenset({301, 302})
 DENIED_CODES = frozenset({HTTP_FORBIDDEN, HTTP_NOT_FOUND})
+GROUPED_PREFIXES = ("admin:",)
 
 
 class Access(enum.StrEnum):
@@ -62,14 +65,16 @@ class Access(enum.StrEnum):
     AUTHENTICATED = "authenticated"
     SELF_RESOURCE = "self_resource"
     SELF_ONLY = "self_only"
+    #: A vendor surface with no tenant in the URL: each member reaches their
+    #: own organisation's, and an actor with no organisation cannot.
+    TENANT_MEMBER = "tenant_member"
     ORG_SCOPED = "org_scoped"
+    #: Reviewers read evidence through the vendor URL by design — see
+    #: `ApplicationInstance.objects.visible_to`.
+    MEMBER_OR_CONSOLE = "member_or_console"
     CONSOLE = "console"
-    #: staff is not enough: it wants `manage_roles`, which in this matrix only
-    #: the superuser holds — a reviewer has authority over applications, not
-    #: over authority itself
-    ROLE_ADMIN = "role_admin"
-    #: Exists only on a development machine. 404 for everyone under any settings
-    #: where DEBUG is off, which is every deployed environment and this suite.
+    #: Exists only on a development machine. 404 for everyone under any
+    #: settings where DEBUG is off, which is every deployed environment.
     DEVELOPMENT_ONLY = "development_only"
 
 
@@ -77,50 +82,84 @@ class Access(enum.StrEnum):
 class Route:
     access: Access
     kwargs: dict[str, Any] | Callable[[dict], dict] = field(default_factory=dict)
-    #: `reverse()` cannot build a query string, but the active organisation now
-    #: lives in one, so org-scoped rows have to supply it.
-    query: Callable[[dict], str] | str = ""
     methods: tuple[str, ...] = ("GET",)
+    #: POSTed with the request. Some endpoints guard on the form itself, and an
+    #: empty body would then be refused for every actor alike, telling us
+    #: nothing about who may reach it.
+    data: dict[str, Any] = field(default_factory=dict)
     known_gap: str = ""
 
 
-def _org_a(context: dict) -> str:
-    """Every actor is sent at org A. Only its member may get in."""
-    return f"org={context[ORG_MEMBER].memberships.get().organisation.external_id}"
+def _reference(context: dict) -> dict:
+    return {"reference": context[APPLICATION].reference}
 
 
-def _member_external_id(context: dict) -> dict:
-    return {"external_id": context[ORG_MEMBER].external_id}
+def _form(context: dict) -> dict:
+    return {"reference": context[APPLICATION].reference, "form_key": "declaration"}
 
 
-def _application_id(context: dict) -> dict:
-    return {"external_id": context["application"].external_id}
+def _form_action(context: dict) -> dict:
+    return {**_form(context), "form_action_key": "none"}
 
 
-def _past_exit_ids(context: dict) -> dict:
+def _action(context: dict) -> dict:
     return {
-        "external_id": context["application"].external_id,
-        "exit_id": context["past_exit"].external_id,
+        "reference": context[APPLICATION].reference,
+        "action_key": "ask_review_team",
     }
 
 
-def _document_id(context: dict) -> dict:
-    return {"external_id": context[DOCUMENT_A].external_id}
+def _console_action(context: dict) -> dict:
+    return {"reference": context[APPLICATION].reference, "action_key": "approve"}
 
 
-def _role_id(context: dict) -> dict:
-    return {"pk": context[ROLE].pk}
-
-
-def _staff_user_id(context: dict) -> dict:
-    return {"external_id": context[REVIEWER].external_id}
-
-
-def _application_and_milestone(context: dict) -> dict:
+def _query(context: dict) -> dict:
     return {
-        "external_id": context["application"].external_id,
-        "key": context[MILESTONE_M1],
+        "reference": context[APPLICATION].reference,
+        "query_pk": context[QUERY].pk,
     }
+
+
+def _attachment(context: dict) -> dict:
+    return {
+        "reference": context[APPLICATION].reference,
+        "attachment_pk": context[ATTACHMENT].pk,
+    }
+
+
+def _access_user(context: dict) -> dict:
+    return {
+        "reference": context[APPLICATION].reference,
+        "user_pk": context[MEMBERSHIP].user_id,
+    }
+
+
+def _membership_pk(context: dict) -> dict:
+    return {"pk": context[MEMBERSHIP].pk}
+
+
+def _invitation_pk(context: dict) -> dict:
+    return {"pk": context[INVITATION].pk}
+
+
+def _invitation_token(context: dict) -> dict:
+    return {"token": context[INVITATION].token}
+
+
+def _ticket(context: dict) -> dict:
+    return {"reference": context[TICKET].reference}
+
+
+def _event_slug(context: dict) -> dict:
+    return {"slug": context[EVENT].slug}
+
+
+def _organisation_slug(context: dict) -> dict:
+    return {"slug": context[APPLICATION].organisation.slug}
+
+
+def _member_pk(context: dict) -> dict:
+    return {"pk": context[ORG_MEMBER].pk}
 
 
 # The matrix. One row per named URL; django-admin is asserted as a group below.
@@ -129,8 +168,10 @@ ROUTES: dict[str, Route] = {
     "home": Route(Access.PUBLIC),
     "about": Route(Access.PUBLIC),
     # Account — anonymous must be able to reach these to get in at all
-    "account_login": Route(Access.PUBLIC, methods=("GET",)),
+    "account_login": Route(Access.PUBLIC),
     "account_signup": Route(Access.PUBLIC),
+    "account_logout": Route(Access.PUBLIC),
+    "account_inactive": Route(Access.PUBLIC),
     "account_reset_password": Route(Access.PUBLIC),
     "account_reset_password_done": Route(Access.PUBLIC),
     "account_reset_password_from_key": Route(
@@ -140,16 +181,14 @@ ROUTES: dict[str, Route] = {
     "account_reset_password_from_key_done": Route(Access.PUBLIC),
     "account_confirm_email": Route(Access.PUBLIC, kwargs={"key": "invalid-key"}),
     "account_email_verification_sent": Route(Access.PUBLIC),
-    "account_inactive": Route(Access.PUBLIC),
     "account_confirm_login_code": Route(Access.AUTHENTICATED),
-    "account_logout": Route(Access.PUBLIC),
     # Account — signed-in surfaces
     "account_email": Route(Access.AUTHENTICATED),
     "account_change_password": Route(Access.AUTHENTICATED),
     "account_set_password": Route(Access.AUTHENTICATED),
     "account_reauthenticate": Route(Access.AUTHENTICATED),
     # MFA. The device-bound ones 404 for a user who has no device, which is why
-    # they are SELF_RESOURCE: reviewer/staff hold TOTP and must reach them.
+    # they are SELF_RESOURCE: reviewer and staff hold TOTP and must reach them.
     "mfa_index": Route(Access.AUTHENTICATED),
     "mfa_activate_totp": Route(Access.AUTHENTICATED),
     "mfa_deactivate_totp": Route(Access.SELF_RESOURCE),
@@ -158,223 +197,139 @@ ROUTES: dict[str, Route] = {
     "mfa_generate_recovery_codes": Route(Access.AUTHENTICATED),
     "mfa_view_recovery_codes": Route(Access.SELF_RESOURCE),
     "mfa_download_recovery_codes": Route(Access.SELF_RESOURCE),
-    # Social account — installed but unused in v0
+    # Social account — installed but unused
     "socialaccount_connections": Route(Access.AUTHENTICATED),
     "socialaccount_login_cancelled": Route(Access.PUBLIC),
     "socialaccount_login_error": Route(Access.PUBLIC),
     "socialaccount_signup": Route(Access.AUTHENTICATED),
-    # Portal
-    # The contact-verification gate. Authenticated but deliberately
-    # reachable while unverified, otherwise the gate would loop on itself.
-    "users:verify_contacts": Route(Access.AUTHENTICATED),
+    # The vendor shell
+    "dashboard": Route(Access.TENANT_MEMBER),
     "users:redirect": Route(Access.AUTHENTICATED),
-    "users:update": Route(Access.AUTHENTICATED),
-    # POST since the name is edited on the page itself: another user's id must
-    # refuse the write, not only the read.
-    "users:detail": Route(
-        Access.SELF_ONLY,
-        kwargs=_member_external_id,
-        methods=("GET", "POST"),
-    ),
-    # The front door: any signed-in user with no tenant needs to be able to make
-    # one, or their account is a dead end.
-    "organisations:create": Route(Access.AUTHENTICATED, methods=("GET",)),
-    "organisations:choose": Route(Access.AUTHENTICATED),
-    "organisations:district_options": Route(Access.AUTHENTICATED),
-    "organisations:profile": Route(
+    # A bare redirect stub with no gate of its own; the page it lands on has
+    # one. Public because that is what it is, not because it should serve
+    # anyone anything.
+    "users:update": Route(Access.PUBLIC),
+    "users:profile": Route(Access.AUTHENTICATED),
+    # A RedirectView to your own profile, kept so `get_absolute_url` resolves.
+    # It never serves another user's anything, so the id in the URL is inert.
+    "users:detail": Route(Access.AUTHENTICATED, kwargs=_member_pk),
+    "organisations:onboarding": Route(Access.TENANT_MEMBER),
+    # Each actor reaches their *own* organisation here, so the gate is
+    # membership rather than a named tenant.
+    "organisations:detail": Route(Access.TENANT_MEMBER),
+    "organisations:team": Route(Access.TENANT_MEMBER),
+    # These name org A's rows, so only org A's member may act on them.
+    "organisations:member-role": Route(
         Access.ORG_SCOPED,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    # Enrolment wizard (C4). Every screen names its tenant in `?org=`, so the
-    # rule is the same whether or not the URL also names an application.
-    "applications:index": Route(Access.ORG_SCOPED, query=_org_a),
-    "applications:overview": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:application_status": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:step_product": Route(
-        Access.ORG_SCOPED,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    # The Back button's target. Named by application, so the wrong-org row is
-    # the one that matters: it must not be a way to repoint someone else's draft.
-    "applications:step_product_edit": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    "applications:details": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:step_details": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:step_review": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    # Credentials panel (C7). The two mutating rows are the ones that matter:
-    # they are the only routes in the system that can put a secret on a screen,
-    # so "wrong org 404s" is load-bearing rather than routine.
-    "applications:credentials": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:credentials_panel": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    "applications:reveal_credentials": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
+        kwargs=_membership_pk,
         methods=("POST",),
     ),
-    "applications:rotate_credentials": Route(
+    "organisations:member-remove": Route(
         Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
+        kwargs=_membership_pk,
         methods=("POST",),
     ),
-    # Console (C5). Staff-only; an org member must be refused even for their own
-    # application, because the console is a different surface, not a nicer view.
-    "console:queue": Route(Access.CONSOLE),
-    # Editing a role is authority over authority, so it needs more than staff:
-    # `manage_roles`, which neither console actor in this matrix holds.
-    "console:roles": Route(
-        Access.ROLE_ADMIN,
-        methods=("GET", "POST"),
+    "organisations:invitation-resend": Route(
+        Access.ORG_SCOPED,
+        kwargs=_invitation_pk,
+        methods=("POST",),
     ),
-    "console:role_detail": Route(
-        Access.ROLE_ADMIN,
-        kwargs=_role_id,
-        methods=("GET", "POST"),
+    "organisations:invitation-revoke": Route(
+        Access.ORG_SCOPED,
+        kwargs=_invitation_pk,
+        methods=("POST",),
     ),
-    "console:users": Route(Access.ROLE_ADMIN),
-    "console:user_roles": Route(
-        Access.ROLE_ADMIN,
-        kwargs=_staff_user_id,
-        methods=("GET", "POST"),
+    # The token is the credential, and an invitee usually has no account yet:
+    # the view stashes the token and sends them to sign up.
+    "organisations:invitation-accept": Route(
+        Access.PUBLIC,
+        kwargs=_invitation_token,
     ),
-    "console:application_detail": Route(Access.CONSOLE, kwargs=_application_id),
-    "console:record_review": Route(
+    # Applications
+    "experiences:list": Route(Access.TENANT_MEMBER),
+    "experiences:start": Route(
+        Access.TENANT_MEMBER,
+        kwargs={"application_type": "abdm_production_access"},
+    ),
+    "experiences:detail": Route(Access.ORG_SCOPED, kwargs=_reference),
+    "experiences:form": Route(Access.ORG_SCOPED, kwargs=_form),
+    "experiences:form-action": Route(
+        Access.ORG_SCOPED,
+        kwargs=_form_action,
+        known_gap="no form declares actions yet, so every actor gets 404",
+    ),
+    "experiences:action": Route(Access.ORG_SCOPED, kwargs=_action),
+    "experiences:query": Route(Access.ORG_SCOPED, kwargs=_query),
+    "experiences:access": Route(Access.ORG_SCOPED, kwargs=_reference),
+    "experiences:access-remove": Route(
+        Access.ORG_SCOPED,
+        kwargs=_access_user,
+        methods=("POST",),
+    ),
+    "experiences:attachment": Route(Access.MEMBER_OR_CONSOLE, kwargs=_attachment),
+    # Support
+    "support:list": Route(Access.TENANT_MEMBER),
+    "support:create": Route(Access.TENANT_MEMBER),
+    "support:detail": Route(Access.ORG_SCOPED, kwargs=_ticket),
+    "support:reply": Route(Access.ORG_SCOPED, kwargs=_ticket, methods=("POST",)),
+    # `TicketStatusForm` is the guard on *what* may be asked — closing is the
+    # Care team's call — so a body is needed to ask *who* may ask at all.
+    "support:status": Route(
+        Access.ORG_SCOPED,
+        kwargs=_ticket,
+        methods=("POST",),
+        data={"status": "resolved"},
+    ),
+    # Events are published to every vendor, so they are not tenant-scoped.
+    "events:list": Route(Access.AUTHENTICATED),
+    "events:detail": Route(Access.AUTHENTICATED, kwargs=_event_slug),
+    # The console
+    "ohc:queue": Route(Access.CONSOLE),
+    "ohc:applications": Route(Access.CONSOLE),
+    "ohc:application-detail": Route(Access.CONSOLE, kwargs=_reference),
+    "ohc:application-action": Route(Access.CONSOLE, kwargs=_console_action),
+    "ohc:application-form-action": Route(
         Access.CONSOLE,
-        kwargs=_application_id,
-        methods=("POST",),
+        kwargs=_form_action,
+        known_gap="no form declares actions yet, so every actor gets 404",
     ),
-    "console:decide": Route(
+    "ohc:application-query": Route(Access.CONSOLE, kwargs=_query),
+    "ohc:application-query-resolve": Route(
         Access.CONSOLE,
-        kwargs=_application_id,
+        kwargs=_query,
         methods=("POST",),
     ),
-    "console:retry_provisioning": Route(
+    "ohc:ticket": Route(Access.CONSOLE, kwargs=_ticket),
+    "ohc:ticket-reply": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
+    "ohc:ticket-update": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
+    "ohc:organisations": Route(Access.CONSOLE),
+    "ohc:organisation": Route(Access.CONSOLE, kwargs=_organisation_slug),
+    "ohc:organisation-verification": Route(
         Access.CONSOLE,
-        kwargs=_application_id,
+        kwargs=_organisation_slug,
         methods=("POST",),
     ),
-    # The reviewer's way to a declaration's evidence. Staff hold no membership,
-    # so this is scoped by the review permission instead — and it must stay
-    # unreachable by any integrator, including the file's own owner, who has
-    # their own org-scoped route below.
-    "console:document_download": Route(Access.CONSOLE, kwargs=_document_id),
-    # Milestones and exit (C8). POST rows included because the writes are what
-    # actually matter: a declaration accepted for the wrong tenant would attach
-    # evidence to somebody else's application.
-    "applications:milestones": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
+    "ohc:events": Route(Access.CONSOLE),
+    "ohc:event-create": Route(Access.CONSOLE),
+    "ohc:event-update": Route(Access.CONSOLE, kwargs=_event_slug),
+    "ohc:event-publish": Route(
+        Access.CONSOLE,
+        kwargs=_event_slug,
+        methods=("POST",),
     ),
-    "applications:declare_milestone": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_and_milestone,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    "applications:exit": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-    ),
-    # Read-only, but scoped like every write: a decided exit names what a
-    # tenant took to production.
-    "applications:past_exit": Route(
-        Access.ORG_SCOPED,
-        kwargs=_past_exit_ids,
-        query=_org_a,
-    ),
-    # The exit wizard writes to the exit application, so each step is scoped
-    # like any other write: a claim accepted for the wrong tenant would attach
-    # somebody else's evidence to a production request.
-    "applications:exit_claim": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    "applications:exit_wasa": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    "applications:exit_review": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    # Recording a DHIS handoff writes to the application, so it is scoped like
-    # any other write on it.
-    "applications:dhis": Route(
-        Access.ORG_SCOPED,
-        kwargs=_application_id,
-        query=_org_a,
-        methods=("GET", "POST"),
-    ),
-    # Presigned download. Org-scoped: the bucket is private, so this row is the
-    # only thing standing between another tenant and the file.
-    "applications:document_download": Route(
-        Access.ORG_SCOPED,
-        kwargs=_document_id,
-        query=_org_a,
-    ),
-    # The component gallery (C10). Not a product screen: routed always so
-    # `{% url %}` resolves, but gone unless DEBUG and staff. The DEBUG-on half
-    # of the rule is asserted by test_styleguide_is_staff_only_in_development.
-    "theme:styleguide": Route(Access.DEVELOPMENT_ONLY),
 }
 
-# Named URLs deliberately not given individual rows.
-GROUPED_PREFIXES = ("admin:",)
 
-
-def iter_named_urls(resolver=None, prefix: str = ""):
-    """Every named URL in the live URLconf, namespaces included."""
+def iter_named_urls(resolver=None, prefix="") -> set[str]:
     resolver = resolver or get_resolver()
+    names: set[str] = set()
     for pattern in resolver.url_patterns:
         if isinstance(pattern, URLResolver):
-            namespace = pattern.namespace
-            child = f"{prefix}{namespace}:" if namespace else prefix
-            yield from iter_named_urls(pattern, child)
+            namespace = f"{pattern.namespace}:" if pattern.namespace else ""
+            names |= iter_named_urls(pattern, prefix + namespace)
         elif pattern.name:
-            yield f"{prefix}{pattern.name}"
+            names.add(prefix + pattern.name)
+    return names
 
 
 def live_url_names() -> set[str]:
@@ -389,9 +344,7 @@ def _redirects_to_login(response) -> bool:
 
 def _resolve(name: str, route: Route, context: dict) -> str:
     kwargs = route.kwargs(context) if callable(route.kwargs) else route.kwargs
-    url = reverse(name, kwargs=kwargs)
-    query = route.query(context) if callable(route.query) else route.query
-    return f"{url}?{query}" if query else url
+    return reverse(name, kwargs=kwargs)
 
 
 # Drift: the matrix cannot silently fall behind the URLconf
@@ -413,10 +366,16 @@ def test_matrix_has_no_stale_rows():
 def test_public_allowlist_is_small_and_deliberate():
     """Deny-by-default: every public URL is marketing or a way to sign in."""
     public = {name for name, route in ROUTES.items() if route.access is Access.PUBLIC}
+    allowed_prefixes = ("home", "about", "account_", "socialaccount_", "mfa_")
+    #: Public on purpose, each for a stated reason — see their rows.
+    allowed_names = {
+        "users:update",
+        "organisations:invitation-accept",
+    }
     unexpected = {
         name
         for name in public
-        if not name.startswith(("home", "about", "account_", "socialaccount_", "mfa_"))
+        if not name.startswith(allowed_prefixes) and name not in allowed_names
     }
     assert not unexpected, f"Unexpected public URLs: {sorted(unexpected)}"
 
@@ -444,7 +403,7 @@ def test_route_gate(name, route, method, clients, context):
     url = _resolve(name, route, context)
 
     for actor, client in clients.items():
-        response = client.generic(method, url)
+        response = client.post(url, route.data) if method == "POST" else client.get(url)
         where = f"{actor} {method} {name} ({url}) -> {response.status_code}"
         _assert_actor(route.access, actor, response, where)
 
@@ -470,6 +429,12 @@ def _assert_self_resource(actor, response, where):
         assert response.status_code != HTTP_FORBIDDEN, f"{where}: {NOT_FOUND_REQUIRED}"
 
 
+def _refused(response) -> bool:
+    """Not served. A redirect away counts; a 403 does not, because it confirms
+    the resource is there."""
+    return response.status_code not in {HTTP_OK, HTTP_FORBIDDEN}
+
+
 def _assert_self_only(actor, response, where):
     # Not `== 200`: a self-only route may now take a POST, and a successful
     # write redirects. The gate's question is whether the owner is refused,
@@ -481,12 +446,14 @@ def _assert_self_only(actor, response, where):
 
 
 def _assert_org_scoped(actor, response, where):
-    # Only the owning organisation's member gets in. Staff are not members, so
-    # an integrator URL 404s for them too — the console has its own screens.
+    # Only the owning organisation's member gets in.
     if actor == ORG_MEMBER:
         assert response.status_code not in DENIED_CODES, where
-    else:
+    elif actor == MEMBER_OTHER_ORG:
+        # Vendor to vendor is where hiding existence matters most.
         assert response.status_code == HTTP_NOT_FOUND, f"{where}: {NOT_FOUND_REQUIRED}"
+    else:
+        assert _refused(response), f"{where}: {NOT_FOUND_REQUIRED}"
 
 
 def _assert_console(actor, response, where):
@@ -498,22 +465,33 @@ def _assert_console(actor, response, where):
         )
 
 
-def _assert_role_admin(actor, response, where):
-    if actor == STAFF:
-        assert response.status_code not in DENIED_CODES, where
-    else:
-        assert response.status_code in DENIED_CODES, (
-            f"{where}: reachable without manage_roles"
+def _assert_tenant_member(actor, response, where):
+    # Both vendors reach their own. An actor with no organisation is turned
+    # away — for the OHC team that is a redirect to the console rather than a
+    # 403, which `OrganisationMixin` chooses deliberately.
+    if actor in STAFF_ACTORS:
+        assert _refused(response), (
+            f"{where}: a vendor surface answered an actor with no organisation"
         )
+    else:
+        assert response.status_code not in DENIED_CODES, where
+
+
+def _assert_member_or_console(actor, response, where):
+    if actor == MEMBER_OTHER_ORG:
+        assert response.status_code == HTTP_NOT_FOUND, f"{where}: {NOT_FOUND_REQUIRED}"
+    else:
+        assert response.status_code not in DENIED_CODES, where
 
 
 _ASSERTERS = {
     Access.AUTHENTICATED: _assert_authenticated,
     Access.SELF_RESOURCE: _assert_self_resource,
     Access.SELF_ONLY: _assert_self_only,
+    Access.TENANT_MEMBER: _assert_tenant_member,
     Access.ORG_SCOPED: _assert_org_scoped,
+    Access.MEMBER_OR_CONSOLE: _assert_member_or_console,
     Access.CONSOLE: _assert_console,
-    Access.ROLE_ADMIN: _assert_role_admin,
 }
 
 

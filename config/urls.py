@@ -9,7 +9,6 @@ from sandbox.users.views import user_signup_view
 
 urlpatterns = [
     path("", include("sandbox.pages.urls")),
-    path("htmx-demo/", include("sandbox.pages.demo_urls")),
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management

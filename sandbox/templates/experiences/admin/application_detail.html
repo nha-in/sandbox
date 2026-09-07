@@ -193,10 +193,6 @@
       <section class="rounded-md border border-border bg-card p-4">
         <div class="flex items-start justify-between gap-3">
           <div><h2 class="text-sm font-semibold">{% translate "Review access" %}</h2><p class="mt-0.5 text-xs text-muted-foreground">{% if effective_access.role %}You are {{ effective_access.role.label|lower }}{% else %}Custom access{% endif %}</p></div>
-          {% if can_manage_access %}
-            <a class="ui-btn ui-btn--ghost ui-btn--size-sm"
-               href="{% url 'ohc:application-access' application.reference %}">{% translate "Manage" %}</a>
-          {% endif %}
         </div>
         <ul class="mt-3 divide-y divide-border border-y border-border">
           {% for grant in access_grants %}

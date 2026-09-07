@@ -16,11 +16,7 @@
           <div class="flex items-center gap-2">
             <span class="ui-badge ui-badge--muted ui-badge--size-xs">{{ grant.role_definition.label|default:grant.role_key }}</span>
             {% if grant.can_remove %}
-              {% if console %}
-                {% url 'ohc:application-access-remove' application.reference grant.user_id as remove_url %}
-              {% else %}
-                {% url 'experiences:access-remove' application.reference grant.user_id as remove_url %}
-              {% endif %}
+              {% url 'experiences:access-remove' application.reference grant.user_id as remove_url %}
               <form method="post"
                     action="{{ remove_url }}"
                     hx-post="{{ remove_url }}"

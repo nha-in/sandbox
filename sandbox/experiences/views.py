@@ -608,13 +608,26 @@ class ActionWorkspaceMixin(ApplicationObjectMixin):
         self.action_key = kwargs.get("action_key", "")
 
     def get_action(self):
+        """403 only when the actor may never perform this.
+
+        Whether it can be performed *now* — status, open queries, a stale
+        review — is a different answer and is rendered as a reason rather than
+        a refusal. `perform_application_action` re-checks both regardless.
+        """
         action = self.definition.get_action(self.action_key)
         if action is None:
             raise Http404
-        available, reason = action.availability(self.experience_context)
-        if not available:
-            raise PermissionDenied(reason)
+        if not self.experience_context.has_permission(
+            action.permission_for("perform"),
+        ):
+            raise PermissionDenied(
+                _("Your application role does not include this permission."),
+            )
         return action
+
+    def action_blocker(self, action) -> str:
+        available, reason = action.availability(self.experience_context)
+        return "" if available else reason
 
     def render_action(self, form, *, partial=False):
         action = self.get_action()
@@ -629,6 +642,7 @@ class ActionWorkspaceMixin(ApplicationObjectMixin):
                 **self.common_context(),
                 "action_definition": action,
                 "form": form,
+                "blocker": self.action_blocker(action),
             },
         )
 
@@ -640,6 +654,11 @@ class ActionWorkspaceMixin(ApplicationObjectMixin):
 
     def post(self, request, *args, **kwargs):
         action = self.get_action()
+        if self.action_blocker(action):
+            return self.render_action(
+                action.build_form(context=self.experience_context),
+                partial=bool(request.htmx),
+            )
         form = action.build_form(context=self.experience_context, data=request.POST)
         if form is not None and not form.is_valid():
             return self.render_action(form, partial=bool(request.htmx))
@@ -688,14 +707,19 @@ class FormActionWorkspaceMixin(ApplicationObjectMixin):
         action = form_definition.get_action(self.form_action_key)
         if action is None:
             raise Http404
+        if not self.experience_context.has_permission(
+            action.permission_for("perform"),
+        ):
+            raise PermissionDenied(
+                _("Your application role does not include this permission."),
+            )
         submission = self.experience_context.submissions.get(self.form_key)
-        available, reason = action.availability(
-            self.experience_context,
-            submission,
-        )
-        if not available:
-            raise PermissionDenied(reason)
         return form_definition, action, submission
+
+    def form_action_blocker(self, action, submission) -> str:
+        """Permitted, but not right now — see `ActionWorkspaceMixin`."""
+        available, reason = action.availability(self.experience_context, submission)
+        return "" if available else reason
 
     def render_form_action(self, form, *, partial=False):
         form_definition, action, submission = self.get_form_action()
@@ -712,6 +736,7 @@ class FormActionWorkspaceMixin(ApplicationObjectMixin):
                 "action_definition": action,
                 "submission": submission,
                 "form": form,
+                "blocker": self.form_action_blocker(action, submission),
             },
         )
 
@@ -726,6 +751,14 @@ class FormActionWorkspaceMixin(ApplicationObjectMixin):
 
     def post(self, request, *args, **kwargs):
         _form_definition, action, submission = self.get_form_action()
+        if self.form_action_blocker(action, submission):
+            return self.render_form_action(
+                action.build_form(
+                    context=self.experience_context,
+                    submission=submission,
+                ),
+                partial=bool(request.htmx),
+            )
         form = action.build_form(
             context=self.experience_context,
             submission=submission,
@@ -954,14 +987,6 @@ class VendorAccessWorkspaceView(
     pass
 
 
-class AdminAccessWorkspaceView(
-    OhcTeamRequiredMixin,
-    AccessWorkspaceMixin,
-    View,
-):
-    console = True
-
-
 class RemoveAccessMixin(AccessWorkspaceMixin):
     def post(self, request, *args, **kwargs):
         target_user = get_object_or_404(
@@ -976,8 +1001,7 @@ class RemoveAccessMixin(AccessWorkspaceMixin):
         messages.success(request, _("Application access removed."))
         if request.htmx:
             return self.render_access(self.get_form(), partial=True)
-        name = "ohc:application-access" if self.console else "experiences:access"
-        return redirect(name, reference=self.application.reference)
+        return redirect("experiences:access", reference=self.application.reference)
 
 
 class VendorRemoveAccessView(
@@ -986,14 +1010,6 @@ class VendorRemoveAccessView(
     View,
 ):
     pass
-
-
-class AdminRemoveAccessView(
-    OhcTeamRequiredMixin,
-    RemoveAccessMixin,
-    View,
-):
-    console = True
 
 
 class AttachmentDownloadView(LoginRequiredMixin, View):

@@ -20,6 +20,9 @@
         hx-disabled-elt="find button[type=submit]"
         hx-indicator="#nav-progress">
     {% csrf_token %}
+    {% if blocker %}
+      <p class="mb-4 rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">{{ blocker }}</p>
+    {% endif %}
     {% if form %}
       {% include "components/form_errors.html" %}
       <div class="space-y-4">
@@ -31,9 +34,11 @@
       <p class="text-sm leading-relaxed text-muted-foreground">{% translate "Confirm this action. It will be recorded in the immutable application activity log." %}</p>
     {% endif %}
     <div class="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
-      <button class="ui-btn {% if action_definition.style == 'destructive' %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-default"
-              type="submit"
-              hx-disabled-elt="this">{{ action_definition.name }}</button>
+      {% if not blocker %}
+        <button class="ui-btn {% if action_definition.style == 'destructive' %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-default"
+                type="submit"
+                hx-disabled-elt="this">{{ action_definition.name }}</button>
+      {% endif %}
       <a class="ui-btn ui-btn--ghost ui-btn--size-default"
          href="{{ detail_url }}">{% translate "Cancel" %}</a>
     </div>

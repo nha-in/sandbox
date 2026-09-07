@@ -39,16 +39,6 @@ urlpatterns = [
         name="application-query-resolve",
     ),
     path(
-        "applications/<str:reference>/access/",
-        experience_views.AdminAccessWorkspaceView.as_view(),
-        name="application-access",
-    ),
-    path(
-        "applications/<str:reference>/access/<int:user_pk>/remove/",
-        experience_views.AdminRemoveAccessView.as_view(),
-        name="application-access-remove",
-    ),
-    path(
         "tickets/<str:reference>/",
         views.TicketDetailView.as_view(),
         name="ticket",

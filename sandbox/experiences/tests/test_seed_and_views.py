@@ -634,7 +634,12 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
     # §4.7: approval waits on the evidence review, and the console says so.
     assert "Decision blockers" in detail_html
     assert "Review the evidence before approving." in detail_html
-    assert blocked.status_code == HTTPStatus.FORBIDDEN
+    # Permitted but not yet possible: the reason is rendered and the submit is
+    # withheld, rather than a 403 that would read as "you have no authority".
+    assert blocked.status_code == HTTPStatus.OK
+    blocked_html = blocked.content.decode()
+    assert "Review the evidence before approving." in blocked_html
+    assert "Approve production access</button>" not in blocked_html
 
     perform_application_action(
         application=ApplicationInstance.objects.get(reference=REVIEW_REFERENCE),
