@@ -613,10 +613,24 @@ Executed, and recorded because the preamble promises the reasoning is kept.
 
 ### 8.2 Carried debts
 
-- **Staff MFA is unenforced.** Replacing `users/` wholesale dropped
-  `middleware.py`, which required TOTP for staff and verified contacts for
-  everyone else. It cannot return until the mobile-verification field exists,
-  so `STAFF_MFA_REQUIRED` currently guards nothing.
+- **Staff MFA is enforced again**, as `StaffMfaRequiredMiddleware`. Confirmed
+  as a policy choice, not an inherited requirement: legacy has OTP for contact
+  verification and no TOTP, MFA or 2FA anywhere. This is a deliberate departure
+  of the same kind as showing the production secret once instead of emailing
+  it, kept because the console approves production access and `/django-admin/`
+  can escalate accounts. Replacing
+  `users/` wholesale dropped `middleware.py` and `STAFF_MFA_REQUIRED` guarded
+  nothing. Only the staff half returned; the applicant half — OTP on both
+  contacts — still waits on `User.email_verified_at` and `phone_verified_at`,
+  which do not exist. `Organisation.mobile_verified_at` is a different thing:
+  the organisation's contact number, not the user's own.
+
+  Two consequences worth knowing. `UserFactory` activates TOTP for
+  `is_staff=True`, because a staff account without it can reach nothing —
+  `mfa=False` builds the account that gets redirected. And the seeders
+  deliberately leave TOTP unset, so a seeded console account meets the
+  middleware on first login exactly as production intends; the tests that
+  reach the console set it up first.
 - **`programmes/abdm.py`** still imports the deleted `workflow`, harmless only
   because nothing imports it. Mine it in step 6 for the DHIS predicates, then
   delete it.

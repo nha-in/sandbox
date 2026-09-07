@@ -82,7 +82,7 @@ def test_the_applicant_timeline_hides_internal_events(client, application, revie
     assert "An internal note" not in html
 
 
-def test_the_console_timeline_shows_them(client, application, reviewer):
+def test_the_console_timeline_shows_them(client, application, reviewer, enable_mfa):
     ApplicationEvent.objects.create(
         application=application,
         kind=EventKind.ACTION,
@@ -92,6 +92,7 @@ def test_the_console_timeline_shows_them(client, application, reviewer):
     reviewer.is_ohc_team = True
     reviewer.is_staff = True
     reviewer.save(update_fields=["is_ohc_team", "is_staff"])
+    enable_mfa(reviewer)
     client.force_login(reviewer)
 
     response = client.get(

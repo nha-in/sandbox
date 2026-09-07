@@ -171,6 +171,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "sandbox.users.middleware.StaffMfaRequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
 ]
 

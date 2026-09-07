@@ -29,6 +29,17 @@ class UserFactory(DjangoModelFactory[User]):
         if create:
             self.save()
 
+    @post_generation
+    def mfa(self: User, create: bool, extracted: bool | None, **kwargs):  # noqa: FBT001
+        """Staff get TOTP, because `StaffMfaRequiredMiddleware` means a staff
+        account without it cannot reach anything. Pass `mfa=False` to build the
+        account that gets redirected."""
+        if not create or not self.is_staff or extracted is False:
+            return
+        from allauth.mfa.totp.internal import auth  # noqa: PLC0415
+
+        auth.TOTP.activate(self, auth.generate_totp_secret())
+
     class Meta:
         model = User
         django_get_or_create = ["email"]

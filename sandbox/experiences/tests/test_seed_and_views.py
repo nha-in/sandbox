@@ -110,6 +110,18 @@ def seeded_demo():
     return output.getvalue()
 
 
+def _with_mfa(user):
+    """The seeders deliberately leave TOTP unset, so a real console account
+    meets `StaffMfaRequiredMiddleware` on first login exactly as production
+    intends. These tests are the state after that setup."""
+    from allauth.mfa.adapter import get_adapter  # noqa: PLC0415
+    from allauth.mfa.totp.internal import auth  # noqa: PLC0415
+
+    if not get_adapter().is_mfa_enabled(user):
+        auth.TOTP.activate(user, auth.generate_totp_secret())
+    return user
+
+
 def test_seeder_creates_working_accounts_and_both_workflows(seeded_demo):
     applicant = get_user_model().objects.get(email=APPLICANT_EMAIL)
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
@@ -499,7 +511,7 @@ def test_htmx_repeatable_certification_accepts_multiple_file_groups(
     ).content.decode()
     assert "3 submissions" in detail_html
 
-    client.force_login(get_user_model().objects.get(email=ADMIN_EMAIL))
+    client.force_login(_with_mfa(get_user_model().objects.get(email=ADMIN_EMAIL)))
     admin_html = client.get(
         reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
     ).content.decode()
@@ -602,7 +614,7 @@ def test_htmx_edit_appends_and_removes_files_in_existing_submission(
 
 def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
 
     list_response = client.get(reverse("ohc:applications"))
     detail_response = client.get(
@@ -646,7 +658,7 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
 
 def test_htmx_admin_filter_returns_only_application_results(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
 
     response = client.get(
         reverse("ohc:applications"),
@@ -663,7 +675,7 @@ def test_htmx_admin_filter_returns_only_application_results(client, seeded_demo)
 
 def test_pending_query_filter_and_highlight_for_admin(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
 
     pending = client.get(
         reverse("ohc:applications"),
@@ -713,7 +725,7 @@ def test_applicant_cannot_use_admin_console_or_approve(client, seeded_demo):
 def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
     """§4.7's single review, through the console it is driven from."""
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
     url = reverse(
         "ohc:application-action",
         args=[REVIEW_REFERENCE, "review_evidence"],
@@ -748,7 +760,7 @@ def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
 
 def test_admin_can_raise_a_query_from_the_review_workspace(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
     url = reverse(
         "ohc:application-action",
         args=[REVIEW_REFERENCE, "raise_query"],
@@ -772,7 +784,7 @@ def test_admin_can_raise_a_query_from_the_review_workspace(client, seeded_demo):
 
 def test_htmx_query_reply_and_resolution_swap_the_workspace(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
-    client.force_login(admin)
+    client.force_login(_with_mfa(admin))
     action_url = reverse(
         "ohc:application-action",
         args=[REVIEW_REFERENCE, "raise_query"],

@@ -15,6 +15,7 @@ from io import StringIO
 
 import pytest
 from allauth.account.models import EmailAddress
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
@@ -196,17 +197,26 @@ class TestTheCredentials:
         assert response.status_code == HTTPStatus.FOUND
         assert response.wsgi_request.user.is_authenticated
 
-    def test_the_seeded_ohc_account_reaches_the_console(self, client):
-        """The end the command is actually selling: sign in, land on the queue."""
+    def test_the_seeded_ohc_account_reaches_the_console(self, client, enable_mfa):
+        """The end the command is actually selling: sign in, land on the queue.
+
+        The seeder leaves TOTP unset on purpose, so the first login meets
+        `StaffMfaRequiredMiddleware` and is sent to set it up — the production
+        flow. Past that, the queue.
+        """
         seed()
         client.post(
             reverse("account_login"),
             {"login": OHC_EMAIL, "password": DEFAULT_PASSWORD},
         )
 
-        response = client.get(reverse("ohc:queue"))
+        before_setup = client.get(reverse("ohc:queue"))
+        enable_mfa(get_user_model().objects.get(email=OHC_EMAIL))
+        after_setup = client.get(reverse("ohc:queue"))
 
-        assert response.status_code == HTTPStatus.OK
+        assert before_setup.status_code == HTTPStatus.FOUND
+        assert "totp" in before_setup.url
+        assert after_setup.status_code == HTTPStatus.OK
 
     def test_a_seeded_vendor_is_refused_the_console(self, client):
         seed()
