@@ -19,7 +19,7 @@
   No-JS contract: method, action and the CSRF token are real, so without htmx
   this POSTs the team page and the view redirects back as it always did.
 {% endcomment %}
-{% load i18n careui %}
+{% load i18n ui %}
 
 <form id="invite-form"
       {% if oob %}hx-swap-oob="outerHTML"{% endif %}

@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='ticket',
             name='assignee',
-            field=models.ForeignKey(blank=True, limit_choices_to={'is_ohc_team': True}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tickets_assigned', to=settings.AUTH_USER_MODEL, verbose_name='Assignee'),
+            field=models.ForeignKey(blank=True, limit_choices_to={'is_staff': True}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tickets_assigned', to=settings.AUTH_USER_MODEL, verbose_name='Assignee'),
         ),
         migrations.AddField(
             model_name='ticket',

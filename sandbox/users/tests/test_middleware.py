@@ -12,7 +12,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-CONSOLE = "ohc:queue"
+CONSOLE = "staff:queue"
 
 
 @pytest.fixture

@@ -40,9 +40,6 @@ from sandbox.users.tests.factories import UserFactory
 #: Awaiting rewrite in plan 12 §8.4. Delete an entry as its module is dealt
 #: with; the list reaching empty is what clears the debt.
 collect_ignore = [
-    # delete: the concepts they test are gone (§8.4)
-    "test_enrollment_wizard.py",
-    "test_merge_production_dotenvs_in_dotenv.py",
     # build the subject first, then port (§8.4)
     "test_credentials_panel.py",
     "test_dashboard.py",

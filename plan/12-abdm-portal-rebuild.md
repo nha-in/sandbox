@@ -748,30 +748,52 @@ are the specification for building it — not a module to be rewritten first.
 returns one row per system in chain order *including the ones not reached yet*,
 which is the display §7 was written for, and nothing renders it.
 
-**The dashboard predates ABDM.** Its tiles are OHC Network's: *Sandbox* — "Not
-provisioned … per vendor on demo.ohc.network"; *Certification* — "Not started …
-Care Basic opens on school.ohc.network"; *Deployments*. `SETUP_STEPS` still
-reads "Sign in to your sandbox facility" and "Finish Care Basic certification",
-both hardcoded `False`. **None of it is ABDM**, and the dashboard does not
-mention applications at all — the one thing a vendor signs in to do. It needs
-re-thinking against §3's milestones rather than patching.
+**The dashboard predates ABDM.** Its tiles were OHC Network's — a sandbox
+facility, Care Basic certification, deployments — and its checklist asked for
+two of them, both hardcoded `False` because nothing could ever set them. Those
+are gone: the checklist is the two steps that are real (profile, team), and the
+three tiles with them. What remains is the harder half — **the dashboard still
+does not mention applications**, the one thing a vendor signs in to do. It
+needs re-thinking against §3's milestones rather than patching, and
+`test_dashboard.py` waits on that.
+
+**The marketing pages are somebody else's.** `pages/home.html`,
+`pages/about.html` and `account/signup.html` describe OHC Network's product,
+not this one — *"One place for everyone who builds on Care"*, *"the Open
+Healthcare Network's partner portal"*, *"Care Basic runs on school.nha.gov.in
+today"*, and a footer link to `care.nha.gov.in`. The rename pass corrected the
+product name and the words for NHA's own people, and deliberately stopped
+there: substituting a noun into these sentences makes them wrong rather than
+merely off-brand. They need writing, not renaming — what the portal's front
+door should claim is a decision, and it is open.
 
 #### Re-triaging `collect_ignore`
 
 | module | verdict |
 | ------ | ------- |
-| `test_merge_production_dotenvs_in_dotenv` | **delete** — the function it tests exists nowhere in the repo |
-| `test_enrollment_wizard` | **delete** — a multi-step draft wizard with product selection and back-navigation, a concept the engine replaced wholesale with `StartApplicationView` plus form workspaces, which are already tested |
-| `test_route_gates` | **do first** — a matrix of every named URL against who may reach it, plus "every named url has a row" and "no stale rows". Needs nothing built: 48 project routes to enumerate, and it is the module that would have caught §4.9's leak |
+| `test_merge_production_dotenvs_in_dotenv` | **deleted** — the function it tested existed nowhere in the repo |
+| `test_enrollment_wizard` | **deleted** — a multi-step draft wizard with product selection and back-navigation, a concept the engine replaced wholesale with `StartApplicationView` plus form workspaces, which are already tested |
+| `test_route_gates` | **done** — 84 named URLs, 88 gate cases. It found the shipped htmx demo, the console access screen only a superuser could open, and that `is_superuser` did not open the console |
 | `test_credentials_panel` | build the panel first; the tests are its specification |
 | `test_dashboard` | after the dashboard is re-thought. Its wizard assertions go with `test_enrollment_wizard` either way |
 | `test_navigation` | rewrite — it references `NAV_SECTIONS`, which no longer exists, and an application rail/switcher that may be obsolete |
 | `test_stylesheet`, `test_template_syntax` | wait on the theme (§4.1) |
 
-The order that follows from this: `test_route_gates`, then the credentials
-panel and its tests, then provisioning progress, then the dashboard and its
-tests, then navigation. The two theme modules last, and the two deletions
-whenever.
+The order that follows from this: `test_route_gates` **(done)**, then the
+credentials panel and its tests, then provisioning progress, then the dashboard
+and its tests, then navigation. The two theme modules last.
+
+### 8.5 The rename off OHC Network
+
+The repo carried its origin in its names. `sandbox/ohc/` is `sandbox/staff/`
+and its namespace is `staff:`; `is_ohc_team` is gone (§8.4);
+`TicketMessage.from_ohc_team` is `from_staff_team`; `careui` is `ui`; the site
+row is `localhost` / "ABDM Sandbox Portal"; and the wordmark, page title and
+transactional copy name this portal and NHA rather than Care and the OHC team.
+
+Migrations were **edited rather than added**, on the standing decision that this
+branch squashes before it merges — the renamed column and the dropped flag are
+in the initial migrations, not behind a `RenameField`.
 
 ### 8.3 The fields step 6 re-applies
 

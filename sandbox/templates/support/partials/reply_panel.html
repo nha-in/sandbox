@@ -8,7 +8,7 @@
   putting a form inside a form.
 
   The status button is the whole choice a vendor gets: resolve an open ticket,
-  or reopen one. Closing is the Care team's, and the view's form refuses it.
+  or reopen one. Closing is the review team's, and the view's form refuses it.
 
   Both forms keep method, action and a CSRF token, so with scripting off they
   POST and the views redirect back to this thread. hx-post adds the entry to
@@ -17,7 +17,7 @@
 
   Context: ticket, reply_form, oob.
 {% endcomment %}
-{% load i18n careui %}
+{% load i18n ui %}
 
 <div id="reply-panel"
      {% if oob %}hx-swap-oob="outerHTML"{% endif %}

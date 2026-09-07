@@ -17,7 +17,7 @@ class EventFactory(DjangoModelFactory[Event]):
     title = Sequence(lambda n: f"Partner office hours {n}")
     kind = Event.Kind.OFFICE_HOURS
     summary = "Bring your integration questions."
-    description = "Open floor with the OHC integration team."
+    description = "Open floor with the ABDM integration team."
     starts_at = LazyFunction(lambda: timezone.now() + timedelta(days=7))
 
     class Meta:
@@ -30,4 +30,4 @@ class EventFactory(DjangoModelFactory[Event]):
         # model falls back to starts_at and the check constraint is moot.
         past = Trait(starts_at=LazyFunction(lambda: timezone.now() - timedelta(days=8)))
         # EventFactory(in_person=True) — has a location, so not online.
-        in_person = Trait(location="OHC Bengaluru office")
+        in_person = Trait(location="NHA Delhi office")

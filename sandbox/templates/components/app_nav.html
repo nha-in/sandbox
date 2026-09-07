@@ -62,13 +62,13 @@
   </ul>
   <ul class="mt-auto flex flex-col gap-0.5 pt-6">
     {% if is_console_user %}
-      {# Only the Care team sees this, and only they can open it (403 otherwise). #}
+      {# Only staff see this, and only they can open it (403 otherwise). #}
       <li>
-        <a id="nav-ohc-console"
+        <a id="nav-staff-console"
            class="ui-nav-link flex items-center justify-between gap-2"
-           href="{% url 'ohc:queue' %}"
+           href="{% url 'staff:queue' %}"
            hx-boost="false">
-          {% translate "OHC console" %}
+          {% translate "Staff console" %}
           <span class="ui-badge ui-badge--info ui-badge--size-xs">{% translate "Internal" %}</span>
         </a>
       </li>
@@ -83,7 +83,7 @@
       {# Another origin and another tab: ordinary navigation, never boosted. #}
       <a id="nav-docs"
          class="ui-nav-link"
-         href="https://docs.ohc.network"
+         href="https://docs.nha.gov.in"
          target="_blank"
          rel="noopener noreferrer"
          hx-boost="false">

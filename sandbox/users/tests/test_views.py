@@ -321,7 +321,7 @@ class TestSignOut:
     ):
         html = sign_in(owner_membership.user).get(reverse("dashboard")).content.decode()
         # Scoped to the rail: the dashboard still says "Sandbox" on a status
-        # tile, which is not a nav entry — and since the Care sandbox flow was
+        # tile, which is not a nav entry — and since the sandbox flow was
         # stripped on arrival (plan 12 §8 step 2) it is no longer a nav entry.
         nav = html[html.index('<nav id="app-nav"') : html.index("</nav>")]
 
@@ -343,7 +343,7 @@ class TestSignOut:
             assert unbuilt not in nav
 
 
-class TestOhcConsoleLink:
+class TestStaffConsoleLink:
     """The console entry is offered only to the people who can actually open it."""
 
     @staticmethod
@@ -356,9 +356,9 @@ class TestOhcConsoleLink:
         sign_in: Callable[[User], Client],
         owner_membership: MembershipType,
     ):
-        assert "OHC console" not in self._nav_of(sign_in(owner_membership.user))
+        assert "Staff console" not in self._nav_of(sign_in(owner_membership.user))
 
-    def test_an_ohc_member_is_offered_the_console(
+    def test_an_staff_member_is_offered_the_console(
         self,
         sign_in: Callable[[User], Client],
         owner_membership: MembershipType,
@@ -370,4 +370,4 @@ class TestOhcConsoleLink:
         # Staff without TOTP are held at the door by StaffMfaRequiredMiddleware.
         auth.TOTP.activate(owner_membership.user, auth.generate_totp_secret())
 
-        assert "OHC console" in self._nav_of(sign_in(owner_membership.user))
+        assert "Staff console" in self._nav_of(sign_in(owner_membership.user))

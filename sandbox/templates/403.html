@@ -20,7 +20,7 @@
   {% if request.user.is_authenticated %}
     {% if is_console_user %}
       <a class="ui-btn ui-btn--default ui-btn--size-default"
-         href="{% url 'ohc:queue' %}">{% translate "Go to the OHC console" %}</a>
+         href="{% url 'staff:queue' %}">{% translate "Go to the Staff console" %}</a>
     {% else %}
       <a class="ui-btn ui-btn--default ui-btn--size-default"
          href="{% url 'dashboard' %}">{% translate "Go to your dashboard" %}</a>

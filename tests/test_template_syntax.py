@@ -5,7 +5,7 @@ is not a tag at all — it becomes literal text, silently. There is no error at 
 split; you find out somewhere else entirely, or never.
 
 That is not hypothetical. A formatter run over `sandbox/templates` (199d0a3)
-wrapped 41 tags across lines and took the whole portal down: `{% load careui i18n
+wrapped 41 tags across lines and took the whole portal down: `{% load ui i18n
 %}` stopped loading, so every screen rendering a form died with
 `Invalid filter: 'is_checkbox'` — nowhere near the actual damage. Others failed
 quietly: `{% block step_title %}` never registered, and mangled `{% if %}`

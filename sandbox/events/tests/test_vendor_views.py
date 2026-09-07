@@ -41,14 +41,14 @@ class TestEventListView:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
 
         response = sign_in(owner_membership.user).get(reverse("events:list"))
 
         assert response.status_code == HTTPStatus.OK
         assert response.context["nav_section"] == "events"
         assert list(response.context["upcoming_events"]) == [event]
-        assert "Care v3.3 upgrade webinar" in response.content.decode()
+        assert "ABDM v2.0 upgrade webinar" in response.content.decode()
 
     def test_hides_an_unpublished_event(
         self,
@@ -121,8 +121,8 @@ class TestEventDetailView:
     ):
         event = EventFactory.create(
             published=True,
-            title="Care v3.3 upgrade webinar",
-            join_url="https://meet.ohc.network/v33",
+            title="ABDM v2.0 upgrade webinar",
+            join_url="https://meet.nha.gov.in/v33",
         )
 
         response = sign_in(owner_membership.user).get(event.get_absolute_url())
@@ -131,8 +131,8 @@ class TestEventDetailView:
         assert response.context["event"] == event
         assert response.context["nav_section"] == "events"
         body = response.content.decode()
-        assert "Care v3.3 upgrade webinar" in body
-        assert "https://meet.ohc.network/v33" in body
+        assert "ABDM v2.0 upgrade webinar" in body
+        assert "https://meet.nha.gov.in/v33" in body
 
     def test_an_unpublished_slug_is_a_404(
         self,
@@ -160,10 +160,10 @@ class TestEventDetailView:
         assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-class TestOnlyOhcCanPublish:
+class TestOnlyStaffCanPublish:
     """The vendor pages are read-only, and the gate on publishing holds.
 
-    An event is visible to a vendor for exactly one reason — the OHC team
+    An event is visible to a vendor for exactly one reason — the review team
     published it. So the interesting question is not only "does a draft 404",
     but "can a vendor make a draft stop being a draft". Both are asked here
     against real requests rather than by reading the mixin list.
@@ -189,12 +189,12 @@ class TestOnlyOhcCanPublish:
 
         assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
-    def test_a_vendor_is_refused_the_ohc_events_console(
+    def test_a_vendor_is_refused_the_staff_events_console(
         self,
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        response = sign_in(owner_membership.user).get(reverse("ohc:events"))
+        response = sign_in(owner_membership.user).get(reverse("staff:events"))
 
         assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -207,7 +207,7 @@ class TestOnlyOhcCanPublish:
         client = sign_in(owner_membership.user)
 
         response = client.post(
-            reverse("ohc:event-publish", kwargs={"slug": draft.slug}),
+            reverse("staff:event-publish", kwargs={"slug": draft.slug}),
         )
 
         assert response.status_code == HTTPStatus.FORBIDDEN
@@ -221,11 +221,11 @@ class TestOnlyOhcCanPublish:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
         client = sign_in(owner_membership.user)
 
         response = client.post(
-            reverse("ohc:event-publish", kwargs={"slug": event.slug}),
+            reverse("staff:event-publish", kwargs={"slug": event.slug}),
         )
 
         assert response.status_code == HTTPStatus.FORBIDDEN
@@ -237,18 +237,18 @@ class TestOnlyOhcCanPublish:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
 
         response = sign_in(owner_membership.user).post(
-            reverse("ohc:event-update", kwargs={"slug": event.slug}),
+            reverse("staff:event-update", kwargs={"slug": event.slug}),
             {"title": "Owned", "starts_at": "2030-01-01 10:00:00", "kind": "webinar"},
         )
 
         assert response.status_code == HTTPStatus.FORBIDDEN
         event.refresh_from_db()
-        assert event.title == "Care v3.3 upgrade webinar"
+        assert event.title == "ABDM v2.0 upgrade webinar"
 
-    def test_the_same_post_publishes_when_the_ohc_team_sends_it(
+    def test_the_same_post_publishes_when_staff_send_it(
         self,
         sign_in: Callable[[User], Client],
     ):
@@ -258,10 +258,10 @@ class TestOnlyOhcCanPublish:
         forbidden to everyone, and "vendors are refused" would mean nothing.
         """
         draft = EventFactory.create(title="Draft roadmap AMA")
-        staffer = UserFactory.create(email="ops@ohc.network", is_staff=True)
+        staffer = UserFactory.create(email="ops@nha.gov.in", is_staff=True)
 
         response = sign_in(staffer).post(
-            reverse("ohc:event-publish", kwargs={"slug": draft.slug}),
+            reverse("staff:event-publish", kwargs={"slug": draft.slug}),
         )
 
         assert response.status_code == HTTPStatus.FOUND
@@ -282,10 +282,10 @@ class TestEventsAreNotScopedToAnOrganisation:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
         other = MembershipFactory.create(
             organisation=OrganisationFactory.create(
-                name="Meridian Care",
+                name="Meridian Health",
                 onboarded=True,
             ),
             role="owner",
@@ -305,7 +305,7 @@ class TestEventsAreNotScopedToAnOrganisation:
         draft = EventFactory.create(title="Draft roadmap AMA")
         other = MembershipFactory.create(
             organisation=OrganisationFactory.create(
-                name="Meridian Care",
+                name="Meridian Health",
                 onboarded=True,
             ),
             role="owner",
@@ -323,10 +323,10 @@ class TestEventsAreNotScopedToAnOrganisation:
     ):
         """Membership is not the gate here — being signed in is.
 
-        An OHC staffer belongs to no vendor organisation; 403-ing them off a
-        page the OHC team wrote would be absurd.
+        An Staffer belongs to no vendor organisation; 403-ing them off a
+        page the review team wrote would be absurd.
         """
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
 
         response = sign_in(user).get(reverse("events:list"))
 
@@ -357,7 +357,7 @@ class TestWorksWithoutJavaScript:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, join_url="https://meet.ohc.test/x")
+        event = EventFactory.create(published=True, join_url="https://meet.abdm.test/x")
         EventFactory.create(published=True, past=True)
 
         body = main_content(
@@ -369,7 +369,7 @@ class TestWorksWithoutJavaScript:
         assert "hx-" not in body
         # The title link and the Join link are both real destinations.
         assert f'href="{event.get_absolute_url()}"' in body
-        assert 'href="https://meet.ohc.test/x"' in body
+        assert 'href="https://meet.abdm.test/x"' in body
         # Past events collapse with the browser's own widget, not a script.
         assert "<details" in body
 
@@ -378,7 +378,7 @@ class TestWorksWithoutJavaScript:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, join_url="https://meet.ohc.test/x")
+        event = EventFactory.create(published=True, join_url="https://meet.abdm.test/x")
 
         body = main_content(
             sign_in(owner_membership.user)
@@ -444,7 +444,7 @@ class TestTheTimeIsUnambiguous:
     def event(self) -> Event:
         return EventFactory.create(
             published=True,
-            title="Care v3.3 upgrade webinar",
+            title="ABDM v2.0 upgrade webinar",
             starts_at=datetime(2099, 9, 14, 15, 0, tzinfo=UTC),
         )
 

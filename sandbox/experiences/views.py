@@ -229,7 +229,7 @@ class ApplicationObjectMixin:
         return super().dispatch(request, *args, **kwargs)
 
     def detail_url(self) -> str:
-        name = "ohc:application-detail" if self.console else "experiences:detail"
+        name = "staff:application-detail" if self.console else "experiences:detail"
         return reverse(name, kwargs={"reference": self.application.reference})
 
     def common_context(self) -> dict[str, Any]:
@@ -253,7 +253,7 @@ class ApplicationObjectMixin:
             "permission_rows": permission_rows,
             "access_grants": grants,
             "console": self.console,
-            "layout_template": "layouts/ohc.html"
+            "layout_template": "layouts/staff.html"
             if self.console
             else "layouts/app.html",
             "nav_section": "applications",
@@ -906,7 +906,7 @@ class AdminResolveQueryView(
         if request.htmx:
             return self.render_thread(QueryReplyForm(), partial=True)
         return redirect(
-            "ohc:application-query",
+            "staff:application-query",
             reference=self.application.reference,
             query_pk=thread.pk,
         )

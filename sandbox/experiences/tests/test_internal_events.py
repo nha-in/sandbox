@@ -95,7 +95,7 @@ def test_the_console_timeline_shows_them(client, application, reviewer, enable_m
     client.force_login(reviewer)
 
     response = client.get(
-        reverse("ohc:application-detail", args=[application.reference]),
+        reverse("staff:application-detail", args=[application.reference]),
     )
 
     assert response.status_code == HTTPStatus.OK

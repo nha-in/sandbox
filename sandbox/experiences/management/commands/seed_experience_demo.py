@@ -34,7 +34,7 @@ APPLICANT_EMAIL = "applicant@abdm-demo.in"
 APPLICANT_NAME = "Dr Kavya Rao"
 CONTRIBUTOR_EMAIL = "contributor@abdm-demo.in"
 CONTRIBUTOR_NAME = "Arjun Menon"
-ADMIN_EMAIL = "decision-maker@ohc.network"
+ADMIN_EMAIL = "decision-maker@nha.gov.in"
 ADMIN_NAME = "Nandita Shah"
 
 ORGANISATION_NAME = "Arogya Digital Health Technologies"
@@ -189,7 +189,7 @@ def complete_submission_data() -> dict[str, dict]:
 
 
 class Command(BaseCommand):
-    help = "Seed applicant and OHC reviewer accounts with ABDM demo applications."
+    help = "Seed applicant and staff reviewer accounts with ABDM demo applications."
 
     def add_arguments(self, parser) -> None:
         parser.add_argument("--password", default=DEFAULT_PASSWORD)
@@ -370,11 +370,13 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(f"Applicant:   {APPLICANT_EMAIL}")
         self.stdout.write(f"Contributor: {CONTRIBUTOR_EMAIL}")
-        self.stdout.write(f"OHC admin:   {ADMIN_EMAIL}")
+        self.stdout.write(f"Staff admin:   {ADMIN_EMAIL}")
         self.stdout.write(f"Password:    {password}")
         self.stdout.write("")
         self.stdout.write(f"Applicant workspace: /applications/{DRAFT_REFERENCE}/")
-        self.stdout.write(f"Review workspace:    /ohc/applications/{REVIEW_REFERENCE}/")
+        self.stdout.write(
+            f"Review workspace:    /staff/applications/{REVIEW_REFERENCE}/",
+        )
 
     def _user(
         self,

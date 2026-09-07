@@ -121,13 +121,13 @@ class TestDashboardView:
         response = sign_in(owner_membership.user).get(reverse("dashboard"))
 
         steps = response.context["setup_steps"]
-        assert [step["done"] for step in steps] == [True, False, False, False]
+        assert [step["done"] for step in steps] == [True, False]
         progress = (
             response.context["setup_done"],
             response.context["setup_total"],
             response.context["setup_percent"],
         )
-        assert progress == (1, 4, 25)
+        assert progress == (1, 2, 50)
 
     def test_inviting_a_teammate_ticks_the_team_step(
         self,
@@ -143,7 +143,7 @@ class TestDashboardView:
             response.context["setup_done"],
             response.context["setup_percent"],
         )
-        assert progress == (1, 2, 50)
+        assert progress == (1, 2, 100)
 
     def test_a_user_without_an_organisation_is_refused(
         self,
@@ -187,14 +187,14 @@ class TestDashboardUpcomingEvents:
         sign_in: Callable[[User], Client],
         owner_membership: Membership,
     ):
-        event = EventFactory.create(published=True, title="Care v3.3 upgrade webinar")
+        event = EventFactory.create(published=True, title="ABDM v2.0 upgrade webinar")
 
         response = sign_in(owner_membership.user).get(reverse("dashboard"))
 
         body = response.content.decode()
         assert event.get_absolute_url() in body
         assert reverse("events:list") in body
-        assert "Care v3.3 upgrade webinar" in body
+        assert "ABDM v2.0 upgrade webinar" in body
 
     def test_drafts_and_finished_events_stay_out(
         self,
@@ -244,28 +244,28 @@ class TestPostLoginDestination:
         assert resolve_post_login_destination(owner_membership.user) == "dashboard"
 
 
-class TestOhcStaffLanding:
-    """An OHC member without a vendor account must never hit a bare 403."""
+class TestStaffLanding:
+    """A staff member without a vendor account must never hit a bare 403."""
 
     @pytest.fixture
-    def ohc_user(self, db):
+    def staff_user(self, db):
         return UserFactory.create(is_staff=True)
 
-    def test_post_login_goes_to_the_console(self, client, ohc_user):
-        client.force_login(ohc_user)
+    def test_post_login_goes_to_the_console(self, client, staff_user):
+        client.force_login(staff_user)
 
         response = client.get(reverse("users:redirect"))
 
         assert response.status_code == HTTPStatus.FOUND
-        assert response["Location"] == reverse("ohc:queue")
+        assert response["Location"] == reverse("staff:queue")
 
-    def test_the_dashboard_redirects_to_the_console(self, client, ohc_user):
-        client.force_login(ohc_user)
+    def test_the_dashboard_redirects_to_the_console(self, client, staff_user):
+        client.force_login(staff_user)
 
         response = client.get(reverse("dashboard"))
 
         assert response.status_code == HTTPStatus.FOUND
-        assert response["Location"] == reverse("ohc:queue")
+        assert response["Location"] == reverse("staff:queue")
 
     def test_a_vendor_with_no_organisation_still_gets_403(self, client, user):
         client.force_login(user)

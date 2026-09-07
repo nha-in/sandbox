@@ -220,7 +220,7 @@ containers = [
   "sandbox.support",
   "sandbox.events",
   "sandbox.pages",
-  "sandbox.ohc",
+  "sandbox.staff",
 ]
 
 # The anti-corruption layer (06-integrations.md §3). Domain apps may name ports and

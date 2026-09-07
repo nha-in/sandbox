@@ -512,7 +512,7 @@ def test_htmx_repeatable_certification_accepts_multiple_file_groups(
 
     client.force_login(_with_mfa(get_user_model().objects.get(email=ADMIN_EMAIL)))
     admin_html = client.get(
-        reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
+        reverse("staff:application-detail", args=[REVIEW_REFERENCE]),
     ).content.decode()
     assert "Previous versions" in admin_html
     assert "iso-certificate.pdf" in admin_html
@@ -615,12 +615,12 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
     client.force_login(_with_mfa(admin))
 
-    list_response = client.get(reverse("ohc:applications"))
+    list_response = client.get(reverse("staff:applications"))
     detail_response = client.get(
-        reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
+        reverse("staff:application-detail", args=[REVIEW_REFERENCE]),
     )
     blocked = client.get(
-        reverse("ohc:application-action", args=[REVIEW_REFERENCE, "approve"]),
+        reverse("staff:application-action", args=[REVIEW_REFERENCE, "approve"]),
     )
 
     assert list_response.status_code == HTTPStatus.OK
@@ -650,7 +650,7 @@ def test_admin_dashboard_review_and_decision_form_render(client, seeded_demo):
         },
     )
     approve_response = client.get(
-        reverse("ohc:application-action", args=[REVIEW_REFERENCE, "approve"]),
+        reverse("staff:application-action", args=[REVIEW_REFERENCE, "approve"]),
     )
 
     assert approve_response.status_code == HTTPStatus.OK
@@ -665,14 +665,14 @@ def test_htmx_admin_filter_returns_only_application_results(client, seeded_demo)
     client.force_login(_with_mfa(admin))
 
     response = client.get(
-        reverse("ohc:applications"),
+        reverse("staff:applications"),
         {"status": "under_review"},
         headers=HTMX_HEADERS,
     )
     html = response.content.decode()
 
     assert 'id="application-results"' in html
-    assert 'id="ohc-nav"' not in html
+    assert 'id="staff-nav"' not in html
     assert REVIEW_REFERENCE in html
     assert DRAFT_REFERENCE not in html
 
@@ -682,7 +682,7 @@ def test_pending_query_filter_and_highlight_for_admin(client, seeded_demo):
     client.force_login(_with_mfa(admin))
 
     pending = client.get(
-        reverse("ohc:applications"),
+        reverse("staff:applications"),
         {"query_state": "pending"},
         headers=HTMX_HEADERS,
     )
@@ -695,7 +695,7 @@ def test_pending_query_filter_and_highlight_for_admin(client, seeded_demo):
     assert "bg-orange-50/70" in pending_html
 
     clear_html = client.get(
-        reverse("ohc:applications"),
+        reverse("staff:applications"),
         {"query_state": "clear"},
         headers=HTMX_HEADERS,
     ).content.decode()
@@ -707,7 +707,7 @@ def test_applicant_cannot_use_admin_console_or_approve(client, seeded_demo):
     applicant = get_user_model().objects.get(email=APPLICANT_EMAIL)
     client.force_login(applicant)
 
-    console_response = client.get(reverse("ohc:applications"))
+    console_response = client.get(reverse("staff:applications"))
     approve_response = client.get(
         reverse("experiences:action", args=[REVIEW_REFERENCE, "approve"]),
     )
@@ -731,7 +731,7 @@ def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
     client.force_login(_with_mfa(admin))
     url = reverse(
-        "ohc:application-action",
+        "staff:application-action",
         args=[REVIEW_REFERENCE, "review_evidence"],
     )
 
@@ -751,13 +751,13 @@ def test_admin_can_record_the_evidence_review_with_htmx(client, seeded_demo):
     assert 'id="application-action"' in workspace.content.decode()
     assert response.status_code == HTTPStatus.OK
     assert response["HX-Redirect"] == reverse(
-        "ohc:application-detail",
+        "staff:application-detail",
         args=[REVIEW_REFERENCE],
     )
     assert application.outcome["verified_revisions"]
 
     detail_html = client.get(
-        reverse("ohc:application-detail", args=[REVIEW_REFERENCE]),
+        reverse("staff:application-detail", args=[REVIEW_REFERENCE]),
     ).content.decode()
     assert "The current evidence is already reviewed." in detail_html
 
@@ -766,7 +766,7 @@ def test_admin_can_raise_a_query_from_the_review_workspace(client, seeded_demo):
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
     client.force_login(_with_mfa(admin))
     url = reverse(
-        "ohc:application-action",
+        "staff:application-action",
         args=[REVIEW_REFERENCE, "raise_query"],
     )
 
@@ -790,7 +790,7 @@ def test_htmx_query_reply_and_resolution_swap_the_workspace(client, seeded_demo)
     admin = get_user_model().objects.get(email=ADMIN_EMAIL)
     client.force_login(_with_mfa(admin))
     action_url = reverse(
-        "ohc:application-action",
+        "staff:application-action",
         args=[REVIEW_REFERENCE, "raise_query"],
     )
     client.post(
@@ -805,7 +805,7 @@ def test_htmx_query_reply_and_resolution_swap_the_workspace(client, seeded_demo)
     application = ApplicationInstance.objects.get(reference=REVIEW_REFERENCE)
     thread = application.query_threads.get()
     query_url = reverse(
-        "ohc:application-query",
+        "staff:application-query",
         args=[REVIEW_REFERENCE, thread.pk],
     )
 
@@ -823,7 +823,7 @@ def test_htmx_query_reply_and_resolution_swap_the_workspace(client, seeded_demo)
 
     resolve = client.post(
         reverse(
-            "ohc:application-query-resolve",
+            "staff:application-query-resolve",
             args=[REVIEW_REFERENCE, thread.pk],
         ),
         headers=HTMX_HEADERS,

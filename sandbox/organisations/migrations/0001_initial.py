@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                 ('website', models.URLField(blank=True, verbose_name='Website')),
                 ('city', models.CharField(blank=True, max_length=120, verbose_name='City')),
                 ('state', models.CharField(blank=True, max_length=120, verbose_name='State')),
-                ('deployment_regions', models.TextField(blank=True, help_text='States/UTs where you deploy or plan to deploy Care.', verbose_name='Deployment regions')),
+                ('deployment_regions', models.TextField(blank=True, help_text='States/UTs where you deploy or plan to deploy your product.', verbose_name='Deployment regions')),
                 ('technical_contact_name', models.CharField(blank=True, max_length=255, verbose_name='Technical contact name')),
                 ('technical_contact_email', models.EmailField(blank=True, max_length=254, verbose_name='Technical contact email')),
                 ('technical_contact_phone', models.CharField(blank=True, max_length=32, verbose_name='Technical contact phone number')),

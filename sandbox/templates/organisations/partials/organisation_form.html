@@ -20,7 +20,7 @@
   submitting without htmx POSTs the page and the view redirects as it always
   did. Every hx-* attribute here is enhancement on top of that.
 {% endcomment %}
-{% load i18n careui %}
+{% load i18n ui %}
 
 {% if form_layout == "settings" %}
   {% url 'organisations:detail' as form_action %}

@@ -1,11 +1,11 @@
 {% comment %}
   One form field: label, control, help text, errors. Rendered via
-  {% ui_field form.email %} from the careui template library.
+  {% ui_field form.email %} from the ui template library.
 
   Required fields carry no marker — the design marks none, and on these forms
   nearly everything is required. Optional fields say so instead.
 {% endcomment %}
-{% load careui i18n %}
+{% load ui i18n %}
 
 <div class="{% if field|is_checkbox %}flex items-start gap-2.5{% endif %}">
   {% if is_file %}

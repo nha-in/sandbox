@@ -37,7 +37,7 @@ class OrganisationProfileForm(forms.ModelForm):
         }
         help_texts = {
             "deployment_regions": _(
-                "States/UTs where you deploy or plan to deploy Care.",
+                "States/UTs where you deploy or plan to deploy your product.",
             ),
         }
 

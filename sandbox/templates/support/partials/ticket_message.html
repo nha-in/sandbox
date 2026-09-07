@@ -5,7 +5,7 @@
   centred muted line rather than a card — the conversation stays a conversation
   and the state changes read as margin notes between the turns.
 
-  Care's own replies carry the badge and a primary edge, which is the one thing
+  The review team's own replies carry the badge and a primary edge, which is the one thing
   in the thread a vendor scans for.
 
   `initials` is hung on the message by support.selectors.with_avatar, so a reply
@@ -20,13 +20,13 @@
     {% blocktranslate with who=message.author_label state=message.body when=message.created_at|date:"j M, H:i" %}{{ who }} marked this <strong>{{ state }}</strong> · {{ when }}{% endblocktranslate %}
   </li>
 {% else %}
-  <li class="ui-card {% if message.from_ohc_team %}border-l-[3px] border-l-primary-500{% endif %}">
+  <li class="ui-card {% if message.from_staff_team %}border-l-[3px] border-l-primary-500{% endif %}">
     <div class="ui-card-content">
       <div class="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span class="ui-avatar size-[30px] text-[12px] {% if message.from_ohc_team %}ui-avatar--muted{% else %}ui-avatar--primary{% endif %}"
+        <span class="ui-avatar size-[30px] text-[12px] {% if message.from_staff_team %}ui-avatar--muted{% else %}ui-avatar--primary{% endif %}"
               aria-hidden="true">{{ message.initials }}</span>
         <span class="text-[13.5px] font-semibold">{{ message.author_label }}</span>
-        {% if message.from_ohc_team %}
+        {% if message.from_staff_team %}
           <span class="ui-badge ui-badge--primary ui-badge--size-xs">{% translate "Care support" %}</span>
         {% endif %}
         <span class="text-[11.5px] text-soft-foreground">

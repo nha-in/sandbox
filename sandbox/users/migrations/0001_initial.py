@@ -27,7 +27,6 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(blank=True, max_length=255, verbose_name='Name of User')),
                 ('email', models.EmailField(max_length=254, unique=True, verbose_name='email address')),
                 ('phone_number', models.CharField(blank=True, max_length=32, verbose_name='Mobile number')),
-                ('is_ohc_team', models.BooleanField(default=False, help_text='Works the support queue across all vendors and publishes events. Separate from staff status, which only controls Django admin access.', verbose_name='OHC team member')),
                 ('groups', models.ManyToManyField(blank=True, help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.', related_name='user_set', related_query_name='user', to='auth.group', verbose_name='groups')),
                 ('user_permissions', models.ManyToManyField(blank=True, help_text='Specific permissions for this user.', related_name='user_set', related_query_name='user', to='auth.permission', verbose_name='user permissions')),
             ],

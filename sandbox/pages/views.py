@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 # Setup checklist rows on the dashboard. Each is (label, url name, done-flag key).
 SETUP_STEPS = [
     (_("Complete your company profile"), "organisations:detail", "profile_complete"),
-    (_("Sign in to your sandbox facility"), None, "sandbox_ready"),
     (_("Invite your team"), "organisations:team", "team_invited"),
-    (_("Finish Care Basic certification"), None, "certified"),
 ]
 
 
@@ -42,9 +40,8 @@ class LandingView(TemplateView):
 class DashboardView(OrganisationMixin, TemplateView):
     """Screen 1c — status at a glance plus what to do next.
 
-    The sandbox, certification, ticket and deployment tiles read as zero/pending
-    until those subsystems land; the shape is here so adding them is a data
-    change rather than a layout change.
+    Still the pre-ABDM shape: it knows nothing about applications, which is the
+    one thing a vendor signs in to do. §8.4 records what it needs instead.
     """
 
     template_name = "dashboard/dashboard.html"
@@ -62,9 +59,7 @@ class DashboardView(OrganisationMixin, TemplateView):
 
         completed = {
             "profile_complete": organisation.is_onboarded,
-            "sandbox_ready": False,
             "team_invited": team_size > 1 or pending_invites > 0,
-            "certified": False,
         }
         steps = [
             {
@@ -101,7 +96,7 @@ class DashboardView(OrganisationMixin, TemplateView):
 def resolve_post_login_destination(user) -> str:
     """Where a freshly signed-in user belongs.
 
-    Most people have exactly one vendor organisation. OHC staff usually have
+    Most people have exactly one vendor organisation. Staff usually have
     none — the console is their home, so send them there rather than to a
     dashboard that would 403 or a landing page that tells them nothing. Staff
     who also belong to a vendor keep the vendor route; the console is one click
@@ -109,7 +104,7 @@ def resolve_post_login_destination(user) -> str:
     """
     membership = get_membership_for(user)
     if membership is None:
-        return "ohc:queue" if is_console_user(user) else "home"
+        return "staff:queue" if is_console_user(user) else "home"
     if not membership.organisation.is_onboarded:
         return "organisations:onboarding"
     return "dashboard"

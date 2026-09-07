@@ -9,7 +9,7 @@
   */
 @source "../../../**/*.{html,py,js}";
 
-/* Dark mode is class-based, matching careui: put `class="dark"` on <html>. */
+/* Dark mode is class-based, matching ui: put `class="dark"` on <html>. */
 @custom-variant dark (&:is(.dark *));
 
 /* ==========================================================================
@@ -97,7 +97,7 @@
 }
 
 /* ==========================================================================
-   careui tokens — ported verbatim from ohcnetwork/careui src/index.css.
+   ui tokens — ported verbatim from ohcnetwork/ui src/index.css.
    Semantic tokens resolve against Tailwind's built-in color scales, so both
    light and dark re-resolve automatically. Never hardcode a hex in a template;
    use the token utilities (bg-card, text-muted-foreground, border-border, …).
@@ -347,7 +347,7 @@
   }
 }
 
-@import "./careui.css";
+@import "./ui.css";
 
 @layer components {
   /* Skip link — visible only when focused via keyboard. */

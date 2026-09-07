@@ -1,4 +1,4 @@
-{% extends "layouts/ohc.html" %}
+{% extends "layouts/staff.html" %}
 
 {% load i18n %}
 
@@ -9,7 +9,7 @@
   <nav class="mb-3 text-xs text-soft-foreground"
        aria-label="{% translate 'Breadcrumb' %}">
     <a class="text-soft-foreground no-underline hover:underline"
-       href="{% url 'ohc:applications' %}">{% translate "Applications" %}</a>
+       href="{% url 'staff:applications' %}">{% translate "Applications" %}</a>
     <span aria-hidden="true">/</span>
     <span class="font-mono" aria-current="page">{{ application.reference }}</span>
   </nav>
@@ -25,7 +25,7 @@
       <div class="flex flex-wrap gap-2">
         {% for action_state in available_actions %}
           <a class="ui-btn {% if action_state.definition.style == 'destructive' %}ui-btn--destructive{% else %}ui-btn--default{% endif %} ui-btn--size-sm"
-             href="{% url 'ohc:application-action' application.reference action_state.definition.key %}">{{ action_state.definition.name }}</a>
+             href="{% url 'staff:application-action' application.reference action_state.definition.key %}">{{ action_state.definition.name }}</a>
         {% endfor %}
       </div>
     {% endif %}
@@ -86,7 +86,7 @@
                     {% for action_state in section.form_action_states %}
                       {% if action_state.available %}
                         <a class="ui-btn ui-btn--outline ui-btn--size-sm"
-                           href="{% url 'ohc:application-form-action' application.reference section.definition.key action_state.definition.key %}">{{ action_state.definition.name }}</a>
+                           href="{% url 'staff:application-form-action' application.reference section.definition.key action_state.definition.key %}">{{ action_state.definition.name }}</a>
                       {% elif action_state.outcome_label %}
                         <span class="ui-badge ui-badge--success ui-badge--size-xs">{{ action_state.outcome_label }}</span>
                       {% endif %}
@@ -165,7 +165,7 @@
           {% for action_state in available_actions %}
             {% if action_state.definition.key == 'raise_query' %}
               <a class="ui-btn ui-btn--outline ui-btn--size-sm"
-                 href="{% url 'ohc:application-action' application.reference action_state.definition.key %}">{% translate "Raise query" %}</a>
+                 href="{% url 'staff:application-action' application.reference action_state.definition.key %}">{% translate "Raise query" %}</a>
             {% endif %}
           {% endfor %}
         </div>
@@ -173,7 +173,7 @@
           <ol class="divide-y divide-border">
             {% for thread in query_threads %}
               <li><a class="flex items-start justify-between gap-4 px-4 py-3.5 text-foreground no-underline hover:bg-muted-background"
-   href="{% url 'ohc:application-query' application.reference thread.pk %}"><span class="min-w-0"><span class="block truncate text-sm font-medium">{{ thread.subject }}</span><span class="mt-0.5 block text-xs text-soft-foreground">{% if thread.submission %}{{ thread.submission.form_key }} · {% endif %}Opened by {{ thread.opened_by.display_name }}</span></span><span class="ui-badge {% if thread.status == 'resolved' %}ui-badge--success{% elif thread.needs_attention %}ui-badge--warning{% else %}ui-badge--info{% endif %} ui-badge--size-xs shrink-0">{{ thread.get_status_display }}</span></a></li>
+   href="{% url 'staff:application-query' application.reference thread.pk %}"><span class="min-w-0"><span class="block truncate text-sm font-medium">{{ thread.subject }}</span><span class="mt-0.5 block text-xs text-soft-foreground">{% if thread.submission %}{{ thread.submission.form_key }} · {% endif %}Opened by {{ thread.opened_by.display_name }}</span></span><span class="ui-badge {% if thread.status == 'resolved' %}ui-badge--success{% elif thread.needs_attention %}ui-badge--warning{% else %}ui-badge--info{% endif %} ui-badge--size-xs shrink-0">{{ thread.get_status_display }}</span></a></li>
             {% endfor %}
           </ol>
         {% else %}

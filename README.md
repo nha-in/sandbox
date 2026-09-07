@@ -48,8 +48,8 @@ is safe; `--fresh` retires the previous set first.
 House rules worth knowing before the first PR:
 
 - **Views never write state.** Writes go through a service function ([01-backend.md](plan/01-backend.md) §1).
-- **Styling uses careui**, ported from [ohcnetwork/experience](https://github.com/ohcnetwork/experience): component classes live in `sandbox/static/css/careui.css`, colour comes from semantic tokens (`bg-primary`, `text-muted-foreground`, `border-border`) and never a raw hex. New components land there, not as utility soup in templates. Keep the file byte-compatible with upstream so fixes travel both ways.
-- **Forms render through `{% ui_field %}`** (`sandbox/theme/templatetags/careui.py`), which is also how allauth's own forms get styled. There is no crispy.
+- **Styling is a small component layer**: classes live in `theme/static_src/src/ui.css`, colour comes from semantic tokens (`bg-primary`, `text-muted-foreground`, `border-border`) and never a raw hex. New components land there, not as utility soup in templates.
+- **Forms render through `{% ui_field %}`** (`theme/templatetags/ui.py`), which is also how allauth's own forms get styled. There is no crispy.
 - **One verification gate** — `VerificationRequiredMiddleware` redirects staff without a TOTP device to MFA setup, and everyone else to OTP verification of email and phone.
 - **A DEBUG process cannot talk to shared infrastructure**; `config/settings/guards.py` refuses to boot.
 

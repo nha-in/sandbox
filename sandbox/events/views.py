@@ -1,6 +1,6 @@
 """Vendor-facing events — the list every partner sees, and one event's page.
 
-Events are authored by the OHC team and published to everybody, so there is no
+Events are authored by the review team and published to everybody, so there is no
 organisation scoping here; the only gate is being signed in. What a vendor may
 see is decided in selectors.py, which never leaves the published queryset.
 """

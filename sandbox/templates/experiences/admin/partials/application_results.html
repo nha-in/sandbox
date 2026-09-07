@@ -17,8 +17,8 @@
           {% for application in applications %}
             <tr class="hover:bg-muted-background {% if application.open_query_count %}bg-orange-50/70 dark:bg-orange-950/20{% endif %}">
               <td class="px-4 py-3.5"><a class="font-mono text-xs font-semibold"
-   href="{% url 'ohc:application-detail' application.reference %}"
-   hx-get="{% url 'ohc:application-detail' application.reference %}"
+   href="{% url 'staff:application-detail' application.reference %}"
+   hx-get="{% url 'staff:application-detail' application.reference %}"
    hx-target="#main-content"
    hx-select="#main-content"
    hx-swap="outerHTML"

@@ -32,7 +32,7 @@ SYSTEM_LABELS: dict[str, StrOrPromise] = {
     ProvisionedSystem.HIECM: _("Bridge"),
 }
 
-#: Ledger state -> the careui badge modifier that carries it.
+#: Ledger state -> the ui badge modifier that carries it.
 _BADGES = {
     ProvisionedResourceState.ACTIVE: "ui-badge--success",
     ProvisionedResourceState.FAILED: "ui-badge--destructive",

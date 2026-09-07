@@ -10,7 +10,7 @@ from .models import Priority
 from .models import Status
 from .models import Ticket
 
-# The two moves a vendor may make on their own ticket. Closing is the Care
+# The two moves a vendor may make on their own ticket. Closing is the review
 # team's call — a resolved ticket they disagree with can be reopened, which is
 # why reopening lives here and closing does not.
 VENDOR_STATUS_CHOICES = [

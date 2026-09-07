@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('kind', models.CharField(choices=[('reply', 'Reply'), ('event', 'Status change')], default='reply', max_length=10)),
                 ('body', models.TextField(verbose_name='Message')),
-                ('from_ohc_team', models.BooleanField(default=False, editable=False)),
+                ('from_staff_team', models.BooleanField(default=False, editable=False)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
             options={

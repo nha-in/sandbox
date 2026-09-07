@@ -113,7 +113,7 @@ LOCAL_APPS = [
     "sandbox.support",
     "sandbox.events",
     "sandbox.experiences",
-    "sandbox.ohc",
+    "sandbox.staff",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -236,7 +236,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "sandbox.users.context_processors.allauth_settings",
-                "sandbox.users.context_processors.ohc_team",
+                "sandbox.users.context_processors.console_user",
                 "sandbox.organisations.context_processors.current_organisation",
             ],
         },

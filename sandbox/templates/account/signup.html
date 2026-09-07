@@ -8,13 +8,13 @@
   Organisation field at all — the invite decides which organisation is joined —
   so every field reference below is guarded.
 {% endcomment %}
-{% load i18n careui %}
+{% load i18n ui %}
 
 {% block title %}
   {% translate "Create your vendor account" %}
 {% endblock title %}
 {% block meta_description %}
-  {% translate "Create a Care Experience Hub account for your team: a private sandbox, certification tracks, a support inbox and a deployment registry." %}
+  {% translate "Create a ABDM Sandbox Portal account for your team: a private sandbox, certification tracks, a support inbox and a deployment registry." %}
 {% endblock meta_description %}
 {% block content %}
   {% comment %}
@@ -58,7 +58,7 @@
           <span aria-hidden="true"
                 class="flex size-[22px] flex-none items-center justify-center rounded-full bg-primary-100 text-xs font-extrabold text-primary">✓</span>
           <span class="text-sm leading-[1.5]">
-            <strong class="font-semibold">{% translate "Support system" %}</strong>{% translate ": tickets answered by the Care team, with response-time SLAs." %}
+            <strong class="font-semibold">{% translate "Support system" %}</strong>{% translate ": tickets answered by the NHA team, with response-time SLAs." %}
           </span>
         </li>
       </ul>
@@ -71,7 +71,7 @@
       <div class="ui-card">
         <div class="ui-card-header">
           <h2 class="ui-card-title text-[17px] font-[650] tracking-[-0.01em]">{% translate "Create your vendor account" %}</h2>
-          <p class="ui-card-description text-[13px]">{% translate "Free for all OHC partners." %}</p>
+          <p class="ui-card-description text-[13px]">{% translate "Free for every ABDM integrator." %}</p>
         </div>
         <div class="ui-card-content">
           {% if invitation %}

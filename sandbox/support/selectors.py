@@ -1,6 +1,6 @@
 """Reads for the support screens.
 
-Queries live here rather than in the views so the vendor inbox and the OHC
+Queries live here rather than in the views so the vendor inbox and the staff
 console can ask the same questions of the same data. Every ticket read starts
 from `Ticket.objects.for_organisation(...)`: scoping is a property of the
 selector, not something each view is trusted to remember.
@@ -72,7 +72,7 @@ def median_first_response(
     *,
     days: int = RESPONSE_WINDOW_DAYS,
 ) -> timedelta | None:
-    """Median time to the Care team's first reply, or None if too few to say.
+    """Median time to the review team's first reply, or None if too few to say.
 
     Median rather than mean because one ticket opened over a long weekend would
     drag an average past anything a vendor actually experienced.

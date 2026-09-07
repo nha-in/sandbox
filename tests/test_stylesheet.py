@@ -1,11 +1,11 @@
 """Every `ui-*` class a template names must exist in the built stylesheet.
 
 Tailwind emits `@utility` rules on demand and says nothing about a class it has
-no rule for, so a typo or a variant that careui never defined renders as plain
+no rule for, so a typo or a variant that ui never defined renders as plain
 unstyled text. Three of these shipped before this test existed: `ui-btn--primary`
 (no such variant — every filled call to action in the app was unstyled),
 `ui-form-message` (form errors with no error colour) and a duplicate
-`ui-section-title` that quietly overrode careui's own.
+`ui-section-title` that quietly overrode ui's own.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ STYLESHEET = REPO / "sandbox" / "static" / "css" / "tailwind.css"
 TEMPLATES = REPO / "sandbox" / "templates"
 
 #: `class="ui-badge--{{ variant }}"` leaves this prefix behind. The variants it
-#: can actually produce are asserted in `sandbox/theme/tests/test_careui.py`.
+#: can actually produce are asserted in `sandbox/theme/tests/test_ui.py`.
 INTERPOLATED = re.compile(r"^ui-[a-z-]*--$")
 
 #: prose in template comments, not markup

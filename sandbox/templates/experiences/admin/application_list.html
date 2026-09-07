@@ -1,9 +1,9 @@
-{% extends "layouts/ohc.html" %}
+{% extends "layouts/staff.html" %}
 
-{% load i18n careui %}
+{% load i18n ui %}
 
 {% block title %}
-  {% translate "Application review" %} · {% translate "OHC Console" %}
+  {% translate "Application review" %} · {% translate "Staff Console" %}
 {% endblock title %}
 {% block page_header %}
   <div class="mb-5">
@@ -22,8 +22,8 @@
   </section>
   <form class="mb-4 flex flex-wrap items-end gap-2.5"
         method="get"
-        action="{% url 'ohc:applications' %}"
-        hx-get="{% url 'ohc:applications' %}"
+        action="{% url 'staff:applications' %}"
+        hx-get="{% url 'staff:applications' %}"
         hx-trigger="change, submit"
         hx-target="#application-results"
         hx-swap="outerHTML"

@@ -14,7 +14,7 @@ urlpatterns = [
     # User management
     path("", include("sandbox.users.urls", namespace="users")),
     path("", include("sandbox.organisations.urls", namespace="organisations")),
-    path("ohc/", include("sandbox.ohc.urls", namespace="ohc")),
+    path("staff/", include("sandbox.staff.urls", namespace="staff")),
     # Overrides allauth's own signup so an invitation token in the session
     # shapes the form; must precede the allauth include.
     path("accounts/signup/", user_signup_view, name="account_signup"),

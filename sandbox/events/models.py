@@ -37,7 +37,7 @@ class EventQuerySet(models.QuerySet["Event"]):
 class Event(models.Model):
     """A partner event — office hours, an upgrade webinar, a certification AMA.
 
-    Authored by the OHC team and visible to every vendor once published, so
+    Authored by the review team and visible to every vendor once published, so
     there is no per-organisation scoping here on purpose.
     """
 

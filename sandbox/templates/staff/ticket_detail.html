@@ -1,0 +1,28 @@
+{% extends "layouts/staff.html" %}
+
+{% comment %}
+  One ticket, worked from the review team's side.
+
+  Everything that can change — the badges, the thread, the reply box, the
+  control rail — lives inside staff/partials/ticket_workspace.html, which both
+  POST endpoints render back. The page keeps only the breadcrumb, which cannot
+  go stale.
+
+  Context: ticket, thread, reply_form, control_form.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}
+  {{ ticket.reference }} · {% translate "Staff Console" %}
+{% endblock title %}
+{% block page_header %}
+  <nav class="mb-3 text-[12.5px] text-soft-foreground"
+       aria-label="{% translate 'Breadcrumb' %}">
+    <a class="hover:underline" href="{% url 'staff:queue' %}">{% translate "Queue" %}</a>
+    <span aria-hidden="true">/</span>
+    <span class="font-mono">{{ ticket.reference }}</span>
+  </nav>
+{% endblock page_header %}
+{% block content %}
+  {% include "staff/partials/ticket_workspace.html" %}
+{% endblock content %}

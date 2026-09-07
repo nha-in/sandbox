@@ -11,7 +11,7 @@ from .managers import UserManager
 
 class User(AbstractUser):
     """
-    Default custom user model for OHC Experience.
+    Default custom user model for ABDM Sandbox Portal.
     If adding fields that need to be filled at user signup,
     check forms.SignupForm and forms.SocialSignupForms accordingly.
     """

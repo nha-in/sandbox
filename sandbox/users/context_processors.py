@@ -10,8 +10,8 @@ def allauth_settings(request):
     }
 
 
-def ohc_team(request):
-    """Whether the signed-in user works for OHC.
+def console_user(request):
+    """Whether the signed-in user reaches the staff console.
 
     The app shell reads this to offer the console link, so it has to be
     available on every page rather than passed view by view.

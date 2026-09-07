@@ -298,7 +298,7 @@ class ProductionDetails(ApplicationFormDefinition):
 class SubmitApplication(ApplicationAction):
     key = "submit"
     name = _("Submit for review")
-    description = _("Lock the completed application into the OHC review queue.")
+    description = _("Lock the completed application into the staff review queue.")
     required_permissions = {"perform": permission_keys.SUBMIT_APPLICATION}
     allowed_statuses = frozenset({"draft", "changes_requested"})
 
@@ -636,7 +636,7 @@ class ABDMProductionAccess(ApplicationDefinition):
         StatusDefinition(
             "under_review",
             _("Under review"),
-            _("The OHC team is reviewing the evidence."),
+            _("The review team is checking the evidence."),
             "warning",
         ),
         StatusDefinition(

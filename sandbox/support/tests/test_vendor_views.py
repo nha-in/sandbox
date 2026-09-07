@@ -404,13 +404,13 @@ def test_a_signed_in_user_with_no_organisation_is_refused_everywhere(
     assert not ticket.messages.exists()
 
 
-def test_a_vendor_is_refused_at_every_ohc_console_route(
+def test_a_vendor_is_refused_at_every_staff_console_route(
     vendor_client: Client,
     onboarded_organisation: Organisation,
 ):
     """The other side of the boundary this app sits on.
 
-    /ohc/ is one queue across every vendor, so a signed-in vendor who guesses a
+    /staff/ is one queue across every vendor, so a signed-in vendor who guesses a
     URL there is the worst case in the whole feature. 403 rather than a
     redirect, and — the part that matters — the console's two mutations write
     nothing when a vendor posts to them.
@@ -418,21 +418,21 @@ def test_a_vendor_is_refused_at_every_ohc_console_route(
     ticket = make_ticket(onboarded_organisation, status=Status.OPEN)
 
     reads = [
-        reverse("ohc:queue"),
-        reverse("ohc:ticket", kwargs={"reference": ticket.reference}),
-        reverse("ohc:events"),
-        reverse("ohc:event-create"),
+        reverse("staff:queue"),
+        reverse("staff:ticket", kwargs={"reference": ticket.reference}),
+        reverse("staff:events"),
+        reverse("staff:event-create"),
     ]
     for url in reads:
         assert vendor_client.get(url).status_code == HTTPStatus.FORBIDDEN, url
 
     writes = [
         (
-            reverse("ohc:ticket-reply", kwargs={"reference": ticket.reference}),
-            {"body": "Answering my own ticket as the Care team."},
+            reverse("staff:ticket-reply", kwargs={"reference": ticket.reference}),
+            {"body": "Answering my own ticket as the review team."},
         ),
         (
-            reverse("ohc:ticket-update", kwargs={"reference": ticket.reference}),
+            reverse("staff:ticket-update", kwargs={"reference": ticket.reference}),
             {"status": Status.CLOSED},
         ),
     ]
@@ -531,7 +531,7 @@ def test_a_reply_creates_a_message_and_moves_the_ticket_to_open(
     message = ticket.messages.get()
     assert message.body == "Secret rotated — deliveries resumed."
     assert message.author == vendor
-    assert message.from_ohc_team is False
+    assert message.from_staff_team is False
     assert message.kind == TicketMessage.Kind.REPLY
 
 
@@ -612,7 +612,7 @@ def test_resolving_sets_resolved_and_writes_an_event_entry(
     assert entry.is_event
     assert entry.body == str(Status.RESOLVED.label)
     assert entry.author == vendor
-    assert entry.from_ohc_team is False
+    assert entry.from_staff_team is False
 
 
 def test_reopening_moves_a_resolved_ticket_back_to_open(
@@ -714,7 +714,7 @@ def test_the_new_ticket_form_ignores_the_fields_a_vendor_does_not_own(
     are not on the form at all. This posts all of them anyway.
     """
     other = OrganisationFactory.create(name="Rival Health Systems", onboarded=True)
-    ohc_person = UserFactory.create(is_staff=True)
+    staff_person = UserFactory.create(is_staff=True)
 
     vendor_client.post(
         CREATE_URL,
@@ -726,7 +726,7 @@ def test_the_new_ticket_form_ignores_the_fields_a_vendor_does_not_own(
             "body": "They used to last a day.",
             "organisation": other.pk,
             "status": Status.CLOSED,
-            "assignee": ohc_person.pk,
+            "assignee": staff_person.pk,
             "reference": "TKT-1",
         },
     )

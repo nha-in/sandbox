@@ -6,7 +6,7 @@ vendor simply is not in it and resolves as a 404. That is deliberate — a 403
 would confirm the ticket exists, and a reference is guessable.
 
 State never moves in this module. `post_reply()` and `record_status_change()`
-in the model layer own that, so the inbox, the OHC console and the admin all
+in the model layer own that, so the inbox, the Staff console and the admin all
 move a ticket the same way.
 
 htmx is layered on top and nothing depends on it: each action keeps a real
@@ -139,7 +139,7 @@ class TicketCreateView(SupportMixin, CreateView):
             ticket,
             self.request.user,
             form.cleaned_data["body"],
-            from_ohc_team=False,
+            from_staff_team=False,
         )
         self.object = ticket
         messages.success(
@@ -219,7 +219,7 @@ class TicketReplyView(ThreadActionView):
             ticket,
             request.user,
             form.cleaned_data["body"],
-            from_ohc_team=False,
+            from_staff_team=False,
         )
         messages.success(request, _("Your reply was added to the ticket."))
         if request.htmx:
@@ -230,7 +230,7 @@ class TicketReplyView(ThreadActionView):
 class TicketStatusView(ThreadActionView):
     """Resolve or reopen. `record_status_change` writes the thread entry.
 
-    The form's choices are the guard: CLOSED belongs to the Care team, so a
+    The form's choices are the guard: CLOSED belongs to the review team, so a
     POST asking for it never validates and never reaches the model layer.
     """
 

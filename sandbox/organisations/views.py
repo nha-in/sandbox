@@ -53,16 +53,16 @@ class OrganisationMixin(LoginRequiredMixin):
             return super().dispatch(request, *args, **kwargs)
         self.membership = get_membership_for(request.user)
         if self.membership is None:
-            # OHC staff routinely have no vendor account. Sending them to the
+            # Staff routinely have no vendor account. Sending them to the
             # console beats a 403 that reads as breakage on a page they were
             # never meant to open. Staff who *do* belong to a vendor keep the
             # vendor route; the console stays one click away in the sidebar.
             if is_console_user(request.user):
                 messages.info(
                     request,
-                    _("That is a vendor page. Here is the OHC console instead."),
+                    _("That is a vendor page. Here is the Staff console instead."),
                 )
-                return redirect("ohc:queue")
+                return redirect("staff:queue")
             msg = _("You are not a member of any organisation.")
             raise PermissionDenied(msg)
         self.organisation = self.membership.organisation

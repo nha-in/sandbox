@@ -33,7 +33,7 @@ class Status(models.TextChoices):
     """The four states from the support inbox screen.
 
     AWAITING_VENDOR is written from the vendor's point of view ("Awaiting your
-    reply"); the OHC console relabels it, because on the queue side the same
+    reply"); the Staff console relabels it, because on the queue side the same
     state means the ball is in the vendor's court.
     """
 
@@ -47,7 +47,7 @@ class Status(models.TextChoices):
         return [cls.OPEN, cls.AWAITING_VENDOR]
 
 
-# Badge variant per status, so the vendor inbox and the OHC queue never drift.
+# Badge variant per status, so the vendor inbox and the staff queue never drift.
 STATUS_VARIANTS = {
     Status.OPEN: "info",
     Status.AWAITING_VENDOR: "warning",
@@ -68,7 +68,7 @@ class TicketQuerySet(models.QuerySet["Ticket"]):
     def open_only(self) -> TicketQuerySet:
         return self.filter(status__in=Status.active())
 
-    def awaiting_ohc(self) -> TicketQuerySet:
+    def awaiting_staff(self) -> TicketQuerySet:
         """Tickets whose last word came from the vendor — the queue's real work."""
         return self.filter(status=Status.OPEN)
 
@@ -77,7 +77,7 @@ class TicketQuerySet(models.QuerySet["Ticket"]):
 
 
 class Ticket(models.Model):
-    """A support conversation between one vendor organisation and the Care team."""
+    """A support conversation between one vendor organisation and the review team."""
 
     reference = models.CharField(
         _("Reference"),
@@ -124,7 +124,7 @@ class Ticket(models.Model):
         blank=True,
         related_name="tickets_assigned",
         verbose_name=_("Assignee"),
-        # Only OHC staff answer tickets, so the picker never offers a vendor.
+        # Only Staff answer tickets, so the picker never offers a vendor.
         limit_choices_to={"is_staff": True},
     )
     linked_facility = models.CharField(
@@ -200,7 +200,7 @@ class Ticket(models.Model):
 
     @property
     def queue_status_label(self) -> str:
-        """The same state, read from the Care team's side of the conversation."""
+        """The same state, read from the review team's side of the conversation."""
         if self.status == Status.AWAITING_VENDOR:
             return _("Awaiting vendor")
         if self.status == Status.OPEN:
@@ -231,8 +231,8 @@ class TicketMessage(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.REPLY)
     body = models.TextField(_("Message"))
     # Denormalised so a reply still reads correctly if the author later joins or
-    # leaves the OHC team.
-    from_ohc_team = models.BooleanField(default=False, editable=False)
+    # leaves the review team.
+    from_staff_team = models.BooleanField(default=False, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -259,12 +259,12 @@ def post_reply(
     author,
     body: str,
     *,
-    from_ohc_team: bool,
+    from_staff_team: bool,
 ) -> TicketMessage:
     """Add a reply and move the ticket to the other party's court.
 
-    A vendor reply reopens the ticket; an OHC reply puts it on the vendor. This
-    lives here rather than in a view so the vendor inbox, the OHC console and
+    A vendor reply reopens the ticket; a staff reply puts it on the vendor. This
+    lives here rather than in a view so the vendor inbox, the Staff console and
     the admin all move a ticket the same way.
     """
     message = TicketMessage.objects.create(
@@ -272,11 +272,11 @@ def post_reply(
         author=author,
         body=body,
         kind=TicketMessage.Kind.REPLY,
-        from_ohc_team=from_ohc_team,
+        from_staff_team=from_staff_team,
     )
     updates = ["status", "updated_at"]
-    ticket.status = Status.AWAITING_VENDOR if from_ohc_team else Status.OPEN
-    if from_ohc_team and ticket.first_responded_at is None:
+    ticket.status = Status.AWAITING_VENDOR if from_staff_team else Status.OPEN
+    if from_staff_team and ticket.first_responded_at is None:
         ticket.first_responded_at = timezone.now()
         updates.append("first_responded_at")
     ticket.save(update_fields=updates)
@@ -297,5 +297,5 @@ def record_status_change(ticket: Ticket, author, status: str) -> TicketMessage:
         author=author,
         kind=TicketMessage.Kind.EVENT,
         body=str(label),
-        from_ohc_team=bool(getattr(author, "is_staff", False)),
+        from_staff_team=bool(getattr(author, "is_staff", False)),
     )

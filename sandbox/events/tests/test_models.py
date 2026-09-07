@@ -189,20 +189,20 @@ class TestProperties:
 
 class TestSlug:
     def test_the_slug_is_built_from_the_title(self):
-        event = make_event("Care API office hours", starts_in=timedelta(days=1))
+        event = make_event("ABDM API office hours", starts_in=timedelta(days=1))
 
-        assert event.slug == "care-api-office-hours"
+        assert event.slug == "abdm-api-office-hours"
 
     def test_a_repeated_title_gets_a_numbered_slug(self):
         slugs = [
-            make_event("Care API office hours", starts_in=timedelta(days=1)).slug
+            make_event("ABDM API office hours", starts_in=timedelta(days=1)).slug
             for _ in range(3)
         ]
 
         assert slugs == [
-            "care-api-office-hours",
-            "care-api-office-hours-2",
-            "care-api-office-hours-3",
+            "abdm-api-office-hours",
+            "abdm-api-office-hours-2",
+            "abdm-api-office-hours-3",
         ]
 
 

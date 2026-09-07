@@ -50,12 +50,12 @@ def _holding(role, email):
 
 
 @pytest.fixture
-def ohc_user(decision_maker_role):
+def staff_user(decision_maker_role):
     return _holding(decision_maker_role, "reviewer@nha.gov.in")
 
 
 @pytest.fixture
-def abdm_application(owner_user, ohc_user):
+def abdm_application(owner_user, staff_user):
     organisation = OrganisationFactory(onboarded=True)
     Membership.objects.create(
         organisation=organisation,
@@ -69,9 +69,9 @@ def abdm_application(owner_user, ohc_user):
     )
     ApplicationAccess.objects.create(
         application=application,
-        user=ohc_user,
+        user=staff_user,
         role_key="decision_maker",
-        granted_by=ohc_user,
+        granted_by=staff_user,
     )
     return application
 
@@ -88,7 +88,7 @@ def test_an_action_declaring_no_effects_behaves_exactly_as_before():
 
 def test_effects_run_only_after_the_transaction_commits(
     abdm_application,
-    ohc_user,
+    staff_user,
     monkeypatch,
     django_capture_on_commit_callbacks,
 ):
@@ -105,7 +105,7 @@ def test_effects_run_only_after_the_transaction_commits(
         perform_application_action(
             application=abdm_application,
             action_key="start_review",
-            user=ohc_user,
+            user=staff_user,
         )
         # The action has returned, and the effect has still not run: it is
         # queued against the commit, which is the whole point of E1.
@@ -117,7 +117,7 @@ def test_effects_run_only_after_the_transaction_commits(
 
 def test_an_effect_is_given_the_application_and_the_actor(
     abdm_application,
-    ohc_user,
+    staff_user,
     monkeypatch,
     django_capture_on_commit_callbacks,
 ):
@@ -135,10 +135,10 @@ def test_an_effect_is_given_the_application_and_the_actor(
         perform_application_action(
             application=abdm_application,
             action_key="start_review",
-            user=ohc_user,
+            user=staff_user,
         )
 
-    assert seen == [(abdm_application.pk, ohc_user.pk)]
+    assert seen == [(abdm_application.pk, staff_user.pk)]
 
 
 # ── §5: NHA roles are data, permissions are code ────────────────────────────

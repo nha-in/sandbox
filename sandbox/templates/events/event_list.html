@@ -1,7 +1,7 @@
 {% extends "layouts/app.html" %}
 
 {% comment %}
-  Events — what the OHC team has scheduled for partners.
+  Events — what the review team has scheduled for partners.
 
   Only published events reach this page; the view builds both lists from
   events.selectors, which never leaves the published queryset.
@@ -22,7 +22,7 @@
   <div class="mb-5">
     <h1 class="ui-page-title">{% translate "Events" %}</h1>
     <p class="ui-page-subtitle max-w-[62ch]">
-      {% translate "Partner office hours, release webinars and certification AMAs, run by the OHC team. Everything here is open to every vendor." %}
+      {% translate "Partner office hours, release webinars and certification AMAs, run by the review team. Everything here is open to every vendor." %}
     </p>
   </div>
 {% endblock page_header %}
@@ -50,7 +50,7 @@
           </svg>
         </span>
         <p class="text-[13px] leading-relaxed text-muted-foreground">
-          {% translate "Nothing is scheduled right now. New office hours and webinars appear here as soon as the OHC team announces the dates." %}
+          {% translate "Nothing is scheduled right now. New office hours and webinars appear here as soon as the review team announces the dates." %}
         </p>
       </div>
     {% endif %}

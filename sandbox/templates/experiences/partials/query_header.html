@@ -19,8 +19,8 @@
       <span class="ui-badge {% if thread.status == 'resolved' %}ui-badge--success{% elif query_needs_attention %}ui-badge--warning{% else %}ui-badge--info{% endif %} ui-badge--size-sm">{{ thread.get_status_display }}</span>
       {% if can_resolve %}
         <form method="post"
-              action="{% url 'ohc:application-query-resolve' application.reference thread.pk %}"
-              hx-post="{% url 'ohc:application-query-resolve' application.reference thread.pk %}"
+              action="{% url 'staff:application-query-resolve' application.reference thread.pk %}"
+              hx-post="{% url 'staff:application-query-resolve' application.reference thread.pk %}"
               hx-target="#query-workspace"
               hx-swap="outerHTML"
               hx-disabled-elt="find button[type=submit]"

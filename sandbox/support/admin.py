@@ -7,7 +7,7 @@ from .models import TicketMessage
 class TicketMessageInline(admin.TabularInline):
     model = TicketMessage
     extra = 0
-    readonly_fields = ["created_at", "from_ohc_team"]
+    readonly_fields = ["created_at", "from_staff_team"]
 
 
 @admin.register(Ticket)

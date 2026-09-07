@@ -273,7 +273,7 @@ ROUTES: dict[str, Route] = {
     "support:detail": Route(Access.ORG_SCOPED, kwargs=_ticket),
     "support:reply": Route(Access.ORG_SCOPED, kwargs=_ticket, methods=("POST",)),
     # `TicketStatusForm` is the guard on *what* may be asked — closing is the
-    # Care team's call — so a body is needed to ask *who* may ask at all.
+    # NHA team's call — so a body is needed to ask *who* may ask at all.
     "support:status": Route(
         Access.ORG_SCOPED,
         kwargs=_ticket,
@@ -284,35 +284,35 @@ ROUTES: dict[str, Route] = {
     "events:list": Route(Access.AUTHENTICATED),
     "events:detail": Route(Access.AUTHENTICATED, kwargs=_event_slug),
     # The console
-    "ohc:queue": Route(Access.CONSOLE),
-    "ohc:applications": Route(Access.CONSOLE),
-    "ohc:application-detail": Route(Access.CONSOLE, kwargs=_reference),
-    "ohc:application-action": Route(Access.CONSOLE, kwargs=_console_action),
-    "ohc:application-form-action": Route(
+    "staff:queue": Route(Access.CONSOLE),
+    "staff:applications": Route(Access.CONSOLE),
+    "staff:application-detail": Route(Access.CONSOLE, kwargs=_reference),
+    "staff:application-action": Route(Access.CONSOLE, kwargs=_console_action),
+    "staff:application-form-action": Route(
         Access.CONSOLE,
         kwargs=_form_action,
         known_gap="no form declares actions yet, so every actor gets 404",
     ),
-    "ohc:application-query": Route(Access.CONSOLE, kwargs=_query),
-    "ohc:application-query-resolve": Route(
+    "staff:application-query": Route(Access.CONSOLE, kwargs=_query),
+    "staff:application-query-resolve": Route(
         Access.CONSOLE,
         kwargs=_query,
         methods=("POST",),
     ),
-    "ohc:ticket": Route(Access.CONSOLE, kwargs=_ticket),
-    "ohc:ticket-reply": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
-    "ohc:ticket-update": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
-    "ohc:organisations": Route(Access.CONSOLE),
-    "ohc:organisation": Route(Access.CONSOLE, kwargs=_organisation_slug),
-    "ohc:organisation-verification": Route(
+    "staff:ticket": Route(Access.CONSOLE, kwargs=_ticket),
+    "staff:ticket-reply": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
+    "staff:ticket-update": Route(Access.CONSOLE, kwargs=_ticket, methods=("POST",)),
+    "staff:organisations": Route(Access.CONSOLE),
+    "staff:organisation": Route(Access.CONSOLE, kwargs=_organisation_slug),
+    "staff:organisation-verification": Route(
         Access.CONSOLE,
         kwargs=_organisation_slug,
         methods=("POST",),
     ),
-    "ohc:events": Route(Access.CONSOLE),
-    "ohc:event-create": Route(Access.CONSOLE),
-    "ohc:event-update": Route(Access.CONSOLE, kwargs=_event_slug),
-    "ohc:event-publish": Route(
+    "staff:events": Route(Access.CONSOLE),
+    "staff:event-create": Route(Access.CONSOLE),
+    "staff:event-update": Route(Access.CONSOLE, kwargs=_event_slug),
+    "staff:event-publish": Route(
         Access.CONSOLE,
         kwargs=_event_slug,
         methods=("POST",),
@@ -467,7 +467,7 @@ def _assert_console(actor, response, where):
 
 def _assert_tenant_member(actor, response, where):
     # Both vendors reach their own. An actor with no organisation is turned
-    # away — for the OHC team that is a redirect to the console rather than a
+    # away — for the review team that is a redirect to the console rather than a
     # 403, which `OrganisationMixin` chooses deliberately.
     if actor in STAFF_ACTORS:
         assert _refused(response), (

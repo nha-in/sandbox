@@ -50,7 +50,7 @@ class OrganisationQuerySet(models.QuerySet["Organisation"]):
         return self.filter(memberships__user=user)
 
     def for_console(self) -> OrganisationQuerySet:
-        """The OHC console's list: undecided vendors first, then alphabetical.
+        """The Staff console's list: undecided vendors first, then alphabetical.
 
         A vendor waiting on verification is the only row on that screen anyone
         has to act on, so it floats to the top rather than sitting wherever the
@@ -148,7 +148,7 @@ class Organisation(models.Model):
     deployment_regions = models.TextField(
         _("Deployment regions"),
         blank=True,
-        help_text=_("States/UTs where you deploy or plan to deploy Care."),
+        help_text=_("States/UTs where you deploy or plan to deploy your product."),
     )
 
     # Technical contact — receives sandbox resets, credential rotations, changelogs.
@@ -275,7 +275,7 @@ class Organisation(models.Model):
     def verification_variant(self) -> str:
         """The badge variant for this status — one mapping, every screen.
 
-        The vendor's settings page and the OHC console draw the same badge, and
+        The vendor's settings page and the Staff console draw the same badge, and
         a three-way branch written out in each template is a branch that drifts.
         """
         return {
@@ -284,7 +284,7 @@ class Organisation(models.Model):
         }.get(self.verification_status, "warning")
 
     def set_verification(self, status: str) -> bool:
-        """Record the OHC team's decision. True when something actually moved.
+        """Record the review team's decision. True when something actually moved.
 
         `verified_at` is the date shown beside the badge, so it belongs to the
         verified state and to nothing else: a vendor moved back to pending or

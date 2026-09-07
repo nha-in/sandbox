@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='event',
             name='created_by',
-            field=models.ForeignKey(blank=True, limit_choices_to={'is_ohc_team': True}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='events_created', to=settings.AUTH_USER_MODEL, verbose_name='Created by'),
+            field=models.ForeignKey(blank=True, limit_choices_to={'is_staff': True}, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='events_created', to=settings.AUTH_USER_MODEL, verbose_name='Created by'),
         ),
         migrations.AddIndex(
             model_name='event',

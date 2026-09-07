@@ -36,7 +36,7 @@ pytestmark = pytest.mark.django_db
 SEEDED_TICKETS = 8
 SEEDED_EVENTS = 4
 SEEDED_ACCOUNTS = 3
-# Seven of the eight threads get an OHC reply; one is still waiting.
+# Seven of the eight threads get a staff reply; one is still waiting.
 ANSWERED_TICKETS = 7
 RESOLVED_TICKETS = 4
 STATUS_CHANGE_ENTRIES = 6
@@ -44,7 +44,7 @@ UPCOMING_EVENTS = 2
 PAST_EVENTS = 1
 DRAFT_EVENTS = 1
 
-OHC_EMAIL = "anand@ohc.network"
+STAFF_EMAIL = "anand@nha.gov.in"
 OWNER_EMAIL = "meera@arogyasystems.in"
 DEVELOPER_EMAIL = "rahul@arogyasystems.in"
 
@@ -156,21 +156,21 @@ class TestTheCredentials:
     def test_the_printed_password_signs_in(self):
         output = seed()
 
-        for email in (OHC_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL):
+        for email in (STAFF_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL):
             assert email in output
             assert User.objects.get(email=email).check_password(DEFAULT_PASSWORD)
 
     def test_every_account_has_a_verified_address(self):
         seed()
 
-        for email in (OHC_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL):
+        for email in (STAFF_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL):
             address = EmailAddress.objects.get(email=email)
             assert address.verified is True
             assert address.primary is True
 
     @pytest.mark.parametrize(
         "email",
-        [OHC_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL],
+        [STAFF_EMAIL, OWNER_EMAIL, DEVELOPER_EMAIL],
     )
     def test_each_account_can_actually_sign_in(self, client, email: str):
         seed()
@@ -191,13 +191,13 @@ class TestTheCredentials:
 
         response = client.post(
             reverse("account_login"),
-            {"login": OHC_EMAIL, "password": DEFAULT_PASSWORD},
+            {"login": STAFF_EMAIL, "password": DEFAULT_PASSWORD},
         )
 
         assert response.status_code == HTTPStatus.FOUND
         assert response.wsgi_request.user.is_authenticated
 
-    def test_the_seeded_ohc_account_reaches_the_console(self, client, enable_mfa):
+    def test_the_seeded_staff_account_reaches_the_console(self, client, enable_mfa):
         """The end the command is actually selling: sign in, land on the queue.
 
         The seeder leaves TOTP unset on purpose, so the first login meets
@@ -207,12 +207,12 @@ class TestTheCredentials:
         seed()
         client.post(
             reverse("account_login"),
-            {"login": OHC_EMAIL, "password": DEFAULT_PASSWORD},
+            {"login": STAFF_EMAIL, "password": DEFAULT_PASSWORD},
         )
 
-        before_setup = client.get(reverse("ohc:queue"))
-        enable_mfa(get_user_model().objects.get(email=OHC_EMAIL))
-        after_setup = client.get(reverse("ohc:queue"))
+        before_setup = client.get(reverse("staff:queue"))
+        enable_mfa(get_user_model().objects.get(email=STAFF_EMAIL))
+        after_setup = client.get(reverse("staff:queue"))
 
         assert before_setup.status_code == HTTPStatus.FOUND
         assert "totp" in before_setup.url
@@ -225,20 +225,20 @@ class TestTheCredentials:
             {"login": OWNER_EMAIL, "password": DEFAULT_PASSWORD},
         )
 
-        response = client.get(reverse("ohc:queue"))
+        response = client.get(reverse("staff:queue"))
 
         assert response.status_code == HTTPStatus.FORBIDDEN
 
-    def test_the_ohc_account_can_reach_the_console_and_the_admin(self):
+    def test_the_staff_account_can_reach_the_console_and_the_admin(self):
         seed()
 
-        anand = User.objects.get(email=OHC_EMAIL)
+        anand = User.objects.get(email=STAFF_EMAIL)
 
         assert anand.is_staff is True
         assert anand.is_superuser is False
 
-    def test_the_vendor_accounts_are_not_ohc_team(self):
-        """A seeded vendor must not be able to open the OHC console."""
+    def test_the_vendor_accounts_are_not_staff(self):
+        """A seeded vendor must not be able to open the Staff console."""
         seed()
 
         for email in (OWNER_EMAIL, DEVELOPER_EMAIL):
@@ -247,14 +247,14 @@ class TestTheCredentials:
     def test_an_override_password_is_the_one_that_works(self):
         seed("--password", "another-dev-password")
 
-        assert User.objects.get(email=OHC_EMAIL).check_password(
+        assert User.objects.get(email=STAFF_EMAIL).check_password(
             "another-dev-password",
         )
-        assert not User.objects.get(email=OHC_EMAIL).check_password(DEFAULT_PASSWORD)
+        assert not User.objects.get(email=STAFF_EMAIL).check_password(DEFAULT_PASSWORD)
 
     def test_a_rerun_reasserts_the_printed_password(self):
         seed()
-        anand = User.objects.get(email=OHC_EMAIL)
+        anand = User.objects.get(email=STAFF_EMAIL)
         anand.set_password("changed-by-hand")
         anand.save()
 
@@ -326,7 +326,7 @@ class TestItRespectsExistingData:
         Organisation.objects.create(name="Beta Health Systems")
         # Third by created_at, so outside the earliest-two window the seeder
         # targets — this command never writes here.
-        untargeted = Organisation.objects.create(name="Zenith Care Labs")
+        untargeted = Organisation.objects.create(name="Zenith Health Labs")
         seed()
         theirs = Ticket.objects.create(
             organisation=untargeted,

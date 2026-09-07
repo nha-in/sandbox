@@ -69,9 +69,9 @@ class TestUserAdmin:
 
 
 @pytest.fixture
-def ohc_member(db) -> User:
+def staff_member(db) -> User:
     return UserFactory.create(
-        email="anand@ohc.network",
+        email="anand@nha.gov.in",
         name="Anand S",
         is_staff=True,
     )
@@ -90,8 +90,8 @@ def vendor_member(db) -> User:
 
 @pytest.fixture
 def staff_but_not_superuser(db) -> User:
-    """Someone who can reach the admin but may not mint OHC accounts."""
-    return UserFactory.create(email="desk@ohc.network", is_staff=True)
+    """Someone who can reach the admin but may not mint staff accounts."""
+    return UserFactory.create(email="desk@nha.gov.in", is_staff=True)
 
 
 def changelist_emails(response) -> set[str]:
@@ -99,18 +99,18 @@ def changelist_emails(response) -> set[str]:
 
 
 class TestUserChangelist:
-    def test_it_lists_both_populations(self, admin_client, ohc_member, vendor_member):
+    def test_it_lists_both_populations(self, admin_client, staff_member, vendor_member):
         url = reverse("admin:users_user_changelist")
 
         response = admin_client.get(url)
 
         assert response.status_code == HTTPStatus.OK
-        assert {ohc_member.email, vendor_member.email} <= changelist_emails(response)
+        assert {staff_member.email, vendor_member.email} <= changelist_emails(response)
 
     def test_django_s_own_staff_filter_narrows_to_the_console(
         self,
         admin_client,
-        ohc_member,
+        staff_member,
         vendor_member,
     ):
         """The bespoke account-type filter went with `is_ohc_team`: staff is the
@@ -120,20 +120,20 @@ class TestUserChangelist:
         response = admin_client.get(url, data={"is_staff__exact": "1"})
         emails = changelist_emails(response)
 
-        assert ohc_member.email in emails
+        assert staff_member.email in emails
         assert vendor_member.email not in emails
 
-    def test_the_columns_name_the_organisations(self, ohc_member, vendor_member):
+    def test_the_columns_name_the_organisations(self, staff_member, vendor_member):
         user_admin = admin.site.get_model_admin(User)
 
         assert user_admin.organisation_names(vendor_member) == "Arogya Systems"
-        assert user_admin.organisation_names(ohc_member) == "—"
+        assert user_admin.organisation_names(staff_member) == "—"
 
 
 class TestVendorsAreLockedOutOfTheAdmin:
     """A vendor is not staff, so the admin refuses them at the door.
 
-    The console gate is asserted in `ohc/tests/test_views.py`; this is the other
+    The console gate is asserted in `staff/tests/test_views.py`; this is the other
     half of the same boundary. It matters more than it did: `is_staff` now opens
     the console as well as the admin, so one flag is the whole platform side.
     """

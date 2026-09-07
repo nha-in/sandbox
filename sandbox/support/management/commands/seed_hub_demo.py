@@ -1,4 +1,4 @@
-"""Seed a clickable demo of the vendor hub: an OHC team member, tickets, events.
+"""Seed a clickable demo of the vendor hub: an staff member, tickets, events.
 
 Development helper. Every row is keyed on a natural key — an email, an
 organisation slug, an (organisation, subject) pair, an event slug — so running
@@ -36,10 +36,10 @@ User = get_user_model()
 
 # Documented dev password. Override with --password; never used outside a
 # developer machine, where the whole point is that the accounts are shareable.
-DEFAULT_PASSWORD = "ohc-demo-pass-2026"  # noqa: S105
+DEFAULT_PASSWORD = "staff-demo-pass-2026"  # noqa: S105
 
-OHC_EMAIL = "anand@ohc.network"
-OHC_NAME = "Anand S"
+STAFF_EMAIL = "anand@nha.gov.in"
+STAFF_NAME = "Anand S"
 
 DEMO_ORGANISATION_NAME = "Arogya Systems"
 DEMO_ORGANISATION_SLUG = "arogya-systems"
@@ -53,7 +53,7 @@ DEMO_DEVELOPER_NAME = "Rahul Nair"
 MAX_DEMO_ORGANISATIONS = 2
 
 VENDOR = "vendor"
-OHC = "ohc"
+STAFF = "staff"
 
 
 @dataclass(frozen=True)
@@ -111,7 +111,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "on Thursday and need to know whether to reseed.",
             ),
             Turn(
-                OHC,
+                STAFF,
                 5,
                 "The sandbox was refreshed on Monday as part of the 25.9 rollout. "
                 "Seeded data does not survive a refresh — please reseed from your "
@@ -139,7 +139,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "8f2c1a94-7f3d-4d0e-9d55-2f6a1c0b77aa if you want to trace it.",
             ),
             Turn(
-                OHC,
+                STAFF,
                 3,
                 "Traced it — the refresh call is being sent to the v1 host while "
                 "the link call goes to v2, and the two do not share a token. "
@@ -152,7 +152,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "401 on the consent fetch about once in twenty calls.",
             ),
             Turn(
-                OHC,
+                STAFF,
                 26,
                 "That one is a clock skew on your side: tokens issued less than a "
                 "second before use fail validation. Can you send the NTP offset "
@@ -174,7 +174,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "certification checklist?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 19,
                 "All six flows, with the REQUEST-ID visible in each capture. The "
                 "checklist lists the four that are usually missed, not the full "
@@ -187,12 +187,12 @@ TICKET_SPECS: list[TicketSpec] = [
                 "to show the same environment as the captures?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 44,
                 "Yes — same sandbox, same day if you can manage it. Your pack "
                 "looks complete otherwise, so go ahead and submit.",
             ),
-            Turn(OHC, 60, status=Status.RESOLVED),
+            Turn(STAFF, 60, status=Status.RESOLVED),
         ],
     ),
     TicketSpec(
@@ -210,7 +210,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "work from the single-facility one?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 8,
                 "There is a district variant — attached to the deployment guide "
                 "under 'multi-facility'. The differences are the shared master "
@@ -223,13 +223,13 @@ TICKET_SPECS: list[TicketSpec] = [
                 "have; can we bulk import in one pass for eleven facilities?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 33,
                 "One pass is fine at that size. Keep the batches under 2,000 "
                 "users and run them outside clinic hours.",
             ),
-            Turn(OHC, 50, status=Status.RESOLVED),
-            Turn(OHC, 120, status=Status.CLOSED),
+            Turn(STAFF, 50, status=Status.RESOLVED),
+            Turn(STAFF, 120, status=Status.CLOSED),
         ],
     ),
     TicketSpec(
@@ -246,13 +246,13 @@ TICKET_SPECS: list[TicketSpec] = [
                 "company profile?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 26,
                 "Reissued this morning against the GSTIN on file. The old "
                 "invoice is voided, so please discard it.",
             ),
             Turn(VENDOR, 40, "Received and processed. Thank you."),
-            Turn(OHC, 48, status=Status.RESOLVED),
+            Turn(STAFF, 48, status=Status.RESOLVED),
         ],
     ),
     TicketSpec(
@@ -269,7 +269,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "the same ceiling?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 11,
                 "Sandbox is 30 requests a second per client, production is "
                 "negotiated per deployment. Tell us the peak you expect in "
@@ -307,7 +307,7 @@ TICKET_SPECS: list[TicketSpec] = [
                 "trigger a retry storm?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 4,
                 "Expected, and blunter than it should be: we retry for two hours "
                 "with a fixed one-minute gap. Make the handler idempotent on the "
@@ -319,36 +319,36 @@ TICKET_SPECS: list[TicketSpec] = [
                 "Handler is idempotent now. Is exponential backoff on the roadmap?",
             ),
             Turn(
-                OHC,
+                STAFF,
                 15,
                 "It is — scheduled for the next platform release. We will note "
                 "it in the changelog when it lands.",
             ),
-            Turn(OHC, 20, status=Status.RESOLVED),
-            Turn(OHC, 96, status=Status.CLOSED),
+            Turn(STAFF, 20, status=Status.RESOLVED),
+            Turn(STAFF, 96, status=Status.CLOSED),
         ],
     ),
 ]
 
 EVENT_SPECS: list[EventSpec] = [
     EventSpec(
-        slug="care-api-office-hours",
-        title="Care API office hours",
+        slug="abdm-api-office-hours",
+        title="ABDM API office hours",
         kind=Event.Kind.OFFICE_HOURS,
         summary="Bring an integration problem, leave with an answer.",
         description=(
-            "An open hour with the Care platform team. No agenda — queue up "
+            "An open hour with the ABDM platform team. No agenda — queue up "
             "with whatever is blocking your integration and we work through it "
             "together."
         ),
         starts_in_days=4,
         duration_hours=1,
         published_days_ago=12,
-        join_url="https://meet.ohc.network/office-hours",
+        join_url="https://meet.nha.gov.in/office-hours",
     ),
     EventSpec(
-        slug="care-25-9-upgrade-webinar",
-        title="Upgrade webinar: what changes in Care 25.9",
+        slug="sandbox-25-9-upgrade-webinar",
+        title="Upgrade webinar: what changes in the sandbox 25.9",
         kind=Event.Kind.WEBINAR,
         summary="Breaking changes, the migration path, and the deprecation clock.",
         description=(
@@ -359,7 +359,7 @@ EVENT_SPECS: list[EventSpec] = [
         starts_in_days=11,
         duration_hours=1.5,
         published_days_ago=6,
-        join_url="https://meet.ohc.network/upgrade-webinar",
+        join_url="https://meet.nha.gov.in/upgrade-webinar",
     ),
     EventSpec(
         slug="abdm-m1-certification-ama",
@@ -375,15 +375,15 @@ EVENT_SPECS: list[EventSpec] = [
         starts_in_days=-9,
         duration_hours=1,
         published_days_ago=30,
-        join_url="https://meet.ohc.network/m1-ama",
+        join_url="https://meet.nha.gov.in/m1-ama",
     ),
     EventSpec(
         slug="district-deployment-workshop",
-        title="Workshop: deploying Care across a district",
+        title="Workshop: deploying ABDM across a district",
         kind=Event.Kind.WORKSHOP,
         summary="Draft — dates and venue still being confirmed.",
         description=(
-            "A hands-on day for teams taking Care live across more than one "
+            "A hands-on day for teams going live across more than one "
             "facility: master data, staged user imports, and the fortnight of "
             "hypercare that follows."
         ),
@@ -393,7 +393,7 @@ EVENT_SPECS: list[EventSpec] = [
     ),
 ]
 
-DEMO_ACCOUNT_EMAILS = [OHC_EMAIL, DEMO_OWNER_EMAIL, DEMO_DEVELOPER_EMAIL]
+DEMO_ACCOUNT_EMAILS = [STAFF_EMAIL, DEMO_OWNER_EMAIL, DEMO_DEVELOPER_EMAIL]
 DEMO_TICKET_SUBJECTS = [spec.subject for spec in TICKET_SPECS]
 DEMO_EVENT_SLUGS = [spec.slug for spec in EVENT_SPECS]
 
@@ -418,7 +418,7 @@ class Report:
 
 class Command(BaseCommand):
     help = (
-        "Seed a demo dataset for the vendor hub: an OHC team member, support "
+        "Seed a demo dataset for the vendor hub: an staff member, support "
         "tickets with real threads, and a handful of events. Safe to re-run — "
         "rows are matched on natural keys and never duplicated."
     )
@@ -447,10 +447,10 @@ class Command(BaseCommand):
         if options["fresh"]:
             self._delete_demo_data()
 
-        ohc_user = self._ensure_ohc_member(password, report)
+        staff_user = self._ensure_staff_member(password, report)
         organisations = self._ensure_organisations(password, report)
-        self._ensure_tickets(organisations, ohc_user, report)
-        self._ensure_events(ohc_user, report)
+        self._ensure_tickets(organisations, staff_user, report)
+        self._ensure_events(staff_user, report)
         self._report(report, password)
 
     # -- destructive path, only ever reached via --fresh ------------------
@@ -497,20 +497,20 @@ class Command(BaseCommand):
             defaults={"verified": True, "primary": True},
         )
 
-    def _ensure_ohc_member(self, password: str, report: Report):
+    def _ensure_staff_member(self, password: str, report: Report):
         user, created = User.objects.get_or_create(
-            email=OHC_EMAIL,
-            defaults={"name": OHC_NAME, "is_staff": True},
+            email=STAFF_EMAIL,
+            defaults={"name": STAFF_NAME, "is_staff": True},
         )
         # Re-running has to leave the printed credentials true, so the flags and
         # the password are asserted every time rather than only on creation.
-        user.name = user.name or OHC_NAME
+        user.name = user.name or STAFF_NAME
         user.is_staff = True
         user.set_password(password)
         user.save()
         self._mark_email_verified(user)
         report.accounts.append(
-            Account(user.email, user.name, "OHC team (staff)", created=created),
+            Account(user.email, user.name, "review team (staff)", created=created),
         )
         return user
 
@@ -627,7 +627,7 @@ class Command(BaseCommand):
     def _ensure_tickets(
         self,
         organisations: list[Organisation],
-        ohc_user,
+        staff_user,
         report: Report,
     ) -> None:
         for index, spec in enumerate(TICKET_SPECS):
@@ -638,14 +638,14 @@ class Command(BaseCommand):
             ).exists():
                 report.tickets_kept += 1
                 continue
-            self._build_ticket(spec, organisation, ohc_user)
+            self._build_ticket(spec, organisation, staff_user)
             report.tickets_created += 1
 
     def _build_ticket(
         self,
         spec: TicketSpec,
         organisation: Organisation,
-        ohc_user,
+        staff_user,
     ) -> Ticket:
         opened_at = timezone.now() - timedelta(days=spec.opened_days_ago)
         vendor_users = [
@@ -658,7 +658,7 @@ class Command(BaseCommand):
             category=spec.category,
             priority=spec.priority,
             created_by=vendor_users[0] if vendor_users else None,
-            assignee=ohc_user if spec.assigned else None,
+            assignee=staff_user if spec.assigned else None,
             linked_facility=spec.linked_facility,
         )
         # created_at/updated_at are auto fields, so the only way to place this
@@ -668,8 +668,8 @@ class Command(BaseCommand):
 
         vendor_turn = 0
         for turn in spec.turns:
-            if turn.actor == OHC:
-                author = ohc_user
+            if turn.actor == STAFF:
+                author = staff_user
             else:
                 author = (
                     vendor_users[vendor_turn % len(vendor_users)]
@@ -693,7 +693,7 @@ class Command(BaseCommand):
             ticket,
             author,
             turn.body,
-            from_ohc_team=turn.actor == OHC,
+            from_staff_team=turn.actor == STAFF,
         )
 
     @staticmethod
@@ -711,7 +711,7 @@ class Command(BaseCommand):
             (
                 self._turn_time(opened_at, turn)
                 for turn in spec.turns
-                if turn.actor == OHC and not turn.status
+                if turn.actor == STAFF and not turn.status
             ),
             None,
         )
@@ -735,7 +735,7 @@ class Command(BaseCommand):
 
     # -- events ------------------------------------------------------------
 
-    def _ensure_events(self, ohc_user, report: Report) -> None:
+    def _ensure_events(self, staff_user, report: Report) -> None:
         now = timezone.now()
         for spec in EVENT_SPECS:
             starts_at = now + timedelta(days=spec.starts_in_days)
@@ -756,7 +756,7 @@ class Command(BaseCommand):
                     "location": spec.location,
                     "join_url": spec.join_url,
                     "published_at": published_at,
-                    "created_by": ohc_user,
+                    "created_by": staff_user,
                 },
             )
             if created:
@@ -791,5 +791,5 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"Password: {password}"))
         self.stdout.write(
-            "Sign in at /accounts/login/ — the OHC account also reaches /admin/.",
+            "Sign in at /accounts/login/ — the STAFF account also reaches /admin/.",
         )
