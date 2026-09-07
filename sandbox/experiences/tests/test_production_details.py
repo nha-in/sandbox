@@ -104,17 +104,18 @@ def test_the_applicant_never_sees_the_form(approved, owner, reviewer):
     form_definition = definition.get_form(FORM_KEY)
 
     applicant_context = application_context(approved, owner)
-    assert form_definition.is_applicable(applicant_context) is False
-    assert form_definition.is_visible(applicant_context) is False
-    visible = [
+    # In scope for the application — it just is not theirs to fill.
+    assert form_definition.is_applicable(applicant_context) is True
+    assert form_definition.is_listed(applicant_context) is False
+    listed = [
         state.definition.key
         for state in definition.form_states(applicant_context)
-        if state.visible
+        if state.visible and state.listed
     ]
-    assert FORM_KEY not in visible
+    assert FORM_KEY not in listed
 
     reviewer_context = application_context(approved, reviewer)
-    assert form_definition.is_visible(reviewer_context) is True
+    assert form_definition.is_listed(reviewer_context) is True
 
 
 def test_the_applicant_cannot_record_it(approved, owner):

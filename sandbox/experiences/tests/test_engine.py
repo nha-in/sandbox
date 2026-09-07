@@ -144,11 +144,17 @@ def test_new_application_grants_owner_permissions_and_gates_forms(application, a
     context = application_context(application, owner)
     states = registry.get(APPLICATION_TYPE).form_states(context)
 
+    by_key = {state.definition.key: state for state in states}
+
     assert get_effective_access(application, owner).role.key == "applicant_owner"
     assert context.has_permission(permission_keys.SUBMIT_APPLICATION)
-    assert states[0].can_submit is True
-    assert states[1].visible is False
-    assert states[-1].visible is False
+    assert by_key["organisation_profile"].can_submit is True
+    # Gated behind dependencies, not permissions.
+    assert by_key["product_use_case"].visible is False
+    assert by_key["declaration"].visible is False
+    # In scope for the application, but never listed to the applicant (§4.8).
+    assert by_key["production_details"].visible is True
+    assert by_key["production_details"].listed is False
 
 
 def test_contributor_cannot_receive_platform_permissions(application, actors):

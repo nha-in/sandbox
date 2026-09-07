@@ -347,16 +347,14 @@ nobody has read.
 
 NHA's production realm issues it; this portal does not, and cannot verify it.
 It is a **form the review team fills**, `production_details` — client id and
-issue date — available in `approved` only, with `permission =
-APPROVE_APPLICATION` and `allow_updates = True`.
+issue date — available in `approved` only, with `allow_updates = True` and
+`required_permissions = {"edit": APPROVE_APPLICATION}` (§4.9).
 
-`is_applicable` is gated on that permission, which is what keeps it off the
-applicant's checklist. Visibility and editability are separate in the engine:
-`is_visible` asks only about applicability and dependencies, and the detail view
-filters on `visible`, so a permission alone would leave the applicant a
-permanent card reading *"Your application role cannot edit forms."* Once the
-form has a submission the applicant sees the value anyway, because
-`submission_sections` includes any form that has one.
+It stays off the applicant's checklist because `view` follows `edit`, not
+because it is out of scope — `is_applicable` is `True` for everyone, which is
+the truth: the form belongs to the application, it is simply not the
+applicant's to fill. Once it has a submission the applicant sees the value
+anyway, because `submission_sections` includes any form that has one.
 
 **Correction comes free.** A second save writes revision 2 and keeps revision 1
 with `is_current = False`, and `save_form_submission` already emits a
@@ -377,6 +375,48 @@ can be — there is no system here to check the value against.
 
 It also gates NHCX enrolment (`SdLoginServiceImpl:1341`), which is the second of
 the two checks §3.3 describes.
+
+### 4.9 Two permissions, not one
+
+Every form and action declares `required_permissions`, a mapping keyed by
+capability, and asks it through `permission_for(capability)`:
+
+| | forms | actions |
+| - | ----- | ------- |
+| may do it | `edit` | `perform` |
+| sees it listed | `view` | `view` |
+
+**`view` falls back to the acting permission when it is not stated**, so the
+common case — see it iff you could do it — stays one entry, and only the two
+exceptions spell themselves out: the form base declares `view =
+VIEW_APPLICATION` because `applicant_viewer` watches its org's checklist
+without being able to fill anything, and `production_details` declares only
+`edit` so that `view` follows it.
+
+**Why a mapping and not two fields.** `permission` meant *edit* on a form and
+*perform* on an action — one name, two capabilities — and the listing rule
+existed only for actions, inline in a view comprehension, and not at all for
+forms. Keying by capability names the thing that was implicit. A flat
+collection cannot do it: listing wants *any-of* and acting wants one
+particular permission, so an all-of rule would make widening visibility
+silently narrow editing.
+
+**Why not an `audience` flag.** Because "platform" is not one audience —
+reviewer, decision-maker and super-admin all sit inside it, and a
+super-admin-only control listed as blocked to every reviewer leaks that it
+exists. A permission composes at whatever granularity a case needs; a two-value
+bucket does not.
+
+**Declaring it replaces the mapping rather than merging.** Merging would have
+let `production_details` keep the base's `view = VIEW_APPLICATION` while
+narrowing `edit`, which is the exact leak being closed. The cost is that a
+definition can drop its acting key, so `validate()` requires it and checks
+every value against the catalogue — one loop where there were three scalar
+checks.
+
+`is_internal` is deliberately **not** folded in. It answers a third question —
+whether the resulting *event* is hidden — and the answers differ: `approve` is
+listed to NHA only, but its event is how the applicant learns the decision.
 
 ## 5. Access control
 

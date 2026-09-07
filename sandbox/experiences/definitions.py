@@ -133,6 +133,7 @@ class FormState:
     submission: ApplicationFormSubmission | None
     applicable: bool
     visible: bool
+    listed: bool
     can_submit: bool
     reason: str
     action_label: str
@@ -155,6 +156,7 @@ class FormState:
 class ActionState:
     definition: type[ApplicationAction]
     available: bool
+    listed: bool
     reason: str
 
 
@@ -170,11 +172,29 @@ class ApplicationFormDefinition:
     repeatable: ClassVar[bool] = False
     valid_until_field: ClassVar[str] = ""
     renewal_window_days: ClassVar[int] = 0
-    permission: ClassVar[str] = permission_keys.EDIT_FORMS
+    #: Keyed by capability. Declaring it replaces this mapping rather than
+    #: merging, so a form cannot half-inherit an audience it did not mean to.
+    required_permissions: ClassVar[dict[str, str]] = {
+        "view": permission_keys.VIEW_APPLICATION,
+        "edit": permission_keys.EDIT_FORMS,
+    }
     actions: ClassVar[tuple[type[ApplicationFormAction], ...]] = ()
     editable_statuses: ClassVar[frozenset[str]] = frozenset(
         {"draft", "changes_requested"},
     )
+
+    @classmethod
+    def permission_for(cls, capability: str) -> str:
+        """`view` falls back to `edit` when a form does not state it."""
+        return (
+            cls.required_permissions.get(capability)
+            or (cls.required_permissions["edit"])
+        )
+
+    @classmethod
+    def is_listed(cls, context: ExperienceContext) -> bool:
+        """Whether this form appears in the user's list at all."""
+        return context.has_permission(cls.permission_for("view"))
 
     @classmethod
     def is_applicable(cls, context: ExperienceContext) -> bool:
@@ -194,7 +214,7 @@ class ApplicationFormDefinition:
             )
         if not cls.is_visible(context):
             return False, _("Complete the preceding forms first.")
-        if not context.has_permission(cls.permission):
+        if not context.has_permission(cls.permission_for("edit")):
             return False, _("Your application role cannot edit forms.")
         if context.application.status not in cls.editable_statuses:
             return False, _("Forms cannot be changed in the current status.")
@@ -315,10 +335,18 @@ class ApplicationFormAction:
     key: ClassVar[str]
     name: ClassVar[str]
     description: ClassVar[str]
-    permission: ClassVar[str]
+    #: Keyed by capability; `view` falls back to `perform`.
+    required_permissions: ClassVar[dict[str, str]]
     allowed_statuses: ClassVar[frozenset[str]] = frozenset()
     form_class: ClassVar[type[forms.Form] | None] = None
     style: ClassVar[str] = "default"
+
+    @classmethod
+    def permission_for(cls, capability: str) -> str:
+        return (
+            cls.required_permissions.get(capability)
+            or (cls.required_permissions["perform"])
+        )
 
     @classmethod
     def availability(
@@ -326,7 +354,7 @@ class ApplicationFormAction:
         context: ExperienceContext,
         submission: ApplicationFormSubmission | None,
     ) -> tuple[bool, str]:
-        if not context.has_permission(cls.permission):
+        if not context.has_permission(cls.permission_for("perform")):
             return False, _("Your application role does not include this permission.")
         if submission is None or submission.status != SubmissionStatus.COMPLETED:
             return False, _("Complete the form before using this action.")
@@ -379,16 +407,32 @@ class ApplicationAction:
     key: ClassVar[str]
     name: ClassVar[str]
     description: ClassVar[str]
-    permission: ClassVar[str]
+    #: Keyed by capability; `view` falls back to `perform`, so an action you
+    #: could never perform is not listed to you as blocked.
+    required_permissions: ClassVar[dict[str, str]]
     allowed_statuses: ClassVar[frozenset[str]] = frozenset()
     form_class: ClassVar[type[forms.Form] | None] = None
     style: ClassVar[str] = "default"
-    #: Whether this action's event is hidden from the applicant.
+    #: Whether this action's event is hidden from the applicant. A separate
+    #: question from `view`: `approve` is listed to NHA only, but its event is
+    #: how the applicant learns the decision.
     is_internal: ClassVar[bool] = False
 
     @classmethod
+    def permission_for(cls, capability: str) -> str:
+        return (
+            cls.required_permissions.get(capability)
+            or (cls.required_permissions["perform"])
+        )
+
+    @classmethod
+    def is_listed(cls, context: ExperienceContext) -> bool:
+        """Whether this action appears in the user's list at all."""
+        return context.has_permission(cls.permission_for("view"))
+
+    @classmethod
     def availability(cls, context: ExperienceContext) -> tuple[bool, str]:
-        if not context.has_permission(cls.permission):
+        if not context.has_permission(cls.permission_for("perform")):
             return False, _("Your application role does not include this permission.")
         if (
             cls.allowed_statuses
@@ -452,9 +496,12 @@ class ApplicationDefinition:
                 msg = f"{cls.key}.{role.key} has unknown permissions: {unknown}"
                 raise ImproperlyConfigured(msg)
         for action in cls.actions:
-            if action.permission not in permission_keys:
-                msg = f"{cls.key}.{action.key} has an unknown permission."
-                raise ImproperlyConfigured(msg)
+            _validate_required_permissions(
+                f"{cls.key}.{action.key}",
+                action.required_permissions,
+                "perform",
+                permission_keys,
+            )
         if cls.owner_role_key not in collections["role"]:
             msg = f"{cls.key} has no owner role named {cls.owner_role_key}."
             raise ImproperlyConfigured(msg)
@@ -481,9 +528,12 @@ class ApplicationDefinition:
             if len(action_keys) != len(set(action_keys)):
                 msg = f"{cls.key}.{form_definition.key} has duplicate action keys."
                 raise ImproperlyConfigured(msg)
-            if form_definition.permission not in permission_keys:
-                msg = f"{cls.key}.{form_definition.key} has an unknown permission."
-                raise ImproperlyConfigured(msg)
+            _validate_required_permissions(
+                f"{cls.key}.{form_definition.key}",
+                form_definition.required_permissions,
+                "edit",
+                permission_keys,
+            )
             if form_definition.valid_until_field and (
                 form_definition.valid_until_field
                 not in form_definition.form_class.base_fields
@@ -497,12 +547,12 @@ class ApplicationDefinition:
                 msg = f"{cls.key}.{form_definition.key} has a negative renewal window."
                 raise ImproperlyConfigured(msg)
             for action in form_definition.actions:
-                if action.permission not in permission_keys:
-                    msg = (
-                        f"{cls.key}.{form_definition.key}.{action.key} has an "
-                        "unknown permission."
-                    )
-                    raise ImproperlyConfigured(msg)
+                _validate_required_permissions(
+                    f"{cls.key}.{form_definition.key}.{action.key}",
+                    action.required_permissions,
+                    "perform",
+                    permission_keys,
+                )
 
     @classmethod
     def get_status(cls, key: str) -> StatusDefinition:
@@ -546,6 +596,7 @@ class ApplicationDefinition:
                     submission=submission,
                     applicable=applicable,
                     visible=visible,
+                    listed=form_definition.is_listed(context),
                     can_submit=can_submit,
                     reason=reason,
                     action_label=action_label,
@@ -563,7 +614,14 @@ class ApplicationDefinition:
     @classmethod
     def action_states(cls, context: ExperienceContext) -> list[ActionState]:
         return [
-            ActionState(action, *action.availability(context)) for action in cls.actions
+            ActionState(
+                definition=action,
+                available=available,
+                listed=action.is_listed(context),
+                reason=reason,
+            )
+            for action in cls.actions
+            for available, reason in [action.availability(context)]
         ]
 
     @classmethod
@@ -600,6 +658,22 @@ class ApplicationDefinition:
             percentage=percentage,
             next_form_key=next_form_key,
         )
+
+
+def _validate_required_permissions(
+    label: str,
+    required_permissions: dict[str, str],
+    acting_capability: str,
+    permission_keys: set[str],
+) -> None:
+    """The acting capability is mandatory: `permission_for` falls back to it."""
+    if acting_capability not in required_permissions:
+        msg = f"{label} declares no {acting_capability!r} permission."
+        raise ImproperlyConfigured(msg)
+    unknown = set(required_permissions.values()) - permission_keys
+    if unknown:
+        msg = f"{label} has unknown permissions: {sorted(unknown)}"
+        raise ImproperlyConfigured(msg)
 
 
 COMMON_PERMISSIONS = (

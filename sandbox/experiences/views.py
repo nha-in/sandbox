@@ -375,15 +375,15 @@ class ApplicationDetailContextMixin(ApplicationObjectMixin):
         context.update(self.common_context())
         context.update(
             {
-                "form_states": [item for item in form_states if item.visible],
+                "form_states": [
+                    item for item in form_states if item.visible and item.listed
+                ],
                 "available_actions": [item for item in action_states if item.available],
                 "blocked_actions": [
                     item
                     for item in action_states
                     if not item.available
-                    and self.experience_context.has_permission(
-                        item.definition.permission,
-                    )
+                    and item.listed
                     and (
                         not item.definition.allowed_statuses
                         or self.application.status in item.definition.allowed_statuses

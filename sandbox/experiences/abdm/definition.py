@@ -254,7 +254,7 @@ class WithdrawApplication(ApplicationAction):
     key = "withdraw"
     name = _("Withdraw application")
     description = _("Pull this application out of review. This cannot be undone.")
-    permission = permission_keys.WITHDRAW_APPLICATION
+    required_permissions = {"perform": permission_keys.WITHDRAW_APPLICATION}
     allowed_statuses = frozenset(
         {
             "draft",
@@ -279,32 +279,27 @@ class WithdrawApplication(ApplicationAction):
 
 
 class ProductionDetails(ApplicationFormDefinition):
-    """Recorded by the review team once production access exists (§9.5).
+    """Recorded by the review team once production access exists (§4.8).
 
-    Not the applicant's: NHA's production realm issues the client, and this
-    portal has no way to verify it. `is_applicable` is gated on the permission
-    so it stays off the applicant's checklist until there is a value to show.
+    In scope for the application, but never the applicant's to fill: `view`
+    follows `edit`, so it stays off their checklist until it holds a value.
     """
 
     key = "production_details"
     name = _("Production details")
     description = _("The production client issued outside the sandbox.")
     form_class = ProductionDetailsForm
-    permission = permission_keys.APPROVE_APPLICATION
+    required_permissions = {"edit": permission_keys.APPROVE_APPLICATION}
     editable_statuses = frozenset({"approved"})
     allow_updates = True
     required = False
-
-    @classmethod
-    def is_applicable(cls, context):
-        return context.has_permission(cls.permission)
 
 
 class SubmitApplication(ApplicationAction):
     key = "submit"
     name = _("Submit for review")
     description = _("Lock the completed application into the OHC review queue.")
-    permission = permission_keys.SUBMIT_APPLICATION
+    required_permissions = {"perform": permission_keys.SUBMIT_APPLICATION}
     allowed_statuses = frozenset({"draft", "changes_requested"})
 
     @classmethod
@@ -345,7 +340,7 @@ class AskReviewTeam(ApplicationAction):
         "Open a question about this application or request support from the "
         "review team.",
     )
-    permission = permission_keys.OPEN_QUERY
+    required_permissions = {"perform": permission_keys.OPEN_QUERY}
     allowed_statuses = frozenset(
         {
             "draft",
@@ -376,7 +371,7 @@ class StartReview(ApplicationAction):
     key = "start_review"
     name = _("Start review")
     description = _("Move the submitted application into active review.")
-    permission = permission_keys.REVIEW_APPLICATION
+    required_permissions = {"perform": permission_keys.REVIEW_APPLICATION}
     allowed_statuses = frozenset({"submitted", "revision_submitted"})
 
     @classmethod
@@ -392,7 +387,7 @@ class RaiseQuery(ApplicationAction):
     key = "raise_query"
     name = _("Raise query")
     description = _("Request clarification, corrected data, or replacement evidence.")
-    permission = permission_keys.RAISE_QUERY
+    required_permissions = {"perform": permission_keys.RAISE_QUERY}
     allowed_statuses = frozenset(
         {"submitted", "under_review", "changes_requested", "revision_submitted"},
     )
@@ -424,7 +419,7 @@ class ReviewEvidence(ApplicationAction):
     key = "review_evidence"
     name = _("Record evidence review")
     description = _("Confirm the declared milestones and their exit artifacts.")
-    permission = permission_keys.REVIEW_APPLICATION
+    required_permissions = {"perform": permission_keys.REVIEW_APPLICATION}
     is_internal = True
     allowed_statuses = frozenset({"under_review", "revision_submitted"})
     form_class = ReviewEvidenceForm
@@ -492,7 +487,7 @@ class ApproveApplication(ApplicationAction):
     key = "approve"
     name = _("Approve production access")
     description = _("Record approved milestones and production credentials reference.")
-    permission = permission_keys.APPROVE_APPLICATION
+    required_permissions = {"perform": permission_keys.APPROVE_APPLICATION}
     allowed_statuses = frozenset({"under_review", "revision_submitted"})
     form_class = ApprovalForm
 
@@ -529,7 +524,7 @@ class RejectApplication(ApplicationAction):
     key = "reject"
     name = _("Reject application")
     description = _("Record a final rejection with clear reasons and next steps.")
-    permission = permission_keys.REJECT_APPLICATION
+    required_permissions = {"perform": permission_keys.REJECT_APPLICATION}
     allowed_statuses = frozenset(
         {"submitted", "under_review", "changes_requested", "revision_submitted"},
     )
@@ -570,7 +565,7 @@ class RetryProvisioning(ApplicationAction):
     key = "retry_provisioning"
     name = _("Retry provisioning")
     description = _("Re-run credential provisioning after a failed attempt.")
-    permission = permission_keys.RETRY_PROVISIONING
+    required_permissions = {"perform": permission_keys.RETRY_PROVISIONING}
     is_internal = True
     allowed_statuses = frozenset({"approved"})
 
@@ -602,7 +597,7 @@ class RetryDeprovisioning(ApplicationAction):
     description = _(
         "Re-run credential teardown for a rejected or withdrawn application.",
     )
-    permission = permission_keys.RETRY_PROVISIONING
+    required_permissions = {"perform": permission_keys.RETRY_PROVISIONING}
     is_internal = True
     allowed_statuses = frozenset({"rejected", "withdrawn"})
     style = "destructive"
