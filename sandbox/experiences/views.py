@@ -12,6 +12,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.http import FileResponse
 from django.http import Http404
+from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -22,8 +23,14 @@ from django.views.generic import ListView
 from django.views.generic import TemplateView
 from django_htmx.http import HttpResponseClientRedirect
 
+from sandbox.integrations.credentials import rotate_credentials
+from sandbox.integrations.credentials import take_initial_secret
+from sandbox.integrations.selectors import credentials_for
+from sandbox.integrations.selectors import latest_run
+from sandbox.integrations.selectors import provisioning_progress
 from sandbox.organisations.views import OrganisationMixin
 from sandbox.users.permissions import StaffConsoleMixin
+from sandbox.utils.errors import DomainError
 
 from . import permission_keys
 from .forms import ApplicationAccessForm
@@ -417,6 +424,17 @@ class VendorApplicationDetailView(
     TemplateView,
 ):
     template_name = "experiences/application_detail.html"
+
+    def get_context_data(self, **kwargs):
+        # C7's panel rides along on the detail page. Vendor-side only: there is
+        # no console counterpart, deliberately.
+        run = latest_run(self.application)
+        return {
+            **super().get_context_data(**kwargs),
+            "credentials": credentials_for(self.application),
+            "provisioning": provisioning_progress(self.application),
+            "provisioning_running": bool(run is not None and run.is_running),
+        }
 
 
 class AdminApplicationDetailView(
@@ -1010,6 +1028,59 @@ class VendorRemoveAccessView(
     View,
 ):
     pass
+
+
+class CredentialsPanelView(OrganisationMixin, ApplicationObjectMixin, View):
+    """C7's panel: one URL, because reveal and rotate are two buttons on it.
+
+    Integrator-only, by omission as much as by gate. There is no console
+    counterpart and no staff route to a secret anywhere in the URLconf: NHA
+    approves the access, the integrator collects it.
+
+    GET is the poll and never consumes the one-time hand-off, so a prefetch, a
+    crawler or a restored tab cannot spend it on nobody's behalf. That is the
+    whole reason the reveal is a POST.
+    """
+
+    def render_panel(self, *, revealed_secret: str = "", error: str = ""):
+        run = latest_run(self.application)
+        return render(
+            self.request,
+            "experiences/partials/credentials_panel.html",
+            {
+                **self.common_context(),
+                "credentials": credentials_for(self.application),
+                "provisioning": provisioning_progress(self.application),
+                "provisioning_running": bool(run is not None and run.is_running),
+                "revealed_secret": revealed_secret,
+                "credentials_error": error,
+            },
+        )
+
+    def get(self, request, *args, **kwargs):
+        return self.render_panel()
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+        if action == "reveal":
+            secret = take_initial_secret(self.application)
+            if secret is None:
+                return self.render_panel(
+                    error=_(
+                        "That secret has already been shown. Rotate to get a new one.",
+                    ),
+                )
+            return self.render_panel(revealed_secret=secret)
+        if action == "rotate":
+            try:
+                secret = rotate_credentials(
+                    application=self.application,
+                    actor=request.user,
+                )
+            except DomainError as exc:
+                return self.render_panel(error=str(exc))
+            return self.render_panel(revealed_secret=secret)
+        return HttpResponseBadRequest("unknown credentials action")
 
 
 class AttachmentDownloadView(LoginRequiredMixin, View):

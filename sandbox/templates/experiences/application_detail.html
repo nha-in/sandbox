@@ -54,6 +54,9 @@
       {% if application.outcome.details %}<p class="mt-4 text-sm leading-relaxed">{{ application.outcome.details|linebreaksbr }}</p>{% endif %}
     </section>
   {% endif %}
+  {% if credentials or provisioning %}
+    <div class="mb-4">{% include "experiences/partials/credentials_panel.html" %}</div>
+  {% endif %}
   {% if open_query_count %}
     <section class="mb-4 flex items-center justify-between gap-4 rounded-md border border-orange-200 bg-orange-50 px-4 py-3 dark:border-orange-800 dark:bg-orange-950/20">
       <div>

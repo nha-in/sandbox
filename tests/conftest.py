@@ -41,7 +41,6 @@ from sandbox.users.tests.factories import UserFactory
 #: with; the list reaching empty is what clears the debt.
 collect_ignore = [
     # build the subject first, then port (§8.4)
-    "test_credentials_panel.py",
     "test_dashboard.py",
     "test_navigation.py",
     # rewrite against the arriving theme (§4.1)

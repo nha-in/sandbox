@@ -267,6 +267,15 @@ ROUTES: dict[str, Route] = {
         methods=("POST",),
     ),
     "experiences:attachment": Route(Access.MEMBER_OR_CONSOLE, kwargs=_attachment),
+    # C7's panel. Integrator-only by omission as much as by gate: there is no
+    # console counterpart and no staff route to a secret in the URLconf.
+    # Reveal and rotate are actions on this one route, not routes of their own.
+    "experiences:credentials": Route(
+        Access.ORG_SCOPED,
+        kwargs=_reference,
+        methods=("GET", "POST"),
+        data={"action": "reveal"},
+    ),
     # Support
     "support:list": Route(Access.TENANT_MEMBER),
     "support:create": Route(Access.TENANT_MEMBER),

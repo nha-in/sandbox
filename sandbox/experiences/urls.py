@@ -37,6 +37,11 @@ urlpatterns = [
         name="query",
     ),
     path(
+        "<str:reference>/credentials/",
+        views.CredentialsPanelView.as_view(),
+        name="credentials",
+    ),
+    path(
         "<str:reference>/access/",
         views.VendorAccessWorkspaceView.as_view(),
         name="access",

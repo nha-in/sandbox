@@ -732,17 +732,30 @@ template resolves by framework convention (allauth elements, error pages,
 
 #### The three gaps
 
-**C7's credentials panel.** `sandbox/integrations/selectors.py` is a
+**C7's credentials panel — built.** `sandbox/integrations/selectors.py` was a
 presentation layer with no consumer: `credentials_for`, `provisioning_progress`
-and `latest_run` have **zero callers outside their own tests**. So an approved
-integrator can see neither their client id, nor their one-time secret, nor
-whether provisioning succeeded. The domain half is done and covered —
-`take_initial_secret`, `rotate_credentials`, and the never-persisted,
-never-logged, never-in-a-repr assertions in `integrations/tests/`. What is
-absent is a panel partial, a one-shot reveal POST, an owner-only rotate POST,
-htmx polling that stops at a terminal state, and a quickstart snippet. The
-tests in `tests/test_credentials_panel.py` are C7's acceptance criteria and
-are the specification for building it — not a module to be rewritten first.
+and `latest_run` had zero callers outside their own tests, so an approved
+integrator could see neither their client id, nor their one-time secret, nor
+whether provisioning succeeded. It now rides on the application detail page,
+on **one route**: GET is the poll, and reveal and rotate are actions posted to
+it. The route it replaced had four — a standalone page, a fragment, a reveal
+and a rotate — which was four access rules to keep in agreement for two buttons
+on one panel. `components/secret_value.html` finally has a caller.
+
+Three properties are structural rather than asserted. There is **no console
+counterpart**: no staff route to a secret exists in the URLconf at all, which
+is a stronger claim than "staff are refused". **No URL a GET could burn the
+hand-off on** — the single read is an action, not an address, so a prefetch, a
+crawler or a restored tab lands on the poll; the older shape needed a redirect
+to say the same thing. And the quickstart snippet
+interpolates the client id but never the secret, checked against the template
+*source* rather than a render, because the secret exists for one response and a
+passing render proves nothing about the round trip where it does not.
+
+The `developer` fixture is where the engine shows through: revealing needs both
+an `Organisation` membership and an `ApplicationAccess` grant, because
+`visible_to` asks for the grant — and rotation is refused on a third thing,
+`Role.OWNER`.
 
 **Provisioning progress.** Same selectors, same absence. `provisioning_progress`
 returns one row per system in chain order *including the ones not reached yet*,
@@ -774,7 +787,7 @@ door should claim is a decision, and it is open.
 | `test_merge_production_dotenvs_in_dotenv` | **deleted** — the function it tested existed nowhere in the repo |
 | `test_enrollment_wizard` | **deleted** — a multi-step draft wizard with product selection and back-navigation, a concept the engine replaced wholesale with `StartApplicationView` plus form workspaces, which are already tested |
 | `test_route_gates` | **done** — 84 named URLs, 88 gate cases. It found the shipped htmx demo, the console access screen only a superuser could open, and that `is_superuser` did not open the console |
-| `test_credentials_panel` | build the panel first; the tests are its specification |
+| `test_credentials_panel` | **done** — the panel was built to it; 13 tests |
 | `test_dashboard` | after the dashboard is re-thought. Its wizard assertions go with `test_enrollment_wizard` either way |
 | `test_navigation` | rewrite — it references `NAV_SECTIONS`, which no longer exists, and an application rail/switcher that may be obsolete |
 | `test_stylesheet`, `test_template_syntax` | wait on the theme (§4.1) |
