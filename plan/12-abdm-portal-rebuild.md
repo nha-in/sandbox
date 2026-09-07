@@ -480,10 +480,10 @@ when reading older commit messages.)*
 **Verified against legacy.** Its exit DTO marks two fields mandatory — the sd id and the self-declaration id — and nothing else, which is why a large minority of decided exits hold no evidence at all. But `GeneralUtils.validateFiles` names precisely these artefacts as mandatory and **has no callers**: the rule was written and never wired up. So this gate is not stricter than legacy intended, only stricter than legacy managed.
 
 Two findings from that comparison: legacy modelled `wasa_file` and `host_file` as separate document types and `host_file` holds no rows, which confirms §3.2's "same artefact under two names". And legacy's intended set has a fifth member, `supporting_doc`, well populated in the dump; §3.2's list of four does not mention it, so the gate does not require it — a question for NHA rather than a guess |
-| D2 | health information types 6 → 8: add `HealthDocumentRecord`, `Invoice` |
-| D3 | drop `wasa_certificate_number` from `SecurityComplianceForm` — it duplicates the copy that carries expiry and renewal |
+| D2 | **done.** health information types 6 → 8: add `HealthDocumentRecord`, `Invoice`. Sourced from the Integrator Guide alone — legacy has no health-information-type vocabulary anywhere, in code or schema, so it can neither confirm nor contradict this |
+| D3 | **done.** dropped `wasa_certificate_number` from `SecurityComplianceForm` — it duplicated `SecurityCertification`'s copy, which alone carries expiry and renewal, so the two could disagree about one certificate |
 | D4 | **done, relocated.** The ceiling is `ReviewEvidenceForm.verified_milestones`, not `ApprovalForm`: §4.7 moved the judgement to the review, and grants follow it, so a ceiling applied later at approval would have had nothing left to narrow. The reviewer may drop what the evidence does not support, never add. `ApprovalForm` no longer names milestones at all |
-| D5 | `ABDM_ROLES` gains `hrp` |
+| D5 | **done, plus one.** `ABDM_ROLES` gains `hrp` — legacy's `SandboxConstant` maps it to "Health Repository Provider" and `sd_exit.ndhm_role` shows it widely used. It also gains `phr`, which §3.1 names an ABDM role and this list omitted; legacy records it as a separate `ndhm_role` token from health locker. Legacy has a sixth, `End User Applications (EUA)`, left out for want of evidence anyone selects it |
 | D6 | `MILESTONES` becomes `[m1, m2, m3, m4]` |
 | D7 | enforce `m4 → m1 + m2 + m3` in `clean()`. **The only prerequisite there is** |
 | D8 | a `milestone_declaration` form owning `milestones` and per-milestone start/end dates, split out of `integration_scope` — §6.1 |

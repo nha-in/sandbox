@@ -137,7 +137,6 @@ def complete_submission_data() -> dict[str, dict]:
             "privacy_policy_url": "https://example.com/privacy",
             "security_assessment_agency": "Example CERT-In Empanelled Auditor",
             "assessment_date": (timezone.localdate() - timedelta(days=21)).isoformat(),
-            "wasa_certificate_number": "WASA-DEMO-2026-0098",
             "data_retention_policy": (
                 "Retention is purpose-bound, tenant-configurable, and enforced "
                 "through scheduled deletion with auditable legal holds."

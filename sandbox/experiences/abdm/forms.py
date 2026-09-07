@@ -34,6 +34,8 @@ PRODUCT_TYPES = [
 ABDM_ROLES = [
     ("hip", _("Health Information Provider (HIP)")),
     ("hiu", _("Health Information User (HIU)")),
+    ("hrp", _("Health Repository Provider (HRP)")),
+    ("phr", _("Personal health record (PHR) application")),
     ("health_locker", _("Health locker")),
 ]
 
@@ -258,6 +260,8 @@ class IntegrationScopeForm(ExperienceForm):
             ("immunization", _("Immunization record")),
             ("op_consultation", _("Outpatient consultation")),
             ("wellness", _("Wellness record")),
+            ("health_document", _("Health document record")),
+            ("invoice", _("Invoice")),
         ],
         widget=forms.CheckboxSelectMultiple,
     )
@@ -454,11 +458,6 @@ class SecurityComplianceForm(ExperienceForm):
     assessment_date = forms.DateField(
         label=_("Assessment completion date"),
         widget=forms.DateInput(attrs={"type": "date"}),
-    )
-    wasa_certificate_number = forms.CharField(
-        label=_("WASA certificate number"),
-        max_length=150,
-        required=False,
     )
     security_audit_report = forms.FileField(
         label=_("Security assessment report"),
