@@ -39,8 +39,11 @@ unowned — which is exactly what P4's reconciliation sweep flags as `ORPHANED`.
 absent; read the table and most decided exits have it. `policy_file` was never
 used at all. Do not write the importer against the columns.
 
-**Other application types have their own tables** and are out of scope for the
-first import: `sd_hiu`, `sd_exit_live`, `nhcx_exit`, `sd_uhi`.
+**Other application types have their own tables.** 12 §1.2 brings two of them
+into the design as application types of their own — `sd_exit_live` becomes
+`abdm_go_live` and `nhcx_exit` becomes `abdm_nhcx_exit` — so they are in scope
+for the import, in that order and after the milestone exits they follow.
+`sd_hiu` and `sd_uhi` remain out of scope.
 
 ## 3. Splitting the fused row
 
@@ -202,3 +205,69 @@ records — just not for `sd_status`.
 
 3. **`Super Admin` and `user_view` are not seeded.** The seed migration creates
    three roles. Either add them there or leave them to this importer.
+
+---
+
+## 7. Importing into four application types
+
+12 §1.2 split one application type into four. Everything below is what that
+costs the importer, and it is mostly good news: legacy's own tables already
+have this shape, and the one-application design was the thing that did not.
+
+| legacy table | becomes | key |
+| ------------ | ------- | --- |
+| `sd_login` + `sd_status` | one `abdm_sandbox_access` | `sd_id` |
+| `sd_exit` | one `abdm_milestone_exit` **each** | `sd_exit.id`, pointing at its `sd_id`'s sandbox access |
+| `nhcx_exit` | one `abdm_nhcx_exit` each | same |
+| `sd_exit_live` | one `abdm_go_live` each | same |
+
+`sd_exit.sd_id` is already the pointer 12 §1.2 asks a milestone exit to carry,
+so "which sandbox access is this for" needs no inference — it is a foreign key
+that has always been there. The mapping table §3 describes gains a row per exit
+alongside its row per registration.
+
+### 7.1 The importer must bypass `can_start`
+
+Nearly every exit follows an approved registration, which is what makes the rule
+worth enforcing for new applications. But not every one: a small number of
+integrators filed exits while their registration stood rejected, and a handful
+have no client id at all.
+
+So `can_start` is checked in `create_application` and **nowhere else**. If it
+were a model-level invariant or a database constraint, those rows would fail to
+import and the import would quietly be short. Legacy's history is not required
+to satisfy rules written after it.
+
+### 7.2 `product` is null for most imported rows
+
+Most `sd_login` rows carry no product name, and the distinct product count
+across the whole dump is a small fraction of the row count. The importer creates
+a `Product` only where there is a name to create one from, matching on the
+normalised name within the organisation so that repeat registrations of the same
+product converge on one row rather than one each.
+
+Everything else imports with `product = NULL`. This is why 12 §1.2 makes the
+column nullable: the alternative is a placeholder product for the majority of
+the dump, carrying no information and permanently indistinguishable from a real
+one.
+
+### 7.3 Exits are concurrent, so nothing may serialise them
+
+Of the integrators who filed more than one exit, roughly two in three had two
+open at once. An importer that assumed one-at-a-time — or a model that enforced
+it — would reject real history. The pre-port `Application` model's
+`(product, workflow_key)` in-flight uniqueness constraint is the specific thing
+not to revive.
+
+### 7.4 What one exit's milestones become
+
+`sd_exit.integration_detail` is the milestone list (§4). Each `m1`…`m4` it names
+becomes a `MilestoneGrant` on the organisation where the exit was approved; `phr`
+and `health locker` map onto `ABDM_ROLES` and `nhcx` is dropped from this field,
+because that integrator's NHCX filing is its own row in `nhcx_exit` and imports
+as its own application.
+
+Bundling means one imported exit routinely writes several grants. The unique
+constraint on `(organisation, milestone)` does the deduplication where two
+approved exits claim the same milestone — first one wins, which is the right
+answer since the grant is the durable fact and not the filing.

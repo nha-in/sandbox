@@ -24,7 +24,7 @@
    hx-swap="outerHTML"
    hx-push-url="true"
    hx-indicator="#nav-progress">{{ application.reference }}</a><span class="mt-1 block text-[11px] text-soft-foreground">{{ application.definition.name }}</span></td>
-              <td class="px-4 py-3.5"><span class="block font-medium">{{ application.organisation.display_name }}</span><span class="mt-0.5 block text-xs text-muted-foreground">{{ application.metadata.product_name|default:"Product not named" }}</span></td>
+              <td class="px-4 py-3.5"><span class="block font-medium">{{ application.organisation.display_name }}</span><span class="mt-0.5 block text-xs text-muted-foreground">{{ application.product.name|default:"Product not named" }}</span></td>
               <td class="px-4 py-3.5 text-xs text-muted-foreground">{{ application.submitted_at|date:"j M Y, H:i"|default:"Not submitted" }}</td>
               <td class="px-4 py-3.5"><span class="ui-badge {% if application.open_query_count %}ui-badge--warning{% else %}ui-badge--muted{% endif %} ui-badge--size-xs">{% if application.open_query_count %}{% blocktranslate count count=application.open_query_count %}{{ count }} pending{% plural %}{{ count }} pending{% endblocktranslate %}{% else %}0{% endif %}</span></td>
               <td class="px-4 py-3.5">

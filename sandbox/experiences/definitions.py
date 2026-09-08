@@ -299,6 +299,22 @@ class ApplicationFormDefinition:
         return {}
 
     @classmethod
+    def on_submit(
+        cls,
+        application: Any,
+        cleaned_data: dict[str, Any],
+        context: ExperienceContext,
+    ) -> tuple[str, ...]:
+        """Side effects a submission causes beyond storing its own answers.
+
+        The form counterpart of an action's `effects`. Runs in the same
+        transaction, after the submission is written. Returns the names of any
+        `application` fields it changed so the caller can keep its save narrow;
+        it must not save the application itself.
+        """
+        return ()
+
+    @classmethod
     def build_form(
         cls,
         *,

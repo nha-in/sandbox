@@ -44,6 +44,7 @@ class ApplicationQuerySet(models.QuerySet["ApplicationInstance"]):
     def with_workspace_data(self) -> ApplicationQuerySet:
         return self.select_related(
             "organisation",
+            "product",
             "created_by",
             "decided_by",
         ).prefetch_related(
@@ -67,6 +68,17 @@ class ApplicationInstance(models.Model):
         "organisations.Organisation",
         on_delete=models.PROTECT,
         related_name="experience_applications",
+    )
+    #: Null wherever the applicant named no product — most imported rows, and
+    #: any type that is not product-scoped (plan 12 §1.2). `organisation` stays
+    #: beside it because scoping cannot depend on a nullable path.
+    product = models.ForeignKey(
+        "organisations.Product",
+        on_delete=models.PROTECT,
+        related_name="applications",
+        null=True,
+        blank=True,
+        verbose_name=_("Product"),
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -101,6 +113,18 @@ class ApplicationInstance(models.Model):
 
     def __str__(self) -> str:
         return f"{self.reference} - {self.title}"
+
+    def clean(self) -> None:
+        """A product must belong to the same organisation as its application.
+
+        Not expressible as a database constraint — it spans two tables — so
+        `create_application` checks it too. Both, because this one guards
+        against a cross-tenant reference rather than against bad input.
+        """
+        super().clean()
+        if self.product_id and self.product.organisation_id != self.organisation_id:
+            msg = _("That product belongs to a different organisation.")
+            raise ValidationError({"product": msg})
 
     @property
     def progress_percent(self) -> int:

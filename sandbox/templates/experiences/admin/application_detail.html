@@ -16,7 +16,7 @@
   <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-2">
-        <h1 class="text-xl font-bold break-words">{{ application.metadata.product_name|default:definition.name }}</h1>
+        <h1 class="text-xl font-bold break-words">{{ application.product.name|default:definition.name }}</h1>
         {% include "experiences/partials/status_badge.html" with status=status_definition %}
       </div>
       <p class="mt-1 text-xs text-soft-foreground">{{ application.organisation.display_name }} · <span class="font-mono">{{ application.reference }}</span></p>

@@ -240,7 +240,6 @@ class Command(BaseCommand):
             applicant=applicant,
             admin=admin,
             status="draft",
-            product_name="Arogya Connect HMIS",
         )
         self._submissions(
             draft,
@@ -291,7 +290,6 @@ class Command(BaseCommand):
             applicant=applicant,
             admin=admin,
             status="under_review",
-            product_name="Arogya One HMIS",
         )
         submissions = self._submissions(
             review,
@@ -433,7 +431,7 @@ class Command(BaseCommand):
         )
         return organisation
 
-    def _application(  # noqa: PLR0913
+    def _application(
         self,
         *,
         reference,
@@ -441,7 +439,6 @@ class Command(BaseCommand):
         applicant,
         admin,
         status,
-        product_name,
     ):
         application, _created = ApplicationInstance.objects.update_or_create(
             reference=reference,
@@ -453,7 +450,6 @@ class Command(BaseCommand):
                 "status": status,
                 "metadata": {
                     "seed_key": reference,
-                    "product_name": product_name,
                     "progress_percent": 0,
                 },
                 "outcome": {},
@@ -509,12 +505,18 @@ class Command(BaseCommand):
         application.refresh_from_db()
         context = application_context(application, applicant)
         metadata = dict(application.metadata)
+        # Replay both submission hooks rather than reproducing what they do —
+        # `on_submit` is what attaches the Product (plan 12 §1.2).
+        changed: list[str] = []
         for form_definition in definition.forms:
             data = data_by_key.get(form_definition.key)
             if data:
+                changed.extend(form_definition.on_submit(application, data, context))
                 metadata.update(form_definition.metadata_updates(data, context))
         application.metadata = metadata
-        application.save(update_fields=["metadata", "updated_at"])
+        application.save(
+            update_fields=["metadata", *dict.fromkeys(changed), "updated_at"],
+        )
         return result
 
     def _attachment(

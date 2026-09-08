@@ -49,34 +49,108 @@ ApplicationDefinition       .key ───────────→  Applicati
 Legal values live in the registry, never in a database CHECK. Renaming a key
 orphans its rows, so a registry test pins the known keys.
 
-### 1.1 Two shape decisions everything else rests on
+### 1.1 Three shape decisions everything else rests on
 
 **Review is application-level.** The decision lands in
 `ApplicationInstance.outcome`. `MilestoneGrant` rows are **not** written from
-it: production access is one application-level decision and does not enumerate
+it: an approval is one application-level decision and does not enumerate
 milestones. They follow the **reviewer's verification** of the
 `milestone_declaration` and its bundled WASA certificate (§6 D8): the
 declaration is the applicant's own attestation and the WASA is a security
-audit, so neither earns anything until NHA has verified it. Once both are
-verified the application is approvable for production access. Milestones are self-declarations; the exit review is the single gate.
-An earlier design (`11-workflow-rewrite.md`, retired) put review on each
-`FormSubmission` — this departs from it consciously. It is what keeps
-`ApplicationFormSubmission` untouched, and is the largest single saving here.
+audit, so neither earns anything until NHA has verified it. An earlier design
+(`11-workflow-rewrite.md`, retired) put review on each `FormSubmission` — this
+departs from it consciously. It is what keeps `ApplicationFormSubmission`
+untouched, and is the largest single saving here.
 
 **No root container.** Nothing sits above `ApplicationInstance`. A parent would
 need its own status, permissions, access and audit — and `ApplicationAccess`,
 `ApplicationQueryThread` and `ApplicationEvent` all FK to `ApplicationInstance`,
 so queries and audit would either fragment across children or move up with it.
-That is the engine rebuilt one level higher. One instance instead;
-`MilestoneGrant` carries the fact that outlives it.
+That is the engine rebuilt one level higher.
 
-**Counts, so the levels are not confused.** One *type* today
-(`abdm_production_access`) → one *instance* per vendor request → **eleven**
-*submissions* per instance: ten the applicant owes (one of which,
-`health_locker_operations`, is conditional on scope) plus `production_details`,
-which only the review team fills (§4.8) → several *revisions* per submission.
+**One application type per gate.** This replaces an earlier claim that "the exit
+review is the single gate", which was inferred from the retired
+`11-workflow-rewrite.md` rather than read off legacy, and is wrong. Legacy has
+**one registration gate plus one gate per filing**, and the sequence is
+load-bearing: the sandbox credentials an integrator needs in order to *do* the
+milestone work are issued by the first gate. Collapsing the gates therefore
+collapsed the credential issuance too, which is why `integration_scope` ended up
+asking the applicant to type in a `sandbox_client_id` that this portal itself
+issues — later, as a consequence of approving the form that asks for it.
 
-Legacy's scale is tens of thousands of applications and thousands of exits.
+The fix is more *types*, not a container: §1.2. "No root container" survives
+untouched; only the gate count changes.
+
+### 1.2 Four application types, and Product
+
+Read off the legacy dump rather than inferred. Row counts are orders of
+magnitude, not figures to cite.
+
+| type | legacy table | per organisation | gated on | on approval |
+| ---- | ------------ | ---------------- | -------- | ----------- |
+| `abdm_sandbox_access` | `sd_login` + `sd_status` | many | — | **provisioning runs here**; sandbox credentials issued |
+| `abdm_milestone_exit` | `sd_exit` | many, **concurrent** | an approved sandbox access | `MilestoneGrant` per milestone claimed |
+| `abdm_nhcx_exit` | `nhcx_exit` | few | a milestone exit | NHCX programme access |
+| `abdm_go_live` | `sd_exit_live` | few | a milestone exit | the `active_integrator` public listing |
+
+Four facts from the dump drive this:
+
+- **Exits are many and concurrent.** Repeat filers are common, and of those,
+  roughly two in three had two exits open *at the same time*. So there is no
+  "one in flight" uniqueness constraint to be had on exits — `can_start` is a
+  service-layer predicate, never a database constraint. (The pre-port
+  `Application` model carried exactly such a constraint on
+  `(product, workflow_key)`; it must not be revived for exits.)
+- **Bundling is the norm.** A majority of exits claim two or more items at
+  once, most often three. `MilestoneDeclaration` stays a multi-select, and an
+  exit writes one `MilestoneGrant` per milestone it claims.
+- **PHR and health locker are never their own record.** They appear only as
+  values inside `sd_exit.integration_detail`. §3.1 already makes them
+  `ABDM_ROLES`; they stay scope *within* a milestone exit, not types.
+- **NHCX and go-live are their own records**, each in its own table, each
+  filed after a milestone exit. NHCX cannot be bundled — the legacy UI says so
+  outright.
+
+**`Product` returns as a model.** An organisation with two products applies
+twice, and the dump bears that out: a sixth of organisations registered more
+than once, and of those a large minority carry genuinely different product
+names. Without the table that identity lives in a form submission's JSON, which
+is why `filter_applications` already searches `metadata__product_name` — a
+denormalised copy kept solely to be filterable. The pre-port model (organisation
+FK, name, slug, description, unique per organisation) is the right shape.
+
+Two constraints on how it attaches:
+
+- **`ApplicationInstance.product` is nullable.** Most legacy registrations carry
+  no product name at all. A non-null FK would make the importer invent a
+  placeholder product for the majority of rows, which is worse than a null.
+- **`organisation` stays on `ApplicationInstance` beside it.** The pre-port
+  model reached the organisation *through* product and held no direct FK. We
+  cannot: `visible_to`, `OrganisationMixin`, the route gates and
+  `application_summary` all scope on organisation, and with product nullable
+  that path does not exist for most rows. Both, with the invariant that
+  `product.organisation_id == organisation_id`.
+
+**What each type asks for.** The organisation is never asked: a user has one
+membership, `OrganisationMixin` resolves it, and the organisation is a model
+rather than a column on the application. Legacy asked every time only because
+`sd_login` *was* the organisation. `OrganisationProfileForm` still re-asks
+`website`, `city`, `state` and `organisation_type`, all of which `Organisation`
+already holds — that duplication is the same fusion leaking through, and it goes
+when the sandbox access form is written (§8.6).
+
+So: **sandbox access** asks for the product, and creates or matches a `Product`
+under the signed-in organisation. **Every other type** asks a single question —
+*which sandbox access is this for* — and takes the product from it. Asking for
+organisation and product separately would not disambiguate anyway: repeat
+registrations of the same product are common, so only the sandbox access
+identifies which credentials the filing concerns.
+
+**Counts, so the levels are not confused.** Four *types* → many *instances* per
+organisation, of several types → *submissions* per instance, the number
+depending on the type → several *revisions* per submission.
+
+Legacy's scale is tens of thousands of registrations and thousands of exits.
 `ApplicationAccess` is keyed on the instance — the level that grows without
 bound — which is why §5 puts NHA's authority somewhere else.
 
@@ -909,6 +983,58 @@ it.
 
 ---
 
+### 8.6 Splitting the one application into four (§1.2)
+
+What §1.2 costs in already-built code. The order is the order of work; each
+step leaves the suite green.
+
+**1 · `Product`.** The model and its migration. `ApplicationInstance` gains a
+nullable `product` FK with the organisation invariant, `ProductUseCase.on_submit`
+becomes its only writer, and `metadata.product_name` stops being written —
+`filter_applications` and six templates move off the JSON copy onto the FK.
+
+No data migration backfills existing rows: this branch has no data worth
+keeping, so the dev database is reseeded instead. The **legacy** importer still
+creates products, which is a different job — `13-legacy-import.md` §7.2.
+
+**2 · The split.** `abdm_production_access` becomes `abdm_sandbox_access` plus
+`abdm_milestone_exit`, and the eleven forms redistribute:
+
+| form | goes to | note |
+| ---- | ------- | ---- |
+| `OrganisationProfile` | sandbox access | shrinks — it re-asks four fields `Organisation` already holds (§1.2) |
+| `ProductUseCase` | sandbox access | creates or matches the `Product` |
+| `IntegrationScope` | sandbox access | **loses `sandbox_client_id`** — this gate issues it — and loses `sandbox_exit_request_id`, which appears nowhere in legacy and nowhere else here |
+| `TechnicalReadiness`, `SecurityCompliance` | sandbox access | to settle: these gate credentials, not production |
+| `MilestoneDeclaration` | milestone exit | stays a multi-select |
+| `SecurityCertification` (WASA) | milestone exit | |
+| `ConformanceEvidence` | milestone exit | |
+| `HealthLockerOperations` | milestone exit | scope within the exit, not a type (§1.2) |
+| `Declaration` | milestone exit | |
+| `ProductionDetails` | milestone exit | review-team-only, unchanged (§4.8) |
+
+`start_provisioning` moves from `ApproveApplication` on production access to the
+sandbox access approval. A milestone exit's first form asks which sandbox access
+it belongs to.
+
+**3 · `can_start`.** A predicate on `ApplicationDefinition`, defaulting to
+always-true, answered against the organisation: a milestone exit needs an
+approved sandbox access with an active `ProvisionedResource`. `create_application`
+checks only membership today. It is a **creation-time gate, not an invariant** —
+§1.2 says why, and `13-legacy-import.md` §7 says why the importer must bypass it.
+
+**4 · `abdm_nhcx_exit`, then `abdm_go_live`.** New definitions, each gated on a
+milestone exit. Go-live is what feeds the `active_integrator` listing that
+`Organisation.listing_hidden` currently answers with nothing to apply for.
+
+**Views mostly do not move.** The engine is already type-agnostic: the vendor and
+console list and detail views resolve their definition from
+`application_type`, so four types need no fourth set of screens. What changes is
+the start flow (`registry.all()` already renders one card per type) and the
+dashboard, which should group an organisation's applications into the journey
+§1.2 describes — the "pack" is a read-model over `organisation` + type, never a
+table.
+
 ## 9. Open
 
 Everything the earlier documents held open is closed. What remains:
@@ -925,9 +1051,11 @@ Everything the earlier documents held open is closed. What remains:
    collapsed into one application. The earlier plan deferred this *to* this
    document; it is still unsettled, and step 5 cannot wire the effects without
    an answer.
-4. **Two application-kind lists disagree** and nobody has reconciled them:
+4. **Two application-kind lists disagree** — *mostly settled by §1.2*.
    `03-database.md`'s `SANDBOX|HCX|UHI|HIU|NHCX` against the v3
    specification's sandbox access, production access, NHCX enrolment, UHI
-   registration, test login. HIU is a milestone, not a track; `HCX` may be a
-   second programme or dead scope. It bites whoever writes the second
-   definition.
+   registration, test login. §1.2 read the answer off the dump instead: sandbox
+   access, milestone exit, NHCX and go-live are real tables with real rows, and
+   HIU is a milestone rather than a track as suspected. What remains open is
+   **UHI** (`sd_uhi`) and whether `HCX` is a second programme or dead scope —
+   both out of scope for the first import, neither reconciled.

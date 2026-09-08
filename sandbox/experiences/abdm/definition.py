@@ -21,6 +21,7 @@ from sandbox.integrations.services import start_provisioning
 from sandbox.notifications.hooks import notify
 from sandbox.notifications.models import TemplateKey
 from sandbox.organisations.grants import record_milestone_grants
+from sandbox.organisations.services import match_or_create_product
 
 from .forms import ApplicantQueryForm
 from .forms import ApprovalForm
@@ -86,9 +87,24 @@ class ProductUseCase(ApplicationFormDefinition):
     allow_updates = True
 
     @classmethod
+    def on_submit(cls, application, cleaned_data, context):
+        """Attach the `Product` this application is for, creating it if new.
+
+        Matched on the normalised name within the organisation, so a vendor who
+        registers the same product twice gets one row rather than two (§1.2).
+        """
+        product = match_or_create_product(
+            organisation=application.organisation,
+            name=cleaned_data["product_name"],
+        )
+        if product is None or application.product_id == product.pk:
+            return ()
+        application.product = product
+        return ("product",)
+
+    @classmethod
     def metadata_updates(cls, cleaned_data, context):
         return {
-            "product_name": cleaned_data["product_name"],
             "product_version": cleaned_data["product_version"],
             "target_go_live_date": cleaned_data["target_go_live_date"],
         }

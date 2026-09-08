@@ -209,7 +209,7 @@
           <div>
             <dt class="text-[11px] font-medium uppercase text-soft-foreground">{% translate "Product" %}</dt>
             <dd class="mt-0.5 text-sm">
-              {{ application.metadata.product_name|default:"Not provided" }}
+              {{ application.product.name|default:"Not provided" }}
             </dd>
           </div>
           <div>

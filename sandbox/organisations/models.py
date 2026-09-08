@@ -334,6 +334,58 @@ class Organisation(models.Model):
         return membership.user if membership else None
 
 
+class Product(models.Model):
+    """What actually gets certified — an organisation with two products applies
+    twice (plan 12 §1.2).
+
+    Repeat registrations of the same product converge here on one row, so the
+    slug is unique per organisation rather than globally: two vendors may both
+    call a product "HMIS".
+    """
+
+    organisation = models.ForeignKey(
+        Organisation,
+        on_delete=models.PROTECT,
+        related_name="products",
+        verbose_name=_("Organisation"),
+    )
+    name = models.CharField(_("Name"), max_length=255)
+    slug = models.SlugField(_("Slug"), max_length=255, blank=True)
+    description = models.TextField(_("Description"), blank=True)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Product")
+        verbose_name_plural = _("Products")
+        ordering = ["organisation", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "slug"],
+                name="organisations_product_unique_organisation_slug",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def save(self, *args, **kwargs) -> None:
+        if not self.slug:
+            self.slug = self._build_unique_slug()
+        super().save(*args, **kwargs)
+
+    def _build_unique_slug(self) -> str:
+        base = slugify(self.name)[:200] or "product"
+        candidate = base
+        suffix = 2
+        taken = Product.objects.filter(organisation=self.organisation).exclude(
+            pk=self.pk,
+        )
+        while taken.filter(slug=candidate).exists():
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+        return candidate
+
+
 class Membership(models.Model):
     """Links a user to an organisation with a role."""
 

@@ -35,7 +35,7 @@ def filter_applications(queryset, selected: dict[str, str]):
             Q(reference__icontains=query)
             | Q(title__icontains=query)
             | Q(organisation__name__icontains=query)
-            | Q(metadata__product_name__icontains=query),
+            | Q(product__name__icontains=query),
         )
     if selected.get("query_state") == "pending":
         queryset = queryset.filter(open_query_count__gt=0)

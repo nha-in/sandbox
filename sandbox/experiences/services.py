@@ -411,12 +411,17 @@ def save_form_submission(
         submission.data = stored_data
         submission.save(update_fields=["data", "updated_at"])
 
+    changed = list(
+        form_definition.on_submit(application, form.cleaned_data, context),
+    )
     updates = _json_value(
         form_definition.metadata_updates(form.cleaned_data, context),
     )
     if updates:
         application.metadata = {**application.metadata, **updates}
-        application.save(update_fields=["metadata", "updated_at"])
+        changed.append("metadata")
+    if changed:
+        application.save(update_fields=[*changed, "updated_at"])
     recalculate_progress(application, user=user)
     ApplicationEvent.objects.create(
         application=application,
