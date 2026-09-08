@@ -7,7 +7,12 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 
 from sandbox.events.selectors import dashboard_events
+from sandbox.experiences.registry import registry
+from sandbox.experiences.selectors import application_summary
+from sandbox.experiences.selectors import dashboard_activity
+from sandbox.experiences.selectors import dashboard_applications
 from sandbox.organisations.selectors import get_membership_for
+from sandbox.organisations.selectors import milestone_progress
 from sandbox.organisations.views import OrganisationMixin
 from sandbox.users.permissions import is_console_user
 
@@ -38,10 +43,12 @@ class LandingView(TemplateView):
 
 
 class DashboardView(OrganisationMixin, TemplateView):
-    """Screen 1c — status at a glance plus what to do next.
+    """Screen 1c — where the organisation stands, and what to do next.
 
-    Still the pre-ABDM shape: it knows nothing about applications, which is the
-    one thing a vendor signs in to do. §8.4 records what it needs instead.
+    Built around the two things that outlive a session: the applications in
+    flight, and the milestones the organisation holds (§3.1). Both are read
+    through selectors the application list also uses, so the two screens
+    cannot tell an integrator different numbers.
     """
 
     template_name = "dashboard/dashboard.html"
@@ -71,6 +78,8 @@ class DashboardView(OrganisationMixin, TemplateView):
         ]
         done_count = sum(1 for step in steps if step["done"])
 
+        user = self.request.user
+        milestones = milestone_progress(organisation)
         context.update(
             {
                 "nav_section": "dashboard",
@@ -80,14 +89,18 @@ class DashboardView(OrganisationMixin, TemplateView):
                 "setup_done": done_count,
                 "setup_total": len(steps),
                 "setup_percent": round(done_count / len(steps) * 100),
-                "recent_members": organisation.memberships.select_related(
-                    "user",
-                ).order_by(
-                    "-joined_at",
-                )[:5],
+                "applications": dashboard_applications(user, organisation),
+                "activity": dashboard_activity(user, organisation),
+                "milestones": milestones,
+                "milestones_held": sum(1 for item in milestones if item.granted),
+                "milestone_total": len(milestones),
+                # Offered by name, so the empty state is a way in rather than
+                # a pointer at a list to choose from.
+                "start_definitions": registry.all(),
                 # Events are published to every vendor, so this is not scoped
                 # to the organisation — see events.selectors.
                 "upcoming_events": dashboard_events(),
+                **application_summary(user, organisation),
             },
         )
         return context

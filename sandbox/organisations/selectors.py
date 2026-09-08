@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .models import MILESTONE_PREREQUISITES
 from .models import Membership
+from .models import Milestone
 from .models import MilestoneGrant
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from datetime import datetime
+
+    from django_stubs_ext import StrOrPromise
 
 
 def get_membership_for(user) -> Membership | None:
@@ -59,3 +64,45 @@ def unmet_prerequisites(
         for prerequisite in MILESTONE_PREREQUISITES[milestone]
         if prerequisite not in available
     )
+
+
+@dataclass(frozen=True, slots=True)
+class MilestoneProgress:
+    milestone: str
+    label: StrOrPromise
+    granted: bool
+    granted_at: datetime | None
+    #: Prerequisites this organisation does not hold yet. Only M4 owes any
+    #: (§3.1), and naming them beats a locked row that will not say why.
+    blocked_by: tuple[str, ...]
+
+
+def milestone_progress(organisation) -> list[MilestoneProgress]:
+    """All four milestones in order, held or not.
+
+    Every one is listed rather than only the held ones: "we have not been
+    granted M4" and "there is no M4" look identical if you render only what
+    exists, and the first is where every integrator starts.
+    """
+    grants = {
+        grant.milestone: grant
+        for grant in MilestoneGrant.objects.filter(organisation=organisation)
+    }
+    return [
+        MilestoneProgress(
+            milestone=milestone.value,
+            label=milestone.label,
+            granted=milestone.value in grants,
+            granted_at=(
+                grants[milestone.value].granted_at
+                if milestone.value in grants
+                else None
+            ),
+            blocked_by=(
+                ()
+                if milestone.value in grants
+                else unmet_prerequisites(organisation, milestone.value)
+            ),
+        )
+        for milestone in Milestone
+    ]

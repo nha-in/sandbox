@@ -40,8 +40,6 @@ from sandbox.users.tests.factories import UserFactory
 #: Awaiting rewrite in plan 12 §8.4. Delete an entry as its module is dealt
 #: with; the list reaching empty is what clears the debt.
 collect_ignore = [
-    # build the subject first, then port (§8.4)
-    "test_dashboard.py",
     # rewrite against the arriving theme (§4.1)
     "test_stylesheet.py",
     "test_template_syntax.py",

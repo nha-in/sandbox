@@ -11,9 +11,18 @@ from django.urls import reverse
 from django.utils import timezone
 
 from sandbox.events.tests.factories import EventFactory
+from sandbox.experiences.models import ApplicationEvent
+from sandbox.experiences.models import ApplicationQueryThread
+from sandbox.experiences.models import EventKind
+from sandbox.experiences.models import QueryStatus
+from sandbox.experiences.services import create_application
+from sandbox.experiences.tests.factories import APPLICATION_TYPE
+from sandbox.organisations.models import Milestone
+from sandbox.organisations.models import MilestoneGrant
 from sandbox.organisations.models import Role
 from sandbox.organisations.tests.factories import InvitationFactory
 from sandbox.organisations.tests.factories import MembershipFactory
+from sandbox.organisations.tests.factories import OrganisationFactory
 from sandbox.pages.views import resolve_post_login_destination
 from sandbox.users.tests.factories import UserFactory
 
@@ -153,6 +162,195 @@ class TestDashboardView:
         response = sign_in(user).get(reverse("dashboard"))
 
         assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+class TestDashboardApplications:
+    """The one thing a vendor signs in to do. The dashboard used to omit it."""
+
+    def test_the_empty_state_offers_a_way_in(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        assert list(response.context["applications"]) == []
+        body = response.content.decode()
+        assert reverse("experiences:start", args=[APPLICATION_TYPE]) in body
+        assert "have not started an application yet" in body
+
+    def test_an_application_is_listed_with_its_status(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        application = create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=owner_membership.organisation,
+            user=owner_membership.user,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        assert list(response.context["applications"]) == [application]
+        body = response.content.decode()
+        assert application.reference in body
+        assert "Draft" in body
+
+    def test_it_counts_what_is_in_review_and_what_is_waiting_on_you(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        application = create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=owner_membership.organisation,
+            user=owner_membership.user,
+        )
+        application.status = "under_review"
+        application.save(update_fields=["status"])
+        ApplicationQueryThread.objects.create(
+            application=application,
+            opened_by=owner_membership.user,
+            subject="Certificate is unreadable",
+            status=QueryStatus.AWAITING_APPLICANT,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        counts = (
+            response.context["total_count"],
+            response.context["in_review_count"],
+            response.context["query_count"],
+        )
+        assert counts == (1, 1, 1)
+
+    def test_another_organisations_application_is_not_counted(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        other = MembershipFactory.create(
+            organisation=OrganisationFactory.create(onboarded=True),
+            role=Role.OWNER,
+        )
+        create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=other.organisation,
+            user=other.user,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        assert list(response.context["applications"]) == []
+        assert response.context["total_count"] == 0
+
+
+class TestDashboardMilestones:
+    """§3.1's four, and the durable `MilestoneGrant` rows behind them."""
+
+    def test_all_four_are_listed_before_any_is_held(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        milestones = response.context["milestones"]
+        assert [item.milestone for item in milestones] == list(Milestone.values)
+        assert not any(item.granted for item in milestones)
+        assert response.context["milestones_held"] == 0
+
+    def test_a_grant_ticks_its_milestone(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        application = create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=owner_membership.organisation,
+            user=owner_membership.user,
+        )
+        MilestoneGrant.objects.create(
+            organisation=owner_membership.organisation,
+            milestone=Milestone.M1,
+            granted_by=application,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        held = [item for item in response.context["milestones"] if item.granted]
+        assert [item.milestone for item in held] == [Milestone.M1]
+        assert response.context["milestones_held"] == 1
+
+    def test_m4_names_what_it_is_waiting_on(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        """A locked row that will not say why is worse than no row at all."""
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        by_key = {item.milestone: item for item in response.context["milestones"]}
+        assert by_key[Milestone.M4].blocked_by == (
+            Milestone.M1,
+            Milestone.M2,
+            Milestone.M3,
+        )
+        # M2 and M3 owe nothing to M1 — what the documents do not say (§3.1).
+        assert by_key[Milestone.M2].blocked_by == ()
+        assert by_key[Milestone.M3].blocked_by == ()
+
+
+class TestDashboardActivity:
+    def test_it_reads_the_application_feed(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=owner_membership.organisation,
+            user=owner_membership.user,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        titles = [event.title for event in response.context["activity"]]
+        assert titles, "starting an application writes an opening event"
+        assert titles[0] in response.content.decode()
+
+    def test_an_internal_note_never_reaches_the_applicant(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        application = create_application(
+            application_type=APPLICATION_TYPE,
+            organisation=owner_membership.organisation,
+            user=owner_membership.user,
+        )
+        ApplicationEvent.objects.create(
+            application=application,
+            kind=EventKind.ACTION,
+            title="Applicant seems confused about M4",
+            is_internal=True,
+        )
+
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        assert "Applicant seems confused" not in response.content.decode()
+        assert all(not event.is_internal for event in response.context["activity"])
+
+    def test_the_empty_state_says_so(
+        self,
+        sign_in: Callable[[User], Client],
+        owner_membership: Membership,
+    ):
+        response = sign_in(owner_membership.user).get(reverse("dashboard"))
+
+        assert list(response.context["activity"]) == []
+        assert "Nothing has happened yet" in response.content.decode()
 
 
 class TestDashboardUpcomingEvents:

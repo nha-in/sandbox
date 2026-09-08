@@ -761,14 +761,26 @@ an `Organisation` membership and an `ApplicationAccess` grant, because
 returns one row per system in chain order *including the ones not reached yet*,
 which is the display §7 was written for, and nothing renders it.
 
-**The dashboard predates ABDM.** Its tiles were OHC Network's — a sandbox
-facility, Care Basic certification, deployments — and its checklist asked for
-two of them, both hardcoded `False` because nothing could ever set them. Those
-are gone: the checklist is the two steps that are real (profile, team), and the
-three tiles with them. What remains is the harder half — **the dashboard still
-does not mention applications**, the one thing a vendor signs in to do. It
-needs re-thinking against §3's milestones rather than patching, and
-`test_dashboard.py` waits on that.
+**The dashboard predates ABDM. Rebuilt.** Its tiles were OHC Network's — a
+sandbox facility, Care Basic certification, deployments — and its checklist
+asked for two of them, both hardcoded `False` because nothing could ever set
+them. Removing the three tiles left a four-column grid holding one card and
+three orphaned `</div>`s, which is what the page had been shipping since.
+
+It is now built around the two things that outlive a session: **the
+applications in flight** and **the milestones the organisation holds** (§3.1).
+Four stats (in review, open queries, milestones held, team), then the
+applications with status, progress and open-query count, then all four
+milestones held-or-not, then the applicant-visible `ApplicationEvent` feed —
+replacing a "recent activity" card that could only ever report who joined the
+team. Setup checklist and upcoming events stay.
+
+Two details worth keeping. Every number comes from `application_summary`, which
+the application list now also calls: two screens that disagree about how many
+applications are in review is a bug nobody reports and everybody stops trusting.
+And all four milestones are listed whether granted or not, with M4 naming its
+unmet prerequisites — rendering only what exists makes "we have not been granted
+M4" and "there is no M4" look identical, and the first is where everyone starts.
 
 **The marketing pages are somebody else's.** `pages/home.html`,
 `pages/about.html` and `account/signup.html` describe OHC Network's product,
@@ -788,13 +800,13 @@ door should claim is a decision, and it is open.
 | `test_enrollment_wizard` | **deleted** — a multi-step draft wizard with product selection and back-navigation, a concept the engine replaced wholesale with `StartApplicationView` plus form workspaces, which are already tested |
 | `test_route_gates` | **done** — 84 named URLs, 88 gate cases. It found the shipped htmx demo, the console access screen only a superuser could open, and that `is_superuser` did not open the console |
 | `test_credentials_panel` | **done** — the panel was built to it; 13 tests |
-| `test_dashboard` | after the dashboard is re-thought. Its wizard assertions go with `test_enrollment_wizard` either way |
+| `test_dashboard` | **deleted** — despite the name, every test in it targeted the application *overview* page under model names step 1 removed. Its one load-bearing idea, "every status renders a page", is carried over as `sandbox/experiences/tests/test_status_rendering.py`, widened to the applicant page, the console page and the dashboard row |
 | `test_navigation` | **done** — rewritten against the two shells; 25 tests. It found the console's account card was still inert text, and that the vendor detail template links no form actions |
 | `test_stylesheet`, `test_template_syntax` | wait on the theme (§4.1) |
 
-The order that follows from this: `test_route_gates` **(done)**, then the
-credentials panel and its tests, then provisioning progress, then the dashboard
-and its tests, then navigation. The two theme modules last.
+The order that follows from this: `test_route_gates` **(done)**, the credentials
+panel and its tests **(done)**, navigation **(done)**, the dashboard and its
+tests **(done)**. The two theme modules are what remain.
 
 **What the navigation rewrite found.** The old module was written against a
 `NAV_SECTIONS` registry, an organisation switcher and a per-application rail,

@@ -3,9 +3,14 @@
 {% comment %}
   Screen 1c — the dashboard.
 
-  The sandbox, certification and deployment tiles are deliberately honest: those
-  subsystems do not exist yet, so each states what is missing instead of showing
-  a number nobody earned. Activity is built from real memberships only.
+  Two things outlive a session and both are here: the applications in flight,
+  and the milestones the organisation holds (plan 12 §3.1). Every number comes
+  from a selector the application list also reads, so the two screens cannot
+  disagree about how many are in review.
+
+  Every card states its own empty case. A vendor signs in on day one with no
+  application, no milestone and no activity, and three blank cards would read
+  as breakage rather than as a beginning.
 {% endcomment %}
 {% load i18n %}
 
@@ -44,8 +49,43 @@
   <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
     <div class="ui-card ui-card--sm">
       <div class="ui-card-content">
+        <p class="text-xs font-medium text-soft-foreground">{% translate "In review" %}</p>
+        <p class="mt-1 text-[19px] font-bold tabular-nums">{{ in_review_count }}</p>
+        <p class="mt-[3px] text-xs text-muted-foreground">
+          {% blocktranslate count counter=total_count %}
+            {{ counter }} application in total
+          {% plural %}
+            {{ counter }} applications in total
+          {% endblocktranslate %}
+        </p>
+      </div>
+    </div>
+    <div class="ui-card ui-card--sm">
+      <div class="ui-card-content">
+        <p class="text-xs font-medium text-soft-foreground">{% translate "Open queries" %}</p>
+        <p class="mt-1 text-[19px] font-bold tabular-nums">{{ query_count }}</p>
+        <p class="mt-[3px] text-xs text-muted-foreground">
+          {% if query_count %}
+            {% translate "Waiting on your response" %}
+          {% else %}
+            {% translate "Nothing to answer" %}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="ui-card ui-card--sm">
+      <div class="ui-card-content">
+        <p class="text-xs font-medium text-soft-foreground">{% translate "Milestones" %}</p>
+        <p class="mt-1 text-[19px] font-bold tabular-nums">
+          {% blocktranslate %}{{ milestones_held }} of {{ milestone_total }}{% endblocktranslate %}
+        </p>
+        <p class="mt-[3px] text-xs text-muted-foreground">{% translate "Granted to your organisation" %}</p>
+      </div>
+    </div>
+    <div class="ui-card ui-card--sm">
+      <div class="ui-card-content">
         <p class="text-xs font-medium text-soft-foreground">{% translate "Team" %}</p>
-        <p class="mt-1 text-[19px] font-bold">{{ team_size }}</p>
+        <p class="mt-1 text-[19px] font-bold tabular-nums">{{ team_size }}</p>
         <p class="mt-[3px] text-xs text-muted-foreground">
           {% if pending_invites %}
             {% blocktranslate count counter=pending_invites %}
@@ -59,46 +99,137 @@
         </p>
       </div>
     </div>
-    </div>
-    </div>
-    </div>
   </div>
   <div class="mt-3.5 grid items-start gap-3.5 lg:grid-cols-[2fr_minmax(0,1fr)]">
-    <section class="ui-card" aria-labelledby="recent-activity-title">
-      <div class="ui-card-content">
-        <h2 class="ui-section-title" id="recent-activity-title">{% translate "Recent activity" %}</h2>
-        {% if recent_members|length > 1 %}
-          <ul class="mt-1.5 flex flex-col">
-            {% for member in recent_members %}
-              <li class="flex items-baseline gap-3 border-b border-soft-border py-3 last:border-b-0">
-                <span class="relative -top-px size-[7px] shrink-0 rounded-full bg-primary-500"
-                      aria-hidden="true"></span>
-                <p class="min-w-0 flex-1 text-[13.5px] leading-[1.45] break-words">
-                  {% if member.is_owner %}
-                    {% blocktranslate with name=member.user.display_name %}
-                      <span class="font-semibold">{{ name }}</span> created your organisation account
-                    {% endblocktranslate %}
-                  {% else %}
-                    {% blocktranslate with name=member.user.display_name role=member.get_role_display %}
-                      <span class="font-semibold">{{ name }}</span> joined your team with the {{ role }} role
-                    {% endblocktranslate %}
+    <div class="flex flex-col gap-3.5">
+      <section class="ui-card" aria-labelledby="applications-title">
+        <div class="ui-card-content">
+          <div class="flex items-baseline justify-between gap-3">
+            <h2 class="ui-section-title" id="applications-title">{% translate "Your applications" %}</h2>
+            {% if applications %}
+              <a class="ui-prose-link shrink-0 text-[12.5px] font-medium no-underline hover:underline"
+                 href="{% url 'experiences:list' %}">{% translate "All applications" %}</a>
+            {% endif %}
+          </div>
+          {% if applications %}
+            <ul class="mt-1.5 flex flex-col">
+              {% for application in applications %}
+                <li class="border-b border-soft-border last:border-b-0">
+                  <a class="group flex flex-col gap-2 py-3 text-foreground no-underline sm:flex-row sm:items-center sm:gap-4"
+                     href="{% url 'experiences:detail' application.reference %}">
+                    <span class="min-w-0 flex-1">
+                      <span class="flex flex-wrap items-center gap-2">
+                        <span class="text-[13.5px] font-semibold break-words group-hover:underline">{{ application.definition.name }}</span>
+                        {% if application.open_query_count %}
+                          <span class="ui-badge ui-badge--warning ui-badge--size-xs">
+                            {% blocktranslate count counter=application.open_query_count %}{{ counter }} query to answer{% plural %}{{ counter }} queries to answer{% endblocktranslate %}
+                          </span>
+                        {% endif %}
+                      </span>
+                      <span class="mt-0.5 block font-mono text-[11px] text-soft-foreground">
+                        {{ application.reference }} · {% blocktranslate with when=application.updated_at|date:"j M Y" %}updated {{ when }}{% endblocktranslate %}
+                      </span>
+                    </span>
+                    <span class="flex shrink-0 items-center gap-3">
+                      <span class="w-20">
+                        <span class="mb-1 block text-[11px] font-medium tabular-nums text-soft-foreground">{{ application.progress_percent }}%</span>
+                        <span class="block h-1.5 overflow-hidden rounded-full bg-muted">
+                          <span class="block h-full bg-primary"
+                                style="width: {{ application.progress_percent }}%"></span>
+                        </span>
+                      </span>
+                      {% include "experiences/partials/status_badge.html" with status=application.status_definition %}
+                    </span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            {% comment %}
+              Day one. The list would show the same emptiness one click further
+              in, so the way in is offered here by name.
+            {% endcomment %}
+            <div class="mt-3 flex flex-col items-start gap-3 rounded-lg border border-dashed border-border px-4 py-5">
+              <p class="text-[13.5px] leading-relaxed text-muted-foreground">
+                {% translate "You have not started an application yet. Production access begins with one." %}
+              </p>
+              {% for definition in start_definitions %}
+                <a class="ui-btn ui-btn--default ui-btn--size-sm"
+                   href="{% url 'experiences:start' definition.key %}">
+                  {% blocktranslate with name=definition.name %}Start {{ name }}{% endblocktranslate %}
+                </a>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </section>
+      <section class="ui-card" aria-labelledby="milestones-title">
+        <div class="ui-card-content">
+          <div class="flex items-baseline justify-between gap-3">
+            <h2 class="ui-section-title" id="milestones-title">{% translate "ABDM milestones" %}</h2>
+            <span class="shrink-0 text-xs text-soft-foreground">
+              {% blocktranslate %}{{ milestones_held }} of {{ milestone_total }}{% endblocktranslate %}
+            </span>
+          </div>
+          {% comment %}
+            All four are listed whether held or not: rendering only the granted
+            ones makes "we have not been granted M4" and "there is no M4" look
+            the same, and the first is where every integrator starts.
+          {% endcomment %}
+          <ul class="mt-2.5 flex flex-col gap-2.5 text-[13.5px]">
+            {% for milestone in milestones %}
+              <li class="flex items-start gap-2.5">
+                {% if milestone.granted %}
+                  <span class="w-[15px] shrink-0 text-center font-extrabold text-primary"
+                        aria-hidden="true">✓</span>
+                {% else %}
+                  <span class="mt-[3px] size-[15px] shrink-0 rounded-full border-[1.5px] border-strong-border"
+                        aria-hidden="true"></span>
+                {% endif %}
+                <span class="min-w-0 flex-1">
+                  <span class="block break-words {% if not milestone.granted %}text-muted-foreground{% endif %}">{{ milestone.label }}</span>
+                  {% if milestone.granted %}
+                    <span class="mt-0.5 block text-[11.5px] text-soft-foreground">
+                      {% blocktranslate with when=milestone.granted_at|date:"j M Y" %}Granted {{ when }}{% endblocktranslate %}
+                    </span>
+                  {% elif milestone.blocked_by %}
+                    <span class="mt-0.5 block text-[11.5px] text-soft-foreground">
+                      {% translate "Needs" %} {{ milestone.blocked_by|join:", "|upper }}
+                    </span>
                   {% endif %}
-                </p>
-                <span class="shrink-0 text-xs text-soft-foreground">{{ member.joined_at|date:"j M" }}</span>
+                </span>
               </li>
             {% endfor %}
           </ul>
-        {% else %}
-          <div class="mt-3 flex flex-col items-start gap-3 rounded-lg border border-dashed border-border px-4 py-5">
-            <p class="text-[13.5px] leading-relaxed text-muted-foreground">
-              {% translate "It is just you here so far. Teammates joining, sandbox events and certification progress will appear here as they happen." %}
-            </p>
-            <a class="ui-btn ui-btn--secondary ui-btn--size-sm"
-               href="{% url 'organisations:team' %}">{% translate "Invite your team" %}</a>
-          </div>
-        {% endif %}
-      </div>
-    </section>
+        </div>
+      </section>
+      <section class="ui-card" aria-labelledby="recent-activity-title">
+        <div class="ui-card-content">
+          <h2 class="ui-section-title" id="recent-activity-title">{% translate "Recent activity" %}</h2>
+          {% if activity %}
+            <ul class="mt-1.5 flex flex-col">
+              {% for event in activity %}
+                <li class="flex items-baseline gap-3 border-b border-soft-border py-3 last:border-b-0">
+                  <span class="relative -top-px size-[7px] shrink-0 rounded-full bg-primary-500"
+                        aria-hidden="true"></span>
+                  <p class="min-w-0 flex-1 text-[13.5px] leading-[1.45] break-words">
+                    <span class="font-semibold">{{ event.title }}</span>
+                    <span class="block font-mono text-[11px] text-soft-foreground">{{ event.application.reference }}</span>
+                  </p>
+                  <span class="shrink-0 text-xs text-soft-foreground">{{ event.created_at|date:"j M" }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="mt-3 rounded-lg border border-dashed border-border px-4 py-5">
+              <p class="text-[13.5px] leading-relaxed text-muted-foreground">
+                {% translate "Nothing has happened yet. Submissions, reviewer queries and decisions will appear here as they do." %}
+              </p>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
     <div class="flex flex-col gap-3.5">
       <section class="ui-card" aria-labelledby="setup-checklist-title">
         <div class="ui-card-content">

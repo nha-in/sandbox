@@ -42,7 +42,9 @@ from .models import QueryStatus
 from .permissions import get_effective_access
 from .registry import registry
 from .selectors import PENDING_QUERY_STATUSES
+from .selectors import application_summary
 from .selectors import applications_for_user
+from .selectors import decorate_applications
 from .selectors import filter_applications
 from .services import application_context
 from .services import assignable_roles
@@ -64,14 +66,6 @@ def _redirect_for_request(request, url: str):
     if request.htmx:
         return HttpResponseClientRedirect(url)
     return redirect(url)
-
-
-def _decorate_applications(applications) -> None:
-    for application in applications:
-        application.definition = registry.get(application.application_type)
-        application.status_definition = application.definition.get_status(
-            application.status,
-        )
 
 
 def _choice_map(choices) -> dict[str, str]:
@@ -302,10 +296,7 @@ class VendorApplicationListView(
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         applications = list(context["applications"])
-        _decorate_applications(applications)
-        base = ApplicationInstance.objects.visible_to(self.request.user).filter(
-            organisation=self.organisation,
-        )
+        decorate_applications(applications)
         context.update(
             {
                 "applications": applications,
@@ -313,16 +304,7 @@ class VendorApplicationListView(
                 "filter_querystring": urlencode(self.filters),
                 "nav_section": "applications",
                 "available_definitions": registry.all(),
-                "total_count": base.count(),
-                "in_review_count": base.filter(
-                    status__in=["submitted", "under_review", "revision_submitted"],
-                ).count(),
-                "query_count": base.filter(
-                    query_threads__status__in=PENDING_QUERY_STATUSES,
-                )
-                .distinct()
-                .count(),
-                "approved_count": base.filter(status="approved").count(),
+                **application_summary(self.request.user, self.organisation),
             },
         )
         return context
@@ -468,7 +450,7 @@ class AdminApplicationListView(
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         applications = list(context["applications"])
-        _decorate_applications(applications)
+        decorate_applications(applications)
         base = ApplicationInstance.objects.visible_to(self.request.user)
         context.update(
             {
