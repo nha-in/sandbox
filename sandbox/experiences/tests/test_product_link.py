@@ -7,13 +7,10 @@ copy; both of those are what these replace.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 import pytest
 from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.urls import reverse
-from django.utils import timezone
 
 from sandbox.experiences.abdm.forms import OrganisationProfileForm
 from sandbox.experiences.abdm.forms import ProductUseCaseForm
@@ -80,13 +77,9 @@ def _profile_data() -> dict:
 def _product_data(name: str) -> dict:
     return {
         "product_name": name,
-        "product_version": "2.1",
         "product_type": "hmis",
+        "intent_to_integrate": "ABHA-linked records shared with consent.",
         "product_description": "An ABDM-enabled hospital information system.",
-        "current_facility_count": 12,
-        "expected_monthly_transactions": 5000,
-        "deployment_states": "Kerala",
-        "target_go_live_date": timezone.localdate() + timedelta(days=30),
     }
 
 
@@ -121,8 +114,6 @@ class TestOnSubmit:
         _submit(application, owner, "product_use_case", _product_data("Arogya HMIS"))
 
         assert "product_name" not in application.metadata
-        # The other two are still metadata: nothing joins on them.
-        assert application.metadata["product_version"] == "2.1"
 
     def test_resubmitting_the_same_name_does_not_make_a_second_product(
         self,
@@ -303,3 +294,63 @@ class TestTheExitInheritsItsProduct:
                 user=owner,
                 predecessor=stranger,
             )
+
+
+class TestTheProductFormsOwnFields:
+    """All four answers are per registration, not per organisation: in the
+    legacy dump most organisations that registered more than once gave a
+    different solution type, and a sixth gave a different intent."""
+
+    def test_other_must_say_which_other(self):
+        form = ProductUseCaseForm(
+            data={**_product_data("Arogya HMIS"), "product_type": "other"},
+        )
+
+        assert not form.is_valid()
+        assert "product_type_other" in form.errors
+
+    def test_other_is_accepted_once_named(self):
+        form = ProductUseCaseForm(
+            data={
+                **_product_data("Arogya HMIS"),
+                "product_type": "other",
+                "product_type_other": "Radiology reporting platform",
+            },
+        )
+
+        assert form.is_valid(), form.errors
+
+    def test_a_named_type_needs_no_other(self):
+        form = ProductUseCaseForm(data=_product_data("Arogya HMIS"))
+
+        assert form.is_valid(), form.errors
+
+    def test_intent_is_required(self):
+        data = _product_data("Arogya HMIS")
+        del data["intent_to_integrate"]
+
+        form = ProductUseCaseForm(data=data)
+
+        assert not form.is_valid()
+        assert "intent_to_integrate" in form.errors
+
+    def test_two_products_in_one_organisation_carry_their_own_answers(
+        self,
+        application,
+        owner,
+    ):
+        """The reason both live here rather than on the organisation."""
+        _submit(application, owner, "product_use_case", _product_data("Arogya HMIS"))
+        first = application.submissions.get(form_key="product_use_case").data
+
+        second_data = {
+            **_product_data("Arogya LIMS"),
+            "intent_to_integrate": "Lab reports to ABHA addresses.",
+        }
+        _submit(application, owner, "product_use_case", second_data)
+        second = application.submissions.get(
+            form_key="product_use_case",
+            is_current=True,
+        ).data
+
+        assert first["intent_to_integrate"] != second["intent_to_integrate"]

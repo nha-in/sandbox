@@ -53,7 +53,7 @@
       <section class="rounded-md border border-border bg-card p-4">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Applicant" %}</p><p class="mt-1 text-sm font-medium">{{ application.created_by.display_name }}</p><p class="text-xs text-muted-foreground">{{ application.created_by.email }}</p></div>
-          <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Product version" %}</p><p class="mt-1 text-sm">{{ application.metadata.product_version|default:"Not provided" }}</p></div>
+          <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Product" %}</p><p class="mt-1 text-sm">{{ application.product.name|default:"Not named" }}</p></div>
           <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Milestones" %}</p><p class="mt-1 text-sm uppercase">{{ application.metadata.milestones|join:", "|default:"Not provided" }}</p></div>
           <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Submitted" %}</p><p class="mt-1 text-sm">{{ application.submitted_at|date:"j M Y, H:i"|default:"Not submitted" }}</p></div>
           <div><p class="text-[11px] font-semibold uppercase text-soft-foreground">{% translate "Completion" %}</p><p class="mt-1 text-sm font-semibold tabular-nums">{{ application.progress_percent }}%</p><p class="text-xs text-muted-foreground">{% blocktranslate with complete=application.metadata.completed_forms total=application.metadata.required_forms %}{{ complete }} of {{ total }} currently required{% endblocktranslate %}</p></div>

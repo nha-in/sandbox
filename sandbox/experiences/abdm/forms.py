@@ -201,15 +201,24 @@ class OrganisationProfileForm(ExperienceForm):
 
 
 class ProductUseCaseForm(ExperienceForm):
+    """What the product is, and why it is being brought to ABDM.
+
+    All four are per *registration*, not per organisation: in the legacy dump a
+    majority of organisations that registered more than once gave a different
+    solution type, and a sixth gave a different intent. An organisation with two
+    products has two answers to each.
+    """
+
     product_name = forms.CharField(
         label=_("Digital health product name"),
         max_length=255,
     )
-    product_version = forms.CharField(
-        label=_("Version seeking production access"),
-        max_length=80,
-    )
     product_type = forms.ChoiceField(label=_("Product type"), choices=PRODUCT_TYPES)
+    product_type_other = forms.CharField(
+        label=_("If other, which type?"),
+        max_length=255,
+        required=False,
+    )
     product_description = forms.CharField(
         label=_("Product and intended use"),
         widget=forms.Textarea(attrs={"rows": 5}),
@@ -217,29 +226,21 @@ class ProductUseCaseForm(ExperienceForm):
             "Describe users, care settings, and the ABDM-enabled patient journey.",
         ),
     )
-    current_facility_count = forms.IntegerField(
-        label=_("Facilities currently using the product"),
-        min_value=0,
-    )
-    expected_monthly_transactions = forms.IntegerField(
-        label=_("Expected monthly ABDM transactions"),
-        min_value=0,
-    )
-    deployment_states = forms.CharField(
-        label=_("Planned deployment states / UTs"),
-        widget=forms.Textarea(attrs={"rows": 3}),
-        help_text=_("Enter one or more states or union territories."),
-    )
-    target_go_live_date = forms.DateField(
-        label=_("Target production go-live"),
-        widget=forms.DateInput(attrs={"type": "date"}),
+    intent_to_integrate = forms.CharField(
+        label=_("Intent to integrate"),
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text=_(
+            "Why this product is joining ABDM, and what it will offer patients.",
+        ),
     )
 
-    def clean_target_go_live_date(self):
-        value = self.cleaned_data["target_go_live_date"]
-        if value < timezone.localdate():
-            raise ValidationError(_("Choose today or a future date."))
-        return value
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("product_type") == "other" and not cleaned.get(
+            "product_type_other",
+        ):
+            self.add_error("product_type_other", _("Name the type of product."))
+        return cleaned
 
 
 class IntegrationScopeForm(ExperienceForm):

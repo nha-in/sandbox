@@ -1051,6 +1051,41 @@ NHA's own documentation and FAQ, not only legacy:
   start and end dates. Its seven operational questions are additions. Kept on
   the same terms, gated on the declaration's scope.
 
+**2b · `ProductUseCase`, reconciled against both sources.** It had eight fields,
+six of them ours. Five are **dropped** — product version, current facility
+count, expected monthly transactions, deployment states and target go-live
+date. None appears in legacy's registration form, in the `sd_login` columns, or
+in NHA's documentation, and all five were *required*: an integrator had to
+invent a facility count and a launch date to get sandbox credentials, and no
+gate, predicate or screen ever read one. `product_description` stays as a
+deliberate addition, because a reviewer has to know what they are approving.
+
+Two are **added**, both per registration rather than per organisation:
+
+- **`product_type_other`** — `product_type` offered "Other" with nowhere to say
+  what. Legacy carries `solution_type_others` for the same reason.
+- **`intent_to_integrate`** — legacy's `ecosystem`, labelled *"Reason to be part
+  of ABDM"* on the profile and admin screens, and named by NHA's documented
+  entry process as *"Intent to Integrate"*. Nothing of ours asked for it.
+
+The dump settles where they belong. Of the organisations that registered more
+than once, a **majority** gave a different solution type and roughly a **sixth**
+a different intent — more variation in solution type than in product *name*, so
+even the same product re-registered can be typed differently. Both are facts
+about a registration, not about a company.
+
+**`product_type` is the solution-type concept** §6 records the DHIS predicates
+as blocked on. It exists, under a different name: legacy's `solutionTypeOptions`
+carries values ours does not (Clinic HMIS, EUA, the three Govt variants,
+Healthtech, Insurance, Payers, Providers). So that item is blocked on vocabulary
+alignment and `dhis_solution_type`, not on a missing concept.
+
+**Two legacy columns that are not ours to want.** `payer_category` belongs to
+the **HCX** registration form, and `integration_level` to the DHIS, microsite
+and NHCX registrations — where `register-for-dhis.js` sets it to
+`milestones.join(',')`, making it a milestone list under a misleading name.
+Neither is an ABDM sandbox-entry field.
+
 **Two things the documentation names that we still lack.** The exit's artifacts
 are *"FT certificate & reports, WASA certificate, Undertaking and GSTIN
 certificate"* — the **GSTIN certificate has no form** (§9). And functional

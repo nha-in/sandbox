@@ -72,22 +72,20 @@ def profile_data() -> dict:
     }
 
 
-def product_data(name: str, *, days_until_launch: int) -> dict:
+def product_data(name: str) -> dict:
     return {
         "product_name": name,
-        "product_version": "3.2.0",
         "product_type": "hmis",
+        "product_type_other": "",
         "product_description": (
             "A multi-facility HMIS for outpatient and inpatient workflows, "
             "ABHA-assisted registration, care-context linking, consented record "
             "sharing, and clinician-authorised longitudinal record access."
         ),
-        "current_facility_count": 18,
-        "expected_monthly_transactions": 42000,
-        "deployment_states": "Karnataka\nKerala\nTamil Nadu",
-        "target_go_live_date": (
-            timezone.localdate() + timedelta(days=days_until_launch)
-        ).isoformat(),
+        "intent_to_integrate": (
+            "To let partner hospitals issue ABHA-linked records and share them "
+            "with patient consent, replacing paper discharge summaries."
+        ),
     }
 
 
@@ -128,14 +126,11 @@ def milestone_data(*, include_health_locker: bool = False) -> dict:
     return data
 
 
-def sandbox_access_data(product_name: str, *, days_until_launch: int) -> dict:
+def sandbox_access_data(product_name: str) -> dict:
     """The first gate: who you are, what the product is, what you integrate."""
     return {
         "organisation_profile": profile_data(),
-        "product_use_case": product_data(
-            product_name,
-            days_until_launch=days_until_launch,
-        ),
+        "product_use_case": product_data(product_name),
         "integration_scope": integration_data(include_health_locker=True),
     }
 
@@ -266,7 +261,7 @@ class Command(BaseCommand):
         self._submissions(
             sandbox_access,
             applicant,
-            sandbox_access_data("Arogya Connect HMIS", days_until_launch=75),
+            sandbox_access_data("Arogya Connect HMIS"),
         )
         self._provisioned_client(sandbox_access)
 

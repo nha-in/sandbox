@@ -105,13 +105,6 @@ class ProductUseCase(ApplicationFormDefinition):
         application.product = product
         return ("product",)
 
-    @classmethod
-    def metadata_updates(cls, cleaned_data, context):
-        return {
-            "product_version": cleaned_data["product_version"],
-            "target_go_live_date": cleaned_data["target_go_live_date"],
-        }
-
 
 class IntegrationScope(ApplicationFormDefinition):
     key = "integration_scope"

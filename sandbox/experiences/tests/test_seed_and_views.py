@@ -160,7 +160,6 @@ def test_seeder_creates_working_accounts_and_both_workflows(seeded_demo):
     sandbox_access = ApplicationInstance.objects.get(reference=SANDBOX_REFERENCE)
     assert sandbox_access.application_type == "abdm_sandbox_access"
     assert sandbox_access.submissions.count() == SANDBOX_SUBMISSION_COUNT
-    assert sandbox_access.metadata["product_version"] == "3.2.0"
     assert review.metadata["milestones"] == ["m1", "m2", "m3"]
     certifications = review.submissions.filter(
         form_key="security_certification",
