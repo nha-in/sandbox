@@ -24,7 +24,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_sandbox_access"
 STATUSES = [status.key for status in registry.get(APPLICATION_TYPE).statuses]
 
 

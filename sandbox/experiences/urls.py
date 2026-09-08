@@ -12,6 +12,11 @@ urlpatterns = [
         name="start",
     ),
     path(
+        "<str:reference>/start/<str:application_type>/",
+        views.StartFollowOnApplicationView.as_view(),
+        name="start-follow-on",
+    ),
+    path(
         "<str:reference>/",
         views.VendorApplicationDetailView.as_view(),
         name="detail",

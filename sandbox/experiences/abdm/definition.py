@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from sandbox.experiences import permission_keys
+from sandbox.experiences.abdm.links import provisioned_sandbox_accesses
 from sandbox.experiences.definitions import COMMON_PERMISSIONS
 from sandbox.experiences.definitions import ActionResult
 from sandbox.experiences.definitions import ApplicationAction
@@ -122,7 +125,6 @@ class IntegrationScope(ApplicationFormDefinition):
     def metadata_updates(cls, cleaned_data, context):
         return {
             "abdm_roles": cleaned_data["abdm_roles"],
-            "sandbox_client_id": cleaned_data["sandbox_client_id"],
         }
 
 
@@ -133,7 +135,6 @@ class MilestoneDeclaration(ApplicationFormDefinition):
         "Which ABDM milestones are complete, and when each was integrated.",
     )
     form_class = MilestoneDeclarationForm
-    dependencies = (IntegrationScope.key,)
     allow_updates = True
 
     @classmethod
@@ -148,13 +149,19 @@ class HealthLockerOperations(ApplicationFormDefinition):
         "Operational controls required only when health locker access is requested.",
     )
     form_class = HealthLockerOperationsForm
-    dependencies = (IntegrationScope.key,)
+    dependencies = (MilestoneDeclaration.key,)
     allow_updates = True
 
     @classmethod
     def is_applicable(cls, context):
-        integration_scope = context.form_data(IntegrationScope.key)
-        return "health_locker" in integration_scope.get("abdm_roles", [])
+        """Declared scope, not the sandbox access's roles.
+
+        The roles live on a different application now (§1.2), and NHA documents
+        health locker nowhere — legacy asks for it in the declaration, beside
+        the milestones, which is what `additional_scope` reproduces.
+        """
+        declaration = context.form_data(MilestoneDeclaration.key)
+        return "health_locker" in declaration.get("additional_scope", [])
 
     @classmethod
     def metadata_updates(cls, cleaned_data, context):
@@ -171,7 +178,7 @@ class TechnicalReadiness(ApplicationFormDefinition):
         "Production endpoints, network controls, reliability, and escalation.",
     )
     form_class = TechnicalReadinessForm
-    dependencies = (IntegrationScope.key,)
+    dependencies = (MilestoneDeclaration.key,)
     allow_updates = True
 
 
@@ -328,10 +335,15 @@ class SubmitApplication(ApplicationAction):
         ).exists()
         if context.application.status == "changes_requested" and has_unanswered_query:
             return False, _("Respond to every open query before resubmitting.")
-        blockers = exit_gate_blockers(context)
+        blockers = cls.extra_blockers(context)
         if blockers:
             return False, blockers[0]
         return True, ""
+
+    @classmethod
+    def extra_blockers(cls, context) -> tuple[str, ...]:
+        """Type-specific submission rules. The first gate has none."""
+        return ()
 
     @classmethod
     def perform(cls, context, cleaned_data):
@@ -347,6 +359,14 @@ class SubmitApplication(ApplicationAction):
                 "last_submitted_by": context.user.display_name,
             },
         )
+
+
+class SubmitMilestoneExit(SubmitApplication):
+    """§3.2's exit gate applies to the exit, not to the registration before it."""
+
+    @classmethod
+    def extra_blockers(cls, context) -> tuple[str, ...]:
+        return exit_gate_blockers(context)
 
 
 class AskReviewTeam(ApplicationAction):
@@ -500,12 +520,20 @@ class ReviewEvidence(ApplicationAction):
 
 
 class ApproveApplication(ApplicationAction):
+    """The shape both gates share. Neither is registered; the subclasses are.
+
+    Legacy runs two approvals and its notification templates still say so —
+    `sandbox-approved` and `production-approved` are different rows in the
+    inventory. §1.2 restores the process they were named for.
+    """
+
     key = "approve"
-    name = _("Approve production access")
-    description = _("Record approved milestones and production credentials reference.")
     required_permissions = {"perform": permission_keys.APPROVE_APPLICATION}
     allowed_statuses = frozenset({"under_review", "revision_submitted"})
     form_class = ApprovalForm
+
+    #: What the applicant is told, and what the approval sets running.
+    template_key: ClassVar[str]
 
     @classmethod
     def extra_availability(cls, context):
@@ -513,6 +541,55 @@ class ApproveApplication(ApplicationAction):
             status=QueryStatus.RESOLVED,
         ).exists():
             return False, _("Resolve every application query before approval.")
+        return True, ""
+
+    @classmethod
+    def outcome_updates(cls, context, cleaned_data) -> dict:
+        return {
+            "decision": "approved",
+            "effective_date": cleaned_data["effective_date"],
+            "certificate_reference": cleaned_data["certificate_reference"],
+            "decision_note": cleaned_data.get("note", ""),
+            "decided_by": context.user.display_name,
+        }
+
+
+class ApproveSandboxAccess(ApproveApplication):
+    """The first gate. Credentials are its effect, which is why nothing before
+    it may ask the applicant for a sandbox client id (§1.2)."""
+
+    name = _("Approve sandbox access")
+    description = _("Issue sandbox credentials and start provisioning.")
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        """No notification here: `sandbox-approved` *is* the credentials mail.
+
+        The chain sends it on completion, which is the first moment there is
+        anything to send. Announcing approval before the credentials exist is
+        the same error as asking for a client id before this gate issues one.
+        """
+        return ActionResult(
+            message=_("Sandbox access approved"),
+            new_status="approved",
+            outcome_updates=cls.outcome_updates(context, cleaned_data),
+            effects=(lambda application, user: start_provisioning(application),),
+        )
+
+
+class ApproveMilestoneExit(ApproveApplication):
+    """The second gate. Grants are already written by `review_evidence`; this
+    records the decision and tells the applicant production access follows."""
+
+    name = _("Approve production access")
+    description = _("Record the exit decision for the declared milestones.")
+    template_key = TemplateKey.PRODUCTION_APPROVED
+
+    @classmethod
+    def extra_availability(cls, context):
+        available, reason = super().extra_availability(context)
+        if not available:
+            return available, reason
         if stale_reviews(context):
             return False, _("Review the evidence before approving.")
         return True, ""
@@ -522,23 +599,15 @@ class ApproveApplication(ApplicationAction):
         return ActionResult(
             message=_("Production access approved"),
             new_status="approved",
-            outcome_updates={
-                "decision": "approved",
-                "effective_date": cleaned_data["effective_date"],
-                "certificate_reference": cleaned_data["certificate_reference"],
-                "decision_note": cleaned_data.get("note", ""),
-                "decided_by": context.user.display_name,
-            },
-            effects=(
-                notify(TemplateKey.PRODUCTION_APPROVED),
-                lambda application, user: start_provisioning(application),
-            ),
+            outcome_updates=cls.outcome_updates(context, cleaned_data),
+            effects=(notify(cls.template_key),),
         )
 
 
 class RejectApplication(ApplicationAction):
+    """The shape both refusals share."""
+
     key = "reject"
-    name = _("Reject application")
     description = _("Record a final rejection with clear reasons and next steps.")
     required_permissions = {"perform": permission_keys.REJECT_APPLICATION}
     allowed_statuses = frozenset(
@@ -547,22 +616,53 @@ class RejectApplication(ApplicationAction):
     form_class = RejectionForm
     style = "destructive"
 
+    template_key: ClassVar[str]
+
+    @classmethod
+    def outcome_updates(cls, context, cleaned_data) -> dict:
+        return {
+            "decision": "rejected",
+            "reason": cleaned_data["reason"],
+            "details": cleaned_data["details"],
+            "decision_note": cleaned_data.get("note", ""),
+            "decided_by": context.user.display_name,
+        }
+
+
+class RejectSandboxAccess(RejectApplication):
+    """Refusing the first gate takes the credentials back, because this gate is
+    what issued them."""
+
+    name = _("Reject sandbox access")
+    template_key = TemplateKey.SANDBOX_REJECTED
+
     @classmethod
     def perform(cls, context, cleaned_data):
         return ActionResult(
-            message=_("Application rejected"),
+            message=_("Sandbox access rejected"),
             new_status="rejected",
-            outcome_updates={
-                "decision": "rejected",
-                "reason": cleaned_data["reason"],
-                "details": cleaned_data["details"],
-                "decision_note": cleaned_data.get("note", ""),
-                "decided_by": context.user.display_name,
-            },
+            outcome_updates=cls.outcome_updates(context, cleaned_data),
             effects=(
-                notify(TemplateKey.EXIT_REJECTED),
+                notify(cls.template_key),
                 lambda application, user: start_deprovisioning(application),
             ),
+        )
+
+
+class RejectMilestoneExit(RejectApplication):
+    """A refused exit leaves the sandbox credentials alone: they belong to the
+    sandbox access, which is still approved, and the integrator may file again."""
+
+    name = _("Reject exit")
+    template_key = TemplateKey.EXIT_REJECTED
+
+    @classmethod
+    def perform(cls, context, cleaned_data):
+        return ActionResult(
+            message=_("Exit rejected"),
+            new_status="rejected",
+            outcome_updates=cls.outcome_updates(context, cleaned_data),
+            effects=(notify(cls.template_key),),
         )
 
 
@@ -632,14 +732,14 @@ class RetryDeprovisioning(ApplicationAction):
         )
 
 
-@registry.register
-class ABDMProductionAccess(ApplicationDefinition):
-    key = "abdm_production_access"
-    name = _("ABDM production access")
-    description = _(
-        "A full sandbox-exit and production-access review for an ABDM-integrated "
-        "digital health product.",
-    )
+class ABDMApplication(ApplicationDefinition):
+    """What both ABDM gates share. Not registered; the two below are.
+
+    Statuses, permissions and roles are identical either side of the split —
+    an exit is reviewed by the same people, in the same states, with the same
+    applicant roles. Only the forms, the decision effects and the way in differ.
+    """
+
     reference_prefix = "ABDM"
     statuses = (
         StatusDefinition(
@@ -758,10 +858,59 @@ class ABDMProductionAccess(ApplicationDefinition):
             ),
         ),
     )
+
+
+@registry.register
+class ABDMSandboxAccess(ABDMApplication):
+    """Legacy's registration: `sd_login` plus `sd_status` (§1.2).
+
+    NHA's documented entry process. Approving it is what issues the sandbox
+    credentials an integrator needs before any milestone work can begin, which
+    is why the milestone exit is a separate application rather than more forms
+    on this one.
+    """
+
+    key = "abdm_sandbox_access"
+    name = _("ABDM sandbox access")
+    description = _(
+        "Register a digital health product for ABDM sandbox credentials.",
+    )
+    reference_prefix = "ABDM"
     forms = (
         OrganisationProfile,
         ProductUseCase,
         IntegrationScope,
+    )
+    actions = (
+        SubmitApplication,
+        WithdrawApplication,
+        AskReviewTeam,
+        StartReview,
+        RaiseQuery,
+        ApproveSandboxAccess,
+        RejectSandboxAccess,
+        RetryProvisioning,
+        RetryDeprovisioning,
+    )
+
+
+@registry.register
+class ABDMMilestoneExit(ABDMApplication):
+    """Legacy's `sd_exit`, filed once per set of milestones (§1.2).
+
+    Many per organisation and routinely concurrent — the dump shows two in
+    flight at once for most repeat filers — so `can_start` gates on the sandbox
+    access and on nothing else.
+    """
+
+    key = "abdm_milestone_exit"
+    name = _("ABDM milestone exit")
+    description = _(
+        "Declare completed milestones and their evidence to exit the sandbox.",
+    )
+    reference_prefix = "ABDM_EXIT"
+    started_from_predecessor = True
+    forms = (
         MilestoneDeclaration,
         HealthLockerOperations,
         TechnicalReadiness,
@@ -772,14 +921,26 @@ class ABDMProductionAccess(ApplicationDefinition):
         ProductionDetails,
     )
     actions = (
-        SubmitApplication,
+        SubmitMilestoneExit,
         WithdrawApplication,
         AskReviewTeam,
         StartReview,
         RaiseQuery,
         ReviewEvidence,
-        ApproveApplication,
-        RejectApplication,
-        RetryProvisioning,
-        RetryDeprovisioning,
+        ApproveMilestoneExit,
+        RejectMilestoneExit,
     )
+
+    @classmethod
+    def can_start(cls, organisation):
+        """An exit describes credentials, so there must be credentials.
+
+        Creation-time only: legacy holds exits filed against registrations that
+        were never approved, and the importer must be able to bring those in
+        (`13-legacy-import.md` §7.1).
+        """
+        if not provisioned_sandbox_accesses(organisation).exists():
+            return False, _(
+                "Approved sandbox access is needed before filing an exit.",
+            )
+        return True, ""

@@ -110,7 +110,7 @@ def test_rejecting_an_unprovisioned_application_is_a_no_op(reject):
 
     assert application.provisioned_resources.count() == 0
     assert Message.objects.get(application=application).template_key == (
-        TemplateKey.EXIT_REJECTED
+        TemplateKey.SANDBOX_REJECTED
     )
 
 

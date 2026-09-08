@@ -109,3 +109,18 @@ def dashboard_activity(user, organisation, limit: int = 6):
             is_internal=False,
         ).select_related("application", "actor")[:limit],
     )
+
+
+def startable_definitions(organisation):
+    """Types this organisation may open now.
+
+    A milestone exit is reachable only from the sandbox access it is about
+    (§1.2), so it never appears here — offering it as a top-level start gave a
+    page that opened and a submit that 403'd.
+    """
+    return [
+        definition
+        for definition in registry.all()
+        if not definition.started_from_predecessor
+        and definition.can_start(organisation)[0]
+    ]

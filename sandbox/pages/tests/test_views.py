@@ -16,7 +16,6 @@ from sandbox.experiences.models import ApplicationQueryThread
 from sandbox.experiences.models import EventKind
 from sandbox.experiences.models import QueryStatus
 from sandbox.experiences.services import create_application
-from sandbox.experiences.tests.factories import APPLICATION_TYPE
 from sandbox.organisations.models import Milestone
 from sandbox.organisations.models import MilestoneGrant
 from sandbox.organisations.models import Role
@@ -36,6 +35,8 @@ if TYPE_CHECKING:
     from sandbox.users.models import User
 
 pytestmark = pytest.mark.django_db
+
+SANDBOX_ACCESS_TYPE = "abdm_sandbox_access"
 
 # An error page shorter than this is the empty-skeleton bug, not a real page.
 RENDERED_ERROR_PAGE_MIN_LENGTH = 1000
@@ -176,7 +177,7 @@ class TestDashboardApplications:
 
         assert list(response.context["applications"]) == []
         body = response.content.decode()
-        assert reverse("experiences:start", args=[APPLICATION_TYPE]) in body
+        assert reverse("experiences:start", args=[SANDBOX_ACCESS_TYPE]) in body
         assert "have not started an application yet" in body
 
     def test_an_application_is_listed_with_its_status(
@@ -185,7 +186,7 @@ class TestDashboardApplications:
         owner_membership: Membership,
     ):
         application = create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=owner_membership.organisation,
             user=owner_membership.user,
         )
@@ -203,7 +204,7 @@ class TestDashboardApplications:
         owner_membership: Membership,
     ):
         application = create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=owner_membership.organisation,
             user=owner_membership.user,
         )
@@ -235,7 +236,7 @@ class TestDashboardApplications:
             role=Role.OWNER,
         )
         create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=other.organisation,
             user=other.user,
         )
@@ -267,7 +268,7 @@ class TestDashboardMilestones:
         owner_membership: Membership,
     ):
         application = create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=owner_membership.organisation,
             user=owner_membership.user,
         )
@@ -309,7 +310,7 @@ class TestDashboardActivity:
         owner_membership: Membership,
     ):
         create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=owner_membership.organisation,
             user=owner_membership.user,
         )
@@ -326,7 +327,7 @@ class TestDashboardActivity:
         owner_membership: Membership,
     ):
         application = create_application(
-            application_type=APPLICATION_TYPE,
+            application_type=SANDBOX_ACCESS_TYPE,
             organisation=owner_membership.organisation,
             user=owner_membership.user,
         )

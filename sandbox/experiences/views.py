@@ -23,6 +23,10 @@ from django.views.generic import ListView
 from django.views.generic import TemplateView
 from django_htmx.http import HttpResponseClientRedirect
 
+from sandbox.experiences.abdm.links import follow_on_applications
+from sandbox.experiences.abdm.links import follow_on_definitions
+from sandbox.experiences.abdm.links import predecessor_of
+from sandbox.experiences.abdm.links import provisioned_sandbox_accesses
 from sandbox.integrations.credentials import rotate_credentials
 from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.selectors import credentials_for
@@ -46,6 +50,7 @@ from .selectors import application_summary
 from .selectors import applications_for_user
 from .selectors import decorate_applications
 from .selectors import filter_applications
+from .selectors import startable_definitions
 from .services import application_context
 from .services import assignable_roles
 from .services import create_application
@@ -303,7 +308,7 @@ class VendorApplicationListView(
                 "filter_form": self.filter_form,
                 "filter_querystring": urlencode(self.filters),
                 "nav_section": "applications",
-                "available_definitions": registry.all(),
+                "available_definitions": startable_definitions(self.organisation),
                 **application_summary(self.request.user, self.organisation),
             },
         )
@@ -311,6 +316,8 @@ class VendorApplicationListView(
 
 
 class StartApplicationView(OrganisationMixin, TemplateView):
+    """Open an application of a type the organisation may start today."""
+
     template_name = "experiences/application_start.html"
 
     def dispatch(self, request, *args, **kwargs):
@@ -320,11 +327,18 @@ class StartApplicationView(OrganisationMixin, TemplateView):
             raise Http404 from exc
         return super().dispatch(request, *args, **kwargs)
 
+    def predecessor(self):
+        """None here; `StartFollowOnApplicationView` names one."""
+        return
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        available, reason = self.definition.can_start(self.organisation)
         context.update(
             {
                 "definition": self.definition,
+                "predecessor": self.predecessor(),
+                "blocker": "" if available else reason,
                 "nav_section": "applications",
             },
         )
@@ -335,12 +349,34 @@ class StartApplicationView(OrganisationMixin, TemplateView):
             application_type=self.definition.key,
             organisation=self.organisation,
             user=request.user,
+            predecessor=self.predecessor(),
         )
         messages.success(request, _("Application workspace created."))
         return _redirect_for_request(
             request,
             reverse("experiences:detail", kwargs={"reference": application.reference}),
         )
+
+
+class StartFollowOnApplicationView(StartApplicationView):
+    """Start an application from inside the one it is about (plan 12 §1.2).
+
+    The sandbox access is the container in the *navigation*, not the schema:
+    arriving here is how the applicant says which one this exit concerns, so
+    nothing asks them again.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        self._predecessor = None
+        return super().dispatch(request, *args, **kwargs)
+
+    def predecessor(self):
+        if self._predecessor is None:
+            self._predecessor = get_object_or_404(
+                provisioned_sandbox_accesses(self.organisation),
+                reference=self.kwargs["reference"],
+            )
+        return self._predecessor
 
 
 class ApplicationDetailContextMixin(ApplicationObjectMixin):
@@ -416,6 +452,11 @@ class VendorApplicationDetailView(
             "credentials": credentials_for(self.application),
             "provisioning": provisioning_progress(self.application),
             "provisioning_running": bool(run is not None and run.is_running),
+            # The sandbox access is the container in the navigation (§1.2): it
+            # is where follow-on applications are started, and it lists them.
+            "follow_on_definitions": follow_on_definitions(self.application),
+            "follow_on_applications": follow_on_applications(self.application),
+            "predecessor": predecessor_of(self.application),
         }
 
 

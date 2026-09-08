@@ -24,6 +24,9 @@ from sandbox.experiences.management.commands.seed_experience_demo import DRAFT_R
 from sandbox.experiences.management.commands.seed_experience_demo import (
     REVIEW_REFERENCE,
 )
+from sandbox.experiences.management.commands.seed_experience_demo import (
+    SANDBOX_REFERENCE,
+)
 from sandbox.experiences.models import ApplicationAttachment
 from sandbox.experiences.models import ApplicationInstance
 from sandbox.experiences.models import ApplicationQueryMessage
@@ -33,15 +36,16 @@ from sandbox.experiences.services import perform_application_action
 
 pytestmark = pytest.mark.django_db
 
-DRAFT_SUBMISSION_COUNT = 3
-COMPLETE_SUBMISSION_COUNT = 10
-CURRENT_COMPLETE_SUBMISSION_COUNT = 9
+SANDBOX_SUBMISSION_COUNT = 3
+DRAFT_SUBMISSION_COUNT = 1
+COMPLETE_SUBMISSION_COUNT = 7
+CURRENT_COMPLETE_SUBMISSION_COUNT = 6
 DEMO_ATTACHMENT_COUNT = 9
-DRAFT_REQUIRED_FORM_COUNT = 10
-REVIEW_REQUIRED_FORM_COUNT = 9
-DRAFT_PROGRESS_PERCENT = 30
+DRAFT_REQUIRED_FORM_COUNT = 7
+REVIEW_REQUIRED_FORM_COUNT = 6
+DRAFT_PROGRESS_PERCENT = 14
 COMPLETE_PROGRESS_PERCENT = 100
-FOUR_OF_TEN_PERCENT = 40
+TWO_OF_SEVEN_PERCENT = 29
 MULTI_FILE_COUNT = 2
 RENEWED_CERTIFICATION_NUMBER = 3
 EDITED_REVISION_NUMBER = 2
@@ -153,7 +157,10 @@ def test_seeder_creates_working_accounts_and_both_workflows(seeded_demo):
     assert admin.review_role_assignments.filter(
         role__key="decision_maker",
     ).exists()
-    assert review.metadata["product_version"] == "3.2.0"
+    sandbox_access = ApplicationInstance.objects.get(reference=SANDBOX_REFERENCE)
+    assert sandbox_access.application_type == "abdm_sandbox_access"
+    assert sandbox_access.submissions.count() == SANDBOX_SUBMISSION_COUNT
+    assert sandbox_access.metadata["product_version"] == "3.2.0"
     assert review.metadata["milestones"] == ["m1", "m2", "m3"]
     certifications = review.submissions.filter(
         form_key="security_certification",
@@ -213,7 +220,7 @@ def test_applicant_dashboard_detail_and_form_render(client, seeded_demo):
     assert detail_response.status_code == HTTPStatus.OK
     detail_html = detail_response.content.decode()
     assert "Application forms" in detail_html
-    assert "3 of 10 currently required forms complete" in detail_html
+    assert "1 of 7 currently required forms complete" in detail_html
     assert "Health locker operations" in detail_html
     assert "Technical readiness" in detail_html
     assert "Security and privacy" not in detail_html
@@ -256,7 +263,7 @@ def test_applicant_can_complete_the_next_gated_form(client, seeded_demo):
     assert response.status_code == HTTPStatus.FOUND
     application = ApplicationInstance.objects.get(reference=DRAFT_REFERENCE)
     assert application.submissions.filter(form_key="technical_readiness").exists()
-    assert application.progress_percent == FOUR_OF_TEN_PERCENT
+    assert application.progress_percent == TWO_OF_SEVEN_PERCENT
     detail_html = client.get(
         reverse("experiences:detail", args=[DRAFT_REFERENCE]),
     ).content.decode()
@@ -407,7 +414,7 @@ def test_applicant_can_raise_query_with_htmx(client, seeded_demo):
         url,
         {
             "subject": "Check partner authorization evidence",
-            "related_form": "integration_scope",
+            "related_form": "milestone_declaration",
             "message": "Would a signed authorization letter be sufficient?",
         },
         headers=HTMX_HEADERS,

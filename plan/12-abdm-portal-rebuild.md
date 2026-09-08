@@ -139,12 +139,27 @@ rather than a column on the application. Legacy asked every time only because
 already holds — that duplication is the same fusion leaking through, and it goes
 when the sandbox access form is written (§8.6).
 
-So: **sandbox access** asks for the product, and creates or matches a `Product`
-under the signed-in organisation. **Every other type** asks a single question —
-*which sandbox access is this for* — and takes the product from it. Asking for
-organisation and product separately would not disambiguate anyway: repeat
-registrations of the same product are common, so only the sandbox access
-identifies which credentials the filing concerns.
+So **sandbox access** asks for the product, and creates or matches a `Product`
+under the signed-in organisation. **Every other type asks nothing**: it is
+started from inside the sandbox access it concerns, and takes both the
+predecessor reference and the product from it.
+
+**The container is the navigation, not the schema.** A follow-on type is
+reachable only from its predecessor's page — `started_from_predecessor` keeps it
+out of the top-level start list, and `experiences:start-follow-on` is addressed
+by the predecessor's reference. Arriving there *is* the answer, so no form asks
+again. An earlier draft asked in a form; that was worse in three ways. It
+re-asked something the system already knew, it made the reference **editable**
+so a filed exit could be re-pointed after its product had been copied, and it
+left "Start milestone exit" on the list as a page that opened and a submit that
+403'd.
+
+The link is `metadata["predecessor"]`, written once at creation. Not a column:
+nothing joins on it, and §1.1's "no root container" holds — the sandbox access
+is a parent on screen and a sibling in the database, exactly as `sd_exit.sd_id`
+is in legacy. The trade is that a metadata string carries no referential
+integrity; applications are never deleted (`PROTECT` throughout), the value is
+immutable, and every resolver scopes by organisation.
 
 **Counts, so the levels are not confused.** Four *types* → many *instances* per
 organisation, of several types → *submissions* per instance, the number
@@ -1002,20 +1017,45 @@ creates products, which is a different job — `13-legacy-import.md` §7.2.
 
 | form | goes to | note |
 | ---- | ------- | ---- |
-| `OrganisationProfile` | sandbox access | shrinks — it re-asks four fields `Organisation` already holds (§1.2) |
+| `OrganisationProfile` | sandbox access | still re-asks four fields `Organisation` already holds (§1.2) |
 | `ProductUseCase` | sandbox access | creates or matches the `Product` |
-| `IntegrationScope` | sandbox access | **loses `sandbox_client_id`** — this gate issues it — and loses `sandbox_exit_request_id`, which appears nowhere in legacy and nowhere else here |
-| `TechnicalReadiness`, `SecurityCompliance` | sandbox access | to settle: these gate credentials, not production |
-| `MilestoneDeclaration` | milestone exit | stays a multi-select |
-| `SecurityCertification` (WASA) | milestone exit | |
-| `ConformanceEvidence` | milestone exit | |
-| `HealthLockerOperations` | milestone exit | scope within the exit, not a type (§1.2) |
-| `Declaration` | milestone exit | |
+| `IntegrationScope` | sandbox access | **loses `sandbox_client_id`** — this gate issues it — and `sandbox_exit_request_id`, which exists nowhere in legacy |
+| `MilestoneDeclaration` | milestone exit | heads the exit's chain; gains `additional_scope` (PHR, health locker) with dates |
+| `HealthLockerOperations` | milestone exit | conditional on that scope, not on the other application's roles |
+| `TechnicalReadiness` | milestone exit | corrected: the exit gate demands `production_callback_url` *"before submitting the exit form"* |
+| `SecurityCompliance` | milestone exit | corrected: it is one of `ReviewEvidence.reviewed_forms`, §3.2's exit artifacts |
+| `SecurityCertification`, `ConformanceEvidence`, `Declaration` | milestone exit | unchanged |
 | `ProductionDetails` | milestone exit | review-team-only, unchanged (§4.8) |
 
+An earlier draft of this table put `TechnicalReadiness` and `SecurityCompliance`
+on the sandbox access, "to settle". The code settled it the other way in two
+places, both quoted above.
+
 `start_provisioning` moves from `ApproveApplication` on production access to the
-sandbox access approval. A milestone exit's first form asks which sandbox access
-it belongs to.
+sandbox access approval — and that approval now sends **no** notification:
+`sandbox-approved` is the credentials mail, so the chain sends it on completion,
+which is the first moment there is anything to send.
+
+**2a · What the sources say about three of these forms.** Checked against
+NHA's own documentation and FAQ, not only legacy:
+
+- **`SecurityCertification` is the ported one.** NHA documents WASA — Website
+  Application Security Assessment — as exit step 2, performed by an STQC or
+  CERT-In empanelled agency and producing the **Safe-to-Host certificate**. The
+  FAQ carries eight WASA questions.
+- **`SecurityCompliance` is ours.** No security assessment beyond WASA appears
+  in the documentation, and legacy has no field for one. Kept deliberately, to
+  be checked against the newer specification; it is not an NHA requirement.
+- **`HealthLockerOperations` is ours too.** Health locker has no documentation
+  tab and no FAQ mention at all, and legacy stores four columns for it and PHR:
+  start and end dates. Its seven operational questions are additions. Kept on
+  the same terms, gated on the declaration's scope.
+
+**Two things the documentation names that we still lack.** The exit's artifacts
+are *"FT certificate & reports, WASA certificate, Undertaking and GSTIN
+certificate"* — the **GSTIN certificate has no form** (§9). And functional
+testing must be done by one of **nine named empanelled agencies**, where
+`functional_testing_agency` is free text.
 
 **3 · `can_start`.** A predicate on `ApplicationDefinition`, defaulting to
 always-true, answered against the organisation: a milestone exit needs an
@@ -1045,12 +1085,15 @@ Everything the earlier documents held open is closed. What remains:
 2. **Legacy's `security_audit_trail` holds nothing.** Either the feature was
    never switched on or our copy excluded it. If the former, "legacy has no
    record of who decided" is worth telling NHA in its own right.
-3. **Which action each exit notification hangs off.** `HOOK_TEMPLATES` carries
-   three exit templates — `notify_exit_approved`, `notify_exit_rejected`,
-   `notify_exit_sent_back` — named for a separate exit process that §1.1
-   collapsed into one application. The earlier plan deferred this *to* this
-   document; it is still unsettled, and step 5 cannot wire the effects without
-   an answer.
+3. **Which action each exit notification hangs off** — *settled by §1.2*. The
+   templates were named for a separate exit process, and the split restores it:
+   `sandbox-approved` and `sandbox-rejected` belong to the sandbox access,
+   `exit-rejected` and `production-approved` to the milestone exit. One
+   correction fell out of wiring them — **`sandbox-approved` is the credentials
+   mail**, so the chain sends it on completion and the approval sends nothing.
+   Announcing approval before the credentials exist is the same error as asking
+   for a client id before this gate issues one. `exit-sent-back` is still
+   unwired; it belongs to whatever puts an exit into `changes_requested`.
 4. **Two application-kind lists disagree** — *mostly settled by §1.2*.
    `03-database.md`'s `SANDBOX|HCX|UHI|HIU|NHCX` against the v3
    specification's sandbox access, production access, NHCX enrolment, UHI

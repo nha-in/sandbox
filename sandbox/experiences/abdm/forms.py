@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from sandbox.experiences.abdm.links import sandbox_access_form_data
 from sandbox.experiences.fields import MultipleFileField
 from sandbox.organisations.models import Milestone
 from sandbox.organisations.selectors import unmet_prerequisites
@@ -40,6 +41,13 @@ ABDM_ROLES = [
 ]
 
 MILESTONES = Milestone.choices
+
+#: Declared beside the milestones and dated the same way, which is how legacy
+#: asks and how NHA's own exit form is filled. Neither is a milestone (§3.1).
+ADDITIONAL_SCOPE = [
+    ("phr", _("Personal health record (PHR) application")),
+    ("health_locker", _("Health locker")),
+]
 
 SECURITY_CERTIFICATION_TYPES = [
     ("cert_in_audit", _("CERT-In empanelled security audit")),
@@ -240,12 +248,6 @@ class IntegrationScopeForm(ExperienceForm):
         choices=ABDM_ROLES,
         widget=forms.CheckboxSelectMultiple,
     )
-    sandbox_client_id = forms.CharField(label=_("Sandbox client ID"), max_length=150)
-    sandbox_exit_request_id = forms.CharField(
-        label=_("Sandbox exit request ID"),
-        max_length=150,
-        required=False,
-    )
     hfr_facility_ids = forms.CharField(
         label=_("HFR facility IDs"),
         widget=forms.Textarea(attrs={"rows": 4}),
@@ -299,6 +301,13 @@ class MilestoneDeclarationForm(ExperienceForm):
         widget=forms.CheckboxSelectMultiple,
     )
 
+    additional_scope = forms.MultipleChoiceField(
+        label=_("Also completed"),
+        choices=ADDITIONAL_SCOPE,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+    )
+
     demonstrated_on_current_apis = forms.BooleanField(
         label=_("M1 was implemented on V3 APIs"),
         required=False,
@@ -309,7 +318,7 @@ class MilestoneDeclarationForm(ExperienceForm):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        for value, label in MILESTONES:
+        for value, label in [*MILESTONES, *ADDITIONAL_SCOPE]:
             self.fields[f"{value}_started_on"] = forms.DateField(
                 label=_("%(milestone)s — integration started") % {"milestone": label},
                 required=False,
@@ -324,8 +333,9 @@ class MilestoneDeclarationForm(ExperienceForm):
     def clean(self):
         cleaned = super().clean()
         declared = cleaned.get("milestones") or []
+        scope = cleaned.get("additional_scope") or []
         self._check_prerequisites(declared)
-        self._check_dates(cleaned, declared)
+        self._check_dates(cleaned, [*declared, *scope])
         self._check_m1(cleaned, declared)
         self._check_roles(declared)
         return cleaned
@@ -352,7 +362,7 @@ class MilestoneDeclarationForm(ExperienceForm):
             if not completed:
                 self.add_error(
                     f"{milestone}_completed_on",
-                    _("Give the date this milestone was completed."),
+                    _("Give the date this was completed."),
                 )
             elif started and completed < started:
                 self.add_error(
@@ -383,12 +393,14 @@ class MilestoneDeclarationForm(ExperienceForm):
         return self.experience_context.application.organisation
 
     def _roles(self) -> list[str]:
+        """Declared on the sandbox access, not here — so read it through the
+        reference this exit was filed against (§1.2)."""
         if self.experience_context is None:
             return []
-        return self.experience_context.form_data("integration_scope").get(
-            "abdm_roles",
-            [],
-        )
+        return sandbox_access_form_data(
+            self.experience_context,
+            "integration_scope",
+        ).get("abdm_roles", [])
 
 
 class HealthLockerOperationsForm(ExperienceForm):

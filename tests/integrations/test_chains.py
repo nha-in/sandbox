@@ -15,11 +15,10 @@ from __future__ import annotations
 
 import pytest
 from django.test import override_settings
-from django.utils import timezone
 
 from sandbox.experiences.services import perform_application_action
-from sandbox.experiences.tests.factories import application_under_review
 from sandbox.experiences.tests.factories import review_role_holder
+from sandbox.experiences.tests.factories import sandbox_access_under_review
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedResourceState
 from sandbox.integrations.models import ProvisionedSystem
@@ -30,7 +29,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_sandbox_access"
 REALM = "abdm-sandbox"
 DEVPORTAL = "/api/am/devportal/v3"
 HIECM_API = "/api/v3"
@@ -154,19 +153,10 @@ def reviewer(db):
 
 @pytest.fixture
 def application(owner, reviewer):
-    return application_under_review(owner, reviewer)
+    return sandbox_access_under_review(owner, reviewer)
 
 
 def _approve(application, reviewer, callbacks) -> None:
-    perform_application_action(
-        application=application,
-        action_key="review_evidence",
-        user=reviewer,
-        cleaned_data={
-            "hard_copy_received_on": timezone.localdate(),
-            "verified_milestones": [],
-        },
-    )
     with callbacks(execute=True):
         perform_application_action(
             application=application,

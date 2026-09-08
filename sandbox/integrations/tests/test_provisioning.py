@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 from celery.exceptions import Retry
 from django.test import override_settings
-from django.utils import timezone
 
 from sandbox.experiences.services import perform_application_action
 from sandbox.integrations import fakes
@@ -54,19 +53,6 @@ def _refs(application) -> dict[int, str]:
     return {row.pk: row.external_ref for row in application.provisioned_resources.all()}
 
 
-def _reviewed(application, reviewer):
-    """§4.7: approval waits on the evidence review."""
-    perform_application_action(
-        application=application,
-        action_key="review_evidence",
-        user=reviewer,
-        cleaned_data={
-            "hard_copy_received_on": timezone.localdate(),
-            "verified_milestones": [],
-        },
-    )
-
-
 def _run(application) -> ProvisioningRun:
     return application.provisioning_runs.order_by("-started_at").first()
 
@@ -101,7 +87,6 @@ def test_approval_sends_the_decision_mail_and_completion_sends_the_credentials_l
     messages = Message.objects.filter(application=application)
 
     assert {message.template_key for message in messages} == {
-        TemplateKey.PRODUCTION_APPROVED,
         TemplateKey.SANDBOX_APPROVED,
     }
     # The applicant, never the reviewer who acted.
@@ -136,7 +121,6 @@ def test_nothing_is_provisioned_until_the_approval_commits(
 ):
     """The reason the chain is an effect: an adapter must never create a client
     for a decision that then rolls back."""
-    _reviewed(under_review, reviewer)
     with django_capture_on_commit_callbacks(execute=False):
         perform_application_action(
             application=under_review,
@@ -231,7 +215,7 @@ def test_a_failed_chain_sends_no_credentials_mail(approve):
 
 def test_a_missing_api_name_list_fails_without_retrying(approve):
     """Configuration is not a transient fault, so it must not burn five attempts."""
-    with override_settings(WSO2_API_NAMES={"abdm_production_access": ()}):
+    with override_settings(WSO2_API_NAMES={"abdm_sandbox_access": ()}):
         application = approve()
 
     # And the bridge is not built: a closed attempt stops the links after it.
@@ -458,7 +442,6 @@ def test_the_chain_carries_the_id_the_approval_was_made_under(
     """One id ties the decision to the credentials it caused."""
     set_correlation_id("cccccccccccccccccccccccccccccccc")
 
-    _reviewed(under_review, reviewer)
     with django_capture_on_commit_callbacks(execute=True):
         perform_application_action(
             application=under_review,
@@ -499,7 +482,6 @@ def test_punctuation_is_stripped_before_the_name_reaches_keycloak(
     under_review.organisation.legal_name = ""
     under_review.organisation.save(update_fields=["name", "legal_name"])
 
-    _reviewed(under_review, reviewer)
     with django_capture_on_commit_callbacks(execute=True):
         perform_application_action(
             application=under_review,

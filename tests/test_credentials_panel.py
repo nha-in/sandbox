@@ -22,8 +22,8 @@ from django.utils import timezone
 from sandbox.experiences.models import ApplicationAccess
 from sandbox.experiences.models import ApplicationEvent
 from sandbox.experiences.services import perform_application_action
-from sandbox.experiences.tests.factories import application_under_review
 from sandbox.experiences.tests.factories import review_role_holder
+from sandbox.experiences.tests.factories import sandbox_access_under_review
 from sandbox.integrations.credentials import take_initial_secret
 from sandbox.integrations.models import ProvisionedResource
 from sandbox.integrations.models import ProvisionedSystem
@@ -65,16 +65,7 @@ def reviewer(db):
 @pytest.fixture
 def provisioned(owner, reviewer, django_capture_on_commit_callbacks):
     """Approved, with the chain the approval schedules actually run."""
-    application = application_under_review(owner, reviewer)
-    perform_application_action(
-        application=application,
-        action_key="review_evidence",
-        user=reviewer,
-        cleaned_data={
-            "hard_copy_received_on": timezone.localdate(),
-            "verified_milestones": [],
-        },
-    )
+    application = sandbox_access_under_review(owner, reviewer)
     with django_capture_on_commit_callbacks(execute=True):
         perform_application_action(
             application=application,
@@ -183,7 +174,7 @@ def test_the_detail_page_never_carries_the_secret_on_a_get(owner, provisioned):
     page = session.get(f"/applications/{provisioned.reference}/")
 
     assert page.status_code == HTTP_OK
-    assert "Production credentials" in page.content.decode()
+    assert "Sandbox credentials" in page.content.decode()
     # Still unread: the GET must not have consumed the hand-off.
     assert take_initial_secret(provisioned) is not None
 
@@ -285,7 +276,7 @@ def test_a_developer_may_reveal_but_not_rotate(developer, provisioned):
 
 
 def test_rotation_before_provisioning_is_refused_rather_than_crashing(owner, reviewer):
-    application = application_under_review(owner, reviewer)
+    application = sandbox_access_under_review(owner, reviewer)
     session = signed_in(owner)
 
     response = rotate(session, application)

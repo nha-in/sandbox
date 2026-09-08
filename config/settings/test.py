@@ -48,7 +48,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # ------------------------------------------------------------------------------
 # `api_names_for` refuses to guess, and the real names are still outstanding from
 # NHA (B4). The chain needs *some* set to subscribe to, so tests pin one.
-WSO2_API_NAMES = {"abdm_production_access": ("HealthIdAPI", "GatewayAPI")}
+WSO2_API_NAMES = {"abdm_sandbox_access": ("HealthIdAPI", "GatewayAPI")}
 
 # DEBUGGING FOR TEMPLATES
 # ------------------------------------------------------------------------------

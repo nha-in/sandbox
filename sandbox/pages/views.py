@@ -7,10 +7,10 @@ from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 
 from sandbox.events.selectors import dashboard_events
-from sandbox.experiences.registry import registry
 from sandbox.experiences.selectors import application_summary
 from sandbox.experiences.selectors import dashboard_activity
 from sandbox.experiences.selectors import dashboard_applications
+from sandbox.experiences.selectors import startable_definitions
 from sandbox.organisations.selectors import get_membership_for
 from sandbox.organisations.selectors import milestone_progress
 from sandbox.organisations.views import OrganisationMixin
@@ -96,7 +96,7 @@ class DashboardView(OrganisationMixin, TemplateView):
                 "milestone_total": len(milestones),
                 # Offered by name, so the empty state is a way in rather than
                 # a pointer at a list to choose from.
-                "start_definitions": registry.all(),
+                "start_definitions": startable_definitions(organisation),
                 # Events are published to every vendor, so this is not scoped
                 # to the organisation — see events.selectors.
                 "upcoming_events": dashboard_events(),

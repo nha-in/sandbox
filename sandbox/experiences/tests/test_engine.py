@@ -25,6 +25,7 @@ from sandbox.experiences.services import recalculate_progress
 from sandbox.experiences.services import resolve_query
 from sandbox.experiences.services import save_form_submission
 from sandbox.experiences.tests.factories import gate_data
+from sandbox.experiences.tests.factories import provisioned_sandbox_access
 from sandbox.experiences.views import _submission_rows
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Role
@@ -33,14 +34,15 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
-FORM_COUNT = 11
+APPLICATION_TYPE = "abdm_milestone_exit"
+SANDBOX_ACCESS_TYPE = "abdm_sandbox_access"
+FORM_COUNT = 8
 #: `production_details` is not required — the review team fills it after approval.
-REQUIRED_FORM_COUNT = 10
-BASE_REQUIRED_FORM_COUNT = 9
-SCOPED_COMPLETED_FORM_COUNT = 3
-SCOPED_PROGRESS_PERCENT = 30
-BASE_PROGRESS_PERCENT = 33
+REQUIRED_FORM_COUNT = 7
+BASE_REQUIRED_FORM_COUNT = 6
+SCOPED_COMPLETED_FORM_COUNT = 1
+SCOPED_PROGRESS_PERCENT = 14
+BASE_PROGRESS_PERCENT = 17
 MULTI_FILE_COUNT = 2
 RENEWED_SUBMISSION_NUMBER = 2
 EDITED_REVISION_NUMBER = 2
@@ -75,12 +77,29 @@ def actors():
 
 
 @pytest.fixture
+def sandbox_application(actors):
+    """The first gate, where `organisation_profile` lives (§1.2)."""
+    organisation, owner, _contributor, _reviewer = actors
+    return create_application(
+        application_type=SANDBOX_ACCESS_TYPE,
+        organisation=organisation,
+        user=owner,
+    )
+
+
+@pytest.fixture
 def application(actors):
+    """A milestone exit, opened from the sandbox access it is about (§1.2).
+
+    Its own predecessor rather than `sandbox_application`: approving that one
+    would lock the very forms the tests using it are about.
+    """
     organisation, owner, _contributor, reviewer = actors
     application = create_application(
         application_type=APPLICATION_TYPE,
         organisation=organisation,
         user=owner,
+        predecessor=provisioned_sandbox_access(owner, organisation),
     )
     ReviewRoleAssignment.objects.create(
         user=reviewer,
@@ -128,8 +147,6 @@ def test_definition_exposes_static_forms_roles_permissions_and_actions():
         "review_evidence",
         "approve",
         "reject",
-        "retry_provisioning",
-        "retry_deprovisioning",
     }
     # Plan 12 §6 E2 closed the gap this used to pin: the permission key and
     # `withdrawn` status both existed with no action reaching either.
@@ -147,9 +164,9 @@ def test_new_application_grants_owner_permissions_and_gates_forms(application, a
 
     assert get_effective_access(application, owner).role.key == "applicant_owner"
     assert context.has_permission(permission_keys.SUBMIT_APPLICATION)
-    assert by_key["organisation_profile"].can_submit is True
+    assert by_key["milestone_declaration"].can_submit is True
     # Gated behind dependencies, not permissions.
-    assert by_key["product_use_case"].visible is False
+    assert by_key["technical_readiness"].visible is False
     assert by_key["declaration"].visible is False
     # In scope for the application, but never listed to the applicant (§4.8).
     assert by_key["production_details"].visible is True
@@ -263,9 +280,7 @@ def test_application_actions_use_effective_permissions(application, actors):
 def test_progress_uses_forms_applicable_to_the_current_scope(application, actors):
     _organisation, owner, _contributor, _reviewer = actors
     for form_key, data in (
-        ("organisation_profile", {}),
-        ("product_use_case", {}),
-        ("integration_scope", {"abdm_roles": ["hip", "health_locker"]}),
+        ("milestone_declaration", {"additional_scope": ["health_locker"]}),
     ):
         ApplicationFormSubmission.objects.create(
             application=application,
@@ -289,9 +304,9 @@ def test_progress_uses_forms_applicable_to_the_current_scope(application, actors
     assert health_locker_state.applicable is True
     assert health_locker_state.visible is True
 
-    integration = application.submissions.get(form_key="integration_scope")
-    integration.data = {"abdm_roles": ["hip"]}
-    integration.save(update_fields=["data", "updated_at"])
+    declaration = application.submissions.get(form_key="milestone_declaration")
+    declaration.data = {"additional_scope": []}
+    declaration.save(update_fields=["data", "updated_at"])
     recalculate_progress(application, user=owner)
     application.refresh_from_db()
     context = application_context(application, owner)
@@ -307,27 +322,42 @@ def test_progress_uses_forms_applicable_to_the_current_scope(application, actors
     assert health_locker_state.visible is False
 
 
-def test_completed_form_update_policy_is_declared_per_form(application, actors):
+def test_completed_form_update_policy_is_declared_per_form(
+    sandbox_application,
+    application,
+    actors,
+):
+    """`allow_updates` is per form, and the two examples now sit either side of
+    the split — the profile on the first gate, the declaration on the exit."""
     _organisation, owner, _contributor, _reviewer = actors
-    complete_all_forms(application, owner)
-    context = application_context(application, owner)
-    definition = registry.get(APPLICATION_TYPE)
 
-    profile_available, _reason = definition.get_form(
-        "organisation_profile",
-    ).availability(context)
-    declaration_available, declaration_reason = definition.get_form(
-        "declaration",
-    ).availability(context)
+    complete_all_forms(sandbox_application, owner)
+    profile_available, _reason = (
+        registry.get(SANDBOX_ACCESS_TYPE)
+        .get_form(
+            "organisation_profile",
+        )
+        .availability(application_context(sandbox_application, owner))
+    )
+
+    complete_all_forms(application, owner)
+    declaration_available, declaration_reason = (
+        registry.get(APPLICATION_TYPE)
+        .get_form(
+            "declaration",
+        )
+        .availability(application_context(application, owner))
+    )
 
     assert profile_available is True
     assert declaration_available is False
     assert "locked" in str(declaration_reason).lower()
 
 
-def test_editable_form_saves_immutable_revisions(application, actors):
+def test_editable_form_saves_immutable_revisions(sandbox_application, actors):
+    application = sandbox_application
     organisation, owner, _contributor, _reviewer = actors
-    form_definition = registry.get(APPLICATION_TYPE).get_form(
+    form_definition = registry.get(SANDBOX_ACCESS_TYPE).get_form(
         "organisation_profile",
     )
     first_data = {
@@ -721,7 +751,7 @@ def test_applicant_can_open_query_without_changing_application_status(
         cleaned_data={
             "subject": "Confirm acceptable custodian evidence",
             "message": "Can a signed technology-partner letter be submitted?",
-            "related_form": "integration_scope",
+            "related_form": "milestone_declaration",
         },
     )
 

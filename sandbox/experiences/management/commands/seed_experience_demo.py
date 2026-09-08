@@ -24,6 +24,9 @@ from sandbox.experiences.registry import registry
 from sandbox.experiences.services import application_context
 from sandbox.experiences.services import form_field_schema
 from sandbox.experiences.services import recalculate_progress
+from sandbox.integrations.models import ProvisionedResource
+from sandbox.integrations.models import ProvisionedResourceState
+from sandbox.integrations.models import ProvisionedSystem
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Organisation
 from sandbox.organisations.models import Role
@@ -40,9 +43,11 @@ ADMIN_NAME = "Nandita Shah"
 ORGANISATION_NAME = "Arogya Digital Health Technologies"
 ORGANISATION_SLUG = "arogya-digital-health-demo"
 
+SANDBOX_REFERENCE = "ABDM-DEMO-SANDBOX"
 DRAFT_REFERENCE = "ABDM-DEMO-DRAFT"
 REVIEW_REFERENCE = "ABDM-DEMO-REVIEW"
-APPLICATION_TYPE = "abdm_production_access"
+SANDBOX_ACCESS_TYPE = "abdm_sandbox_access"
+MILESTONE_EXIT_TYPE = "abdm_milestone_exit"
 CURRENT_CERTIFICATION_SUBMISSION_NUMBER = 2
 
 PDF_BYTES = (
@@ -92,8 +97,6 @@ def integration_data(*, include_health_locker: bool = False) -> dict:
         roles.append("health_locker")
     return {
         "abdm_roles": roles,
-        "sandbox_client_id": "SBX-AROGYA-HMIS-032",
-        "sandbox_exit_request_id": "EXIT-2026-1042",
         "hfr_facility_ids": "IN2910000123\nIN2910000456",
         "health_information_types": [
             "diagnostic_report",
@@ -106,23 +109,40 @@ def integration_data(*, include_health_locker: bool = False) -> dict:
     }
 
 
-def milestone_data() -> dict:
+def milestone_data(*, include_health_locker: bool = False) -> dict:
+    """Scope is declared here now, beside the milestones (plan 12 §1.2).
+
+    The draft declares health locker so its conditional form appears; the
+    complete application does not, so it can reach 100%.
+    """
     completed = timezone.localdate() - timedelta(days=60)
+    scope = ["health_locker"] if include_health_locker else []
     data: dict = {
         "milestones": ["m1", "m2", "m3"],
+        "additional_scope": scope,
         "demonstrated_on_current_apis": True,
     }
-    for milestone in ("m1", "m2", "m3"):
-        data[f"{milestone}_started_on"] = (completed - timedelta(days=30)).isoformat()
-        data[f"{milestone}_completed_on"] = completed.isoformat()
+    for item in ("m1", "m2", "m3", *scope):
+        data[f"{item}_started_on"] = (completed - timedelta(days=30)).isoformat()
+        data[f"{item}_completed_on"] = completed.isoformat()
     return data
 
 
-def complete_submission_data() -> dict[str, dict]:
+def sandbox_access_data(product_name: str, *, days_until_launch: int) -> dict:
+    """The first gate: who you are, what the product is, what you integrate."""
     return {
         "organisation_profile": profile_data(),
-        "product_use_case": product_data("Arogya One HMIS", days_until_launch=45),
-        "integration_scope": integration_data(),
+        "product_use_case": product_data(
+            product_name,
+            days_until_launch=days_until_launch,
+        ),
+        "integration_scope": integration_data(include_health_locker=True),
+    }
+
+
+def complete_submission_data() -> dict[str, dict]:
+    """The second gate: what you completed, and the evidence for it."""
+    return {
         "milestone_declaration": milestone_data(),
         "technical_readiness": {
             "production_callback_url": "https://abdm.example.com/gateway/v3",
@@ -234,23 +254,38 @@ class Command(BaseCommand):
 
         organisation = self._organisation(applicant, contributor)
 
+        # The first gate, approved: what issues the credentials an exit needs.
+        sandbox_access = self._application(
+            reference=SANDBOX_REFERENCE,
+            organisation=organisation,
+            applicant=applicant,
+            admin=admin,
+            status="approved",
+            application_type=SANDBOX_ACCESS_TYPE,
+        )
+        self._submissions(
+            sandbox_access,
+            applicant,
+            sandbox_access_data("Arogya Connect HMIS", days_until_launch=75),
+        )
+        self._provisioned_client(sandbox_access)
+
         draft = self._application(
             reference=DRAFT_REFERENCE,
             organisation=organisation,
             applicant=applicant,
             admin=admin,
             status="draft",
+            application_type=MILESTONE_EXIT_TYPE,
+            predecessor=sandbox_access,
         )
         self._submissions(
             draft,
             applicant,
             {
-                "organisation_profile": profile_data(),
-                "product_use_case": product_data(
-                    "Arogya Connect HMIS",
-                    days_until_launch=75,
+                "milestone_declaration": milestone_data(
+                    include_health_locker=True,
                 ),
-                "integration_scope": integration_data(include_health_locker=True),
             },
         )
         ApplicationAccess.objects.update_or_create(
@@ -270,7 +305,7 @@ class Command(BaseCommand):
                 "opened_by": applicant,
                 "assigned_to": None,
                 "submission": draft.submissions.filter(
-                    form_key="integration_scope",
+                    form_key="milestone_declaration",
                     is_current=True,
                 ).first(),
             },
@@ -290,6 +325,8 @@ class Command(BaseCommand):
             applicant=applicant,
             admin=admin,
             status="under_review",
+            application_type=MILESTONE_EXIT_TYPE,
+            predecessor=sandbox_access,
         )
         submissions = self._submissions(
             review,
@@ -431,7 +468,7 @@ class Command(BaseCommand):
         )
         return organisation
 
-    def _application(
+    def _application(  # noqa: PLR0913
         self,
         *,
         reference,
@@ -439,18 +476,22 @@ class Command(BaseCommand):
         applicant,
         admin,
         status,
+        application_type,
+        predecessor=None,
     ):
         application, _created = ApplicationInstance.objects.update_or_create(
             reference=reference,
             defaults={
-                "application_type": APPLICATION_TYPE,
-                "title": "ABDM production access",
+                "application_type": application_type,
+                "title": str(registry.get(application_type).name),
                 "organisation": organisation,
                 "created_by": applicant,
                 "status": status,
+                "product": predecessor.product if predecessor else None,
                 "metadata": {
                     "seed_key": reference,
                     "progress_percent": 0,
+                    **({"predecessor": predecessor.reference} if predecessor else {}),
                 },
                 "outcome": {},
                 "decided_at": None,
@@ -475,6 +516,22 @@ class Command(BaseCommand):
                 status_after=status,
             )
         return application
+
+    def _provisioned_client(self, application):
+        """The credential the sandbox-access approval issues.
+
+        Written directly rather than by running the chain: the seeder is a
+        demo fixture, and a real provisioning run needs the fake systems up.
+        """
+        ProvisionedResource.objects.update_or_create(
+            application=application,
+            system=ProvisionedSystem.KEYCLOAK,
+            defaults={
+                "external_ref": "keycloak-demo-client",
+                "public_ref": "SBX-AROGYA-HMIS-032",
+                "state": ProvisionedResourceState.ACTIVE,
+            },
+        )
 
     def _submissions(self, application, applicant, data_by_key):
         result = {}

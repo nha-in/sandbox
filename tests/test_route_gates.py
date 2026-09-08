@@ -42,6 +42,7 @@ from tests.conftest import MEMBER_OTHER_ORG
 from tests.conftest import MEMBERSHIP
 from tests.conftest import ORG_MEMBER
 from tests.conftest import QUERY
+from tests.conftest import SANDBOX_ACCESS
 from tests.conftest import STAFF_ACTORS
 from tests.conftest import TICKET
 
@@ -249,7 +250,14 @@ ROUTES: dict[str, Route] = {
     "experiences:list": Route(Access.TENANT_MEMBER),
     "experiences:start": Route(
         Access.TENANT_MEMBER,
-        kwargs={"application_type": "abdm_production_access"},
+        kwargs={"application_type": "abdm_sandbox_access"},
+    ),
+    "experiences:start-follow-on": Route(
+        Access.ORG_SCOPED,
+        kwargs=lambda context: {
+            "reference": context[SANDBOX_ACCESS].reference,
+            "application_type": "abdm_milestone_exit",
+        },
     ),
     "experiences:detail": Route(Access.ORG_SCOPED, kwargs=_reference),
     "experiences:form": Route(Access.ORG_SCOPED, kwargs=_form),

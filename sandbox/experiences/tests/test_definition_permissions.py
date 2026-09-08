@@ -20,7 +20,7 @@ from sandbox.experiences.definitions import RoleDefinition
 from sandbox.experiences.definitions import StatusDefinition
 from sandbox.experiences.registry import registry
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_milestone_exit"
 
 
 class BareForm(forms.Form):

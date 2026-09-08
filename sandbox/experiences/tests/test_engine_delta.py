@@ -18,6 +18,7 @@ from sandbox.experiences.permissions import get_effective_access
 from sandbox.experiences.registry import registry
 from sandbox.experiences.services import create_application
 from sandbox.experiences.services import perform_application_action
+from sandbox.experiences.tests.factories import provisioned_sandbox_access
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Role
 from sandbox.organisations.tests.factories import OrganisationFactory
@@ -25,7 +26,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_milestone_exit"
 
 
 @pytest.fixture
@@ -66,6 +67,7 @@ def abdm_application(owner_user, staff_user):
         application_type=APPLICATION_TYPE,
         organisation=organisation,
         user=owner_user,
+        predecessor=provisioned_sandbox_access(owner_user, organisation),
     )
     ApplicationAccess.objects.create(
         application=application,

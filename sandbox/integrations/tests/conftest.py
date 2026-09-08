@@ -16,8 +16,8 @@ import pytest
 from django.utils import timezone
 
 from sandbox.experiences.services import perform_application_action
-from sandbox.experiences.tests.factories import application_under_review
 from sandbox.experiences.tests.factories import review_role_holder
+from sandbox.experiences.tests.factories import sandbox_access_under_review
 from sandbox.users.tests.factories import UserFactory
 
 #: What `ApprovalForm` would have cleaned. Passed straight to the action, since
@@ -48,8 +48,9 @@ def reviewer(db):
 
 @pytest.fixture
 def under_review(owner, reviewer):
-    """Submitted and picked up — one action short of every decision."""
-    return application_under_review(owner, reviewer)
+    """A sandbox access submitted and picked up — one action short of the
+    approval that provisions (plan 12 §1.2)."""
+    return sandbox_access_under_review(owner, reviewer)
 
 
 @pytest.fixture
@@ -57,16 +58,7 @@ def approve(under_review, reviewer, django_capture_on_commit_callbacks):
     """Approve, running the chain the approval schedules on commit."""
 
     def _approve():
-        # §4.7: approval waits on the evidence review.
-        perform_application_action(
-            application=under_review,
-            action_key="review_evidence",
-            user=reviewer,
-            cleaned_data={
-                "hard_copy_received_on": timezone.localdate(),
-                "verified_milestones": [],
-            },
-        )
+        # The first gate has no evidence review; approving it is the whole step.
         with django_capture_on_commit_callbacks(execute=True):
             perform_application_action(
                 application=under_review,

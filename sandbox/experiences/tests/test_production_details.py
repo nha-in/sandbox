@@ -26,7 +26,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_milestone_exit"
 FORM_KEY = "production_details"
 COMPLETE_PERCENT = 100
 

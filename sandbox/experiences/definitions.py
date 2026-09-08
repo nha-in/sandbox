@@ -493,6 +493,23 @@ class ApplicationDefinition:
     forms: ClassVar[tuple[type[ApplicationFormDefinition], ...]]
     actions: ClassVar[tuple[type[ApplicationAction], ...]]
 
+    #: Reachable only from the application it follows (plan 12 §1.2). Such a
+    #: type is never offered as a top-level start: arriving from its
+    #: predecessor is what says which one it is about, and a start with no
+    #: predecessor would produce an application that cannot say.
+    started_from_predecessor: ClassVar[bool] = False
+
+    @classmethod
+    def can_start(cls, organisation) -> tuple[bool, str]:
+        """Whether this organisation may open a new application of this type.
+
+        A **creation-time** gate, not an invariant: legacy holds exits filed
+        against registrations that were never approved, and a rule written
+        afterwards must not make that history unimportable
+        (`13-legacy-import.md` §7.1). Nothing re-checks it later.
+        """
+        return True, ""
+
     @classmethod
     def validate(cls) -> None:
         collections = {

@@ -30,6 +30,7 @@ from sandbox.experiences.models import ReviewRoleAssignment
 from sandbox.experiences.services import create_application
 from sandbox.experiences.services import perform_application_action
 from sandbox.experiences.tests.factories import gate_data
+from sandbox.experiences.tests.factories import provisioned_sandbox_access
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Role
 from sandbox.organisations.tests.factories import InvitationFactory
@@ -45,7 +46,7 @@ collect_ignore = [
     "test_template_syntax.py",
 ]
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_milestone_exit"
 
 ANONYMOUS = "anonymous"
 ORG_MEMBER = "org_member"
@@ -58,6 +59,7 @@ STAFF_ACTORS = (REVIEWER, STAFF)
 
 #: Keys into the `context` bundle a route's `kwargs` callable receives.
 APPLICATION = "application"
+SANDBOX_ACCESS = "sandbox_access"
 ATTACHMENT = "attachment"
 EVENT = "event"
 INVITATION = "invitation"
@@ -168,12 +170,23 @@ def clients(actors):
 
 
 @pytest.fixture
-def application(org_a, org_member, reviewer):
-    """Under review, so both the vendor and the console rows resolve."""
+def sandbox_access(org_a, org_member):
+    """The first gate, approved and provisioned (plan 12 §1.2).
+
+    An exit cannot be opened without one, and `experiences:start-follow-on` is
+    addressed by its reference.
+    """
+    return provisioned_sandbox_access(org_member, org_a)
+
+
+@pytest.fixture
+def application(org_a, org_member, reviewer, sandbox_access):
+    """A milestone exit under review, so vendor and console rows both resolve."""
     instance = create_application(
         application_type=APPLICATION_TYPE,
         organisation=org_a,
         user=org_member,
+        predecessor=sandbox_access,
     )
     from sandbox.experiences.registry import registry  # noqa: PLC0415
 
@@ -268,6 +281,7 @@ def access_grant(application, membership):
 @pytest.fixture
 def objects(  # noqa: PLR0913, PLR0917 - one fixture per row a URL can name
     application,
+    sandbox_access,
     query,
     attachment,
     membership,
@@ -278,6 +292,7 @@ def objects(  # noqa: PLR0913, PLR0917 - one fixture per row a URL can name
     """The rows a route's `kwargs` callable can name, in one bundle."""
     return {
         APPLICATION: application,
+        SANDBOX_ACCESS: sandbox_access,
         QUERY: query,
         ATTACHMENT: attachment,
         MEMBERSHIP: membership,

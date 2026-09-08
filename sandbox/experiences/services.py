@@ -83,10 +83,30 @@ def _json_value(value: Any) -> Any:
 
 
 @transaction.atomic
-def create_application(*, application_type: str, organisation, user):
+def create_application(
+    *,
+    application_type: str,
+    organisation,
+    user,
+    predecessor=None,
+):
+    """Open a new application, optionally recording what it follows from.
+
+    `predecessor` is the application this one is about — a milestone exit and
+    the sandbox access whose credentials it concerns (plan 12 §1.2). It is an
+    immutable metadata reference rather than a column: nothing joins on it, and
+    the applicant never chooses it, having chosen by navigating from it.
+    """
     definition = registry.get(application_type)
     if not organisation.memberships.filter(user=user).exists():
         msg = _("Only an organisation member can start its application.")
+        raise PermissionDenied(msg)
+    # Creation time only — never an invariant (13-legacy-import.md §7.1).
+    allowed, reason = definition.can_start(organisation)
+    if not allowed:
+        raise PermissionDenied(reason)
+    if predecessor is not None and predecessor.organisation_id != organisation.pk:
+        msg = _("That application belongs to a different organisation.")
         raise PermissionDenied(msg)
 
     application = ApplicationInstance.objects.create(
@@ -96,7 +116,14 @@ def create_application(*, application_type: str, organisation, user):
         organisation=organisation,
         created_by=user,
         status=definition.initial_status,
-        metadata={"progress_percent": 0, "completed_forms": 0},
+        # The product comes with the predecessor: an exit is about the product
+        # its sandbox access named, and never asks for one itself.
+        product=predecessor.product if predecessor else None,
+        metadata={
+            "progress_percent": 0,
+            "completed_forms": 0,
+            **({"predecessor": predecessor.reference} if predecessor else {}),
+        },
     )
     ApplicationAccess.objects.create(
         application=application,

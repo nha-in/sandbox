@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+from django.core.exceptions import PermissionDenied
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
@@ -22,6 +23,9 @@ from sandbox.experiences.selectors import filter_applications
 from sandbox.experiences.services import create_application
 from sandbox.experiences.services import save_form_submission
 from sandbox.experiences.tests.factories import review_role_holder
+from sandbox.integrations.models import ProvisionedResource
+from sandbox.integrations.models import ProvisionedResourceState
+from sandbox.integrations.models import ProvisionedSystem
 from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Product
 from sandbox.organisations.models import Role
@@ -31,7 +35,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_sandbox_access"
 
 
 @pytest.fixture
@@ -241,3 +245,61 @@ class TestOrganisationInvariant:
         )
 
         application.full_clean(exclude=["reference", "title", "status"])
+
+
+class TestTheExitInheritsItsProduct:
+    """An exit is about a product it never asks for: `ProductUseCase` is on the
+    first gate, so the predecessor carries it (plan 12 §1.2)."""
+
+    def test_opening_an_exit_from_a_sandbox_access_carries_its_product_over(
+        self,
+        application,
+        owner,
+    ):
+        _submit(application, owner, "product_use_case", _product_data("Arogya HMIS"))
+        application.status = "approved"
+        application.save(update_fields=["status"])
+        ProvisionedResource.objects.create(
+            application=application,
+            system=ProvisionedSystem.KEYCLOAK,
+            external_ref="keycloak-test",
+            public_ref="SBX-0001",
+            state=ProvisionedResourceState.ACTIVE,
+        )
+
+        exit_application = create_application(
+            application_type="abdm_milestone_exit",
+            organisation=application.organisation,
+            user=owner,
+            predecessor=application,
+        )
+
+        assert exit_application.product == application.product
+        assert exit_application.metadata["predecessor"] == application.reference
+        assert Product.objects.count() == 1
+
+    def test_an_exit_cannot_follow_another_organisations_application(
+        self,
+        application,
+        owner,
+    ):
+        stranger_org = OrganisationFactory(onboarded=True, name="Northwind")
+        outsider = UserFactory(email="other@vendor.in")
+        Membership.objects.create(
+            organisation=stranger_org,
+            user=outsider,
+            role=Role.OWNER,
+        )
+        stranger = create_application(
+            application_type="abdm_sandbox_access",
+            organisation=stranger_org,
+            user=outsider,
+        )
+
+        with pytest.raises(PermissionDenied):
+            create_application(
+                application_type="abdm_milestone_exit",
+                organisation=application.organisation,
+                user=owner,
+                predecessor=stranger,
+            )

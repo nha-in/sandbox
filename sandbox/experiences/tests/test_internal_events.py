@@ -18,7 +18,7 @@ from sandbox.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
 
-APPLICATION_TYPE = "abdm_production_access"
+APPLICATION_TYPE = "abdm_milestone_exit"
 
 
 @pytest.fixture
@@ -45,9 +45,11 @@ def test_the_reviewer_only_actions_are_internal():
     definition = registry.get(APPLICATION_TYPE)
 
     assert definition.get_action("review_evidence").internal_event is True
-    assert definition.get_action("retry_provisioning").internal_event is True
-    assert definition.get_action("retry_deprovisioning").internal_event is True
     assert definition.get_action("approve").internal_event is False
+    # The retries belong to the gate that provisioned, not to the exit (§1.2).
+    sandbox_access = registry.get("abdm_sandbox_access")
+    assert sandbox_access.get_action("retry_provisioning").internal_event is True
+    assert sandbox_access.get_action("retry_deprovisioning").internal_event is True
     assert definition.get_action("raise_query").internal_event is False
 
 
