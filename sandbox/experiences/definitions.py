@@ -48,7 +48,8 @@ class StatusDefinition:
     key: str
     label: str
     description: str
-    variant: str = "muted"
+    #: A `ui-badge--` modifier the theme defines. "neutral" is the quiet one.
+    variant: str = "neutral"
     terminal: bool = False
 
 

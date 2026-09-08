@@ -626,7 +626,12 @@ class ABDMProductionAccess(ApplicationDefinition):
     )
     reference_prefix = "ABDM"
     statuses = (
-        StatusDefinition("draft", _("Draft"), _("Forms are being completed."), "muted"),
+        StatusDefinition(
+            "draft",
+            _("Draft"),
+            _("Forms are being completed."),
+            "neutral",
+        ),
         StatusDefinition(
             "submitted",
             _("Submitted"),
@@ -669,7 +674,7 @@ class ABDMProductionAccess(ApplicationDefinition):
             "withdrawn",
             _("Withdrawn"),
             _("The applicant withdrew this application."),
-            "muted",
+            "neutral",
             terminal=True,
         ),
     )
