@@ -31,7 +31,7 @@ from sandbox.organisations.models import Membership
 from sandbox.organisations.models import Organisation
 from sandbox.organisations.models import Role
 
-DEFAULT_PASSWORD = "experience-demo-2026"  # noqa: S105
+DEFAULT_PASSWORD = "Lilo@123"  # noqa: S105
 
 APPLICANT_EMAIL = "applicant@abdm-demo.in"
 APPLICANT_NAME = "Dr Kavya Rao"

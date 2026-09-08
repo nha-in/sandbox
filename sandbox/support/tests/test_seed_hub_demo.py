@@ -45,6 +45,7 @@ PAST_EVENTS = 1
 DRAFT_EVENTS = 1
 
 STAFF_EMAIL = "anand@nha.gov.in"
+ADMIN_EMAIL = "admin@nha.gov.in"
 OWNER_EMAIL = "meera@arogyasystems.in"
 DEVELOPER_EMAIL = "rahul@arogyasystems.in"
 
@@ -304,7 +305,11 @@ class TestItRespectsExistingData:
 
         assert not User.objects.filter(email=OWNER_EMAIL).exists()
         assert not User.objects.filter(email=DEVELOPER_EMAIL).exists()
-        assert User.objects.count() == 1
+        # Only the two NHA-side accounts, which belong to no organisation.
+        assert set(User.objects.values_list("email", flat=True)) == {
+            STAFF_EMAIL,
+            ADMIN_EMAIL,
+        }
 
     def test_fresh_leaves_an_operators_own_organisation_standing(self):
         theirs = Organisation.objects.create(name="Sunrise Health Systems")

@@ -36,10 +36,12 @@ User = get_user_model()
 
 # Documented dev password. Override with --password; never used outside a
 # developer machine, where the whole point is that the accounts are shareable.
-DEFAULT_PASSWORD = "staff-demo-pass-2026"  # noqa: S105
+DEFAULT_PASSWORD = "Lilo@123"  # noqa: S105
 
 STAFF_EMAIL = "anand@nha.gov.in"
 STAFF_NAME = "Anand S"
+ADMIN_EMAIL = "admin@nha.gov.in"
+ADMIN_NAME = "Portal Admin"
 
 DEMO_ORGANISATION_NAME = "Arogya Systems"
 DEMO_ORGANISATION_SLUG = "arogya-systems"
@@ -393,7 +395,12 @@ EVENT_SPECS: list[EventSpec] = [
     ),
 ]
 
-DEMO_ACCOUNT_EMAILS = [STAFF_EMAIL, DEMO_OWNER_EMAIL, DEMO_DEVELOPER_EMAIL]
+DEMO_ACCOUNT_EMAILS = [
+    STAFF_EMAIL,
+    ADMIN_EMAIL,
+    DEMO_OWNER_EMAIL,
+    DEMO_DEVELOPER_EMAIL,
+]
 DEMO_TICKET_SUBJECTS = [spec.subject for spec in TICKET_SPECS]
 DEMO_EVENT_SLUGS = [spec.slug for spec in EVENT_SPECS]
 
@@ -448,6 +455,7 @@ class Command(BaseCommand):
             self._delete_demo_data()
 
         staff_user = self._ensure_staff_member(password, report)
+        self._ensure_admin(password, report)
         organisations = self._ensure_organisations(password, report)
         self._ensure_tickets(organisations, staff_user, report)
         self._ensure_events(staff_user, report)
@@ -511,6 +519,29 @@ class Command(BaseCommand):
         self._mark_email_verified(user)
         report.accounts.append(
             Account(user.email, user.name, "review team (staff)", created=created),
+        )
+        return user
+
+    def _ensure_admin(self, password: str, report: Report):
+        """A superuser, so `/admin/` is reachable after a reseed.
+
+        Neither seeder made one, so the admin site belonged to nobody until
+        somebody created an account by hand — and a reseed dropped it again.
+        `is_staff` alone opens `/admin/` but lists no models; the permissions
+        are what fill it, which is why this one is a superuser.
+        """
+        user, created = User.objects.get_or_create(
+            email=ADMIN_EMAIL,
+            defaults={"name": ADMIN_NAME, "is_staff": True, "is_superuser": True},
+        )
+        user.name = user.name or ADMIN_NAME
+        user.is_staff = True
+        user.is_superuser = True
+        user.set_password(password)
+        user.save()
+        self._mark_email_verified(user)
+        report.accounts.append(
+            Account(user.email, user.name, "superuser", created=created),
         )
         return user
 
@@ -791,5 +822,6 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"Password: {password}"))
         self.stdout.write(
-            "Sign in at /accounts/login/ — the STAFF account also reaches /admin/.",
+            "Sign in at /accounts/login/. Only the superuser sees anything in "
+            "/admin/: is_staff opens the admin site, permissions fill it.",
         )
